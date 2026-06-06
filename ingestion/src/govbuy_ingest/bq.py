@@ -34,6 +34,31 @@ def _sha(*parts: str) -> str:
     return hashlib.sha256("".join(parts).encode()).hexdigest()
 
 
+_ISO_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def _coerce_date(v):
+    """Normalise a date value to ISO (YYYY-MM-DD) for BigQuery DATE columns, or None if unparseable.
+    Agentic extraction yields mixed formats (UK DD/MM/YYYY, slashes); a single bad cell must not fail
+    the whole reproject, so anything we can't confidently parse becomes NULL (a nullable date)."""
+    if v in (None, ""):
+        return None
+    s = str(v).strip()
+    if _ISO_DATE.match(s):
+        return s
+    m = re.match(r"^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$", s)  # DD/MM/YYYY or DD-MM-YYYY
+    if m:
+        d, mo, y = m.groups()
+        if 1 <= int(mo) <= 12 and 1 <= int(d) <= 31:
+            return f"{y}-{int(mo):02d}-{int(d):02d}"
+        return None
+    m = re.match(r"^(\d{4})[/](\d{1,2})[/](\d{1,2})$", s)  # YYYY/MM/DD
+    if m:
+        y, mo, d = m.groups()
+        return f"{y}-{int(mo):02d}-{int(d):02d}"
+    return s[:10] if _ISO_DATE.match(s[:10]) else None  # ISO with time suffix -> date part
+
+
 def query(sql: str) -> list[dict]:
     return [dict(r) for r in client().query(sql).result()]
 
@@ -231,6 +256,13 @@ def rebuild_public() -> dict:
     mechanics = _dedup(mechanics, NATURAL_KEY["award_mechanic"])
     docs = _dedup(docs, NATURAL_KEY["buying_doc"])
     obs = _dedup(obs, NATURAL_KEY["appointment_observation"])
+
+    # Normalise DATE columns (agentic extraction yields mixed/UK formats) so one bad cell can't fail
+    # the whole reproject.
+    for r in instruments:
+        for c in ("starts_on", "expires_on"):
+            if c in r:
+                r[c] = _coerce_date(r.get(c))
 
     counts = {}
     _replace("operator", operators); counts["operator"] = len(operators)
