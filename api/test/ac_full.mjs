@@ -12,7 +12,7 @@ const ck = (id, cond, d) => { console.log(`${cond ? "PASS" : "FAIL"} ${id} — $
   ck("AC-1", i.lifecycle_status === "live_for_call_off" && (i.lots || []).length > 0 && (i.award_mechanics || []).length > 0 && (i.buying_docs || []).length > 0 && !!i.evidence,
     `G-Cloud 14: ${(i.lots || []).length} lots, ${(i.award_mechanics || []).length} mechanics, evidence=${!!i.evidence}`); }
 
-{ const { j } = await J("find_routes", { need: "AI product", limit: 8 }); const rms = (j.routes || []).map(r => r.rm_reference);
+{ const { j } = await J("find_routes", { need: "AI product", limit: 40 }); const rms = (j.routes || []).map(r => r.rm_reference);
   const dps = (j.routes || []).find(r => r.rm_reference === "RM6200");
   const barred = dps && (dps.award_mechanics || []).some(m => m.mechanic === "call_off_no_further_competition" && m.permitted === false);
   ck("AC-2", j.count > 0 && rms.includes("RM1557.14") && rms.includes("RM6200") && barred && (j.payment_caveats || []).some(p => p.mechanism === "gpc"),

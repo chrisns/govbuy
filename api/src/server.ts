@@ -97,9 +97,9 @@ export function buildServer(): McpServer {
         LEFT JOIN ${CE} ie ON ie.evidence_id = i.evidence_id
         WHERE i.lifecycle_status = 'live_for_call_off'
           AND (ARRAY_LENGTH(@toks) = 0
-            OR EXISTS (SELECT 1 FROM UNNEST(@toks) tok WHERE LOWER(i.name) LIKE CONCAT('%', tok, '%'))
-            OR EXISTS (SELECT 1 FROM UNNEST(i.category_tags) t, UNNEST(@toks) tok WHERE LOWER(t) LIKE CONCAT('%', tok, '%'))
-            OR EXISTS (SELECT 1 FROM ${tableRef("lot")} l, UNNEST(@toks) tok WHERE l.instrument_id = i.instrument_id AND (LOWER(l.title) LIKE CONCAT('%', tok, '%') OR LOWER(IFNULL(l.scope,'')) LIKE CONCAT('%', tok, '%'))))
+            OR EXISTS (SELECT 1 FROM UNNEST(@toks) tok WHERE REGEXP_CONTAINS(LOWER(i.name), CONCAT(r'\b', tok, r'\b')))
+            OR EXISTS (SELECT 1 FROM UNNEST(i.category_tags) t, UNNEST(@toks) tok WHERE LOWER(t) = tok OR LOWER(t) LIKE CONCAT(tok, '%'))
+            OR EXISTS (SELECT 1 FROM ${tableRef("lot")} l, UNNEST(@toks) tok WHERE l.instrument_id = i.instrument_id AND (REGEXP_CONTAINS(LOWER(l.title), CONCAT(r'\b', tok, r'\b')) OR REGEXP_CONTAINS(LOWER(IFNULL(l.scope,'')), CONCAT(r'\b', tok, r'\b')))))
         ORDER BY i.name LIMIT @lim`;
       const rows = await runQuery(sql, { params: { toks, lim: args.limit }, types: { toks: ["STRING"] } });
       return ok(withFreshness({ count: rows.length, note: NOT_ADVICE, payment_caveats: await paymentCaveats(), routes: rows.map(deep) }, await freshness()));
@@ -159,9 +159,9 @@ export function buildServer(): McpServer {
         LEFT JOIN ${CE} ie ON ie.evidence_id = i.evidence_id
         WHERE ${openClause}
           AND (ARRAY_LENGTH(@toks) = 0
-            OR EXISTS (SELECT 1 FROM UNNEST(@toks) tok WHERE LOWER(i.name) LIKE CONCAT('%', tok, '%'))
-            OR EXISTS (SELECT 1 FROM UNNEST(i.category_tags) t, UNNEST(@toks) tok WHERE LOWER(t) LIKE CONCAT('%', tok, '%'))
-            OR EXISTS (SELECT 1 FROM ${tableRef("lot")} l, UNNEST(@toks) tok WHERE l.instrument_id = i.instrument_id AND (LOWER(l.title) LIKE CONCAT('%', tok, '%') OR LOWER(IFNULL(l.scope,'')) LIKE CONCAT('%', tok, '%'))))
+            OR EXISTS (SELECT 1 FROM UNNEST(@toks) tok WHERE REGEXP_CONTAINS(LOWER(i.name), CONCAT(r'\b', tok, r'\b')))
+            OR EXISTS (SELECT 1 FROM UNNEST(i.category_tags) t, UNNEST(@toks) tok WHERE LOWER(t) = tok OR LOWER(t) LIKE CONCAT(tok, '%'))
+            OR EXISTS (SELECT 1 FROM ${tableRef("lot")} l, UNNEST(@toks) tok WHERE l.instrument_id = i.instrument_id AND (REGEXP_CONTAINS(LOWER(l.title), CONCAT(r'\b', tok, r'\b')) OR REGEXP_CONTAINS(LOWER(IFNULL(l.scope,'')), CONCAT(r'\b', tok, r'\b')))))
         ORDER BY joinable_now DESC, i.name LIMIT @lim`;
       const rows = await runQuery(sql, { params: { toks, lim: args.limit }, types: { toks: ["STRING"] } });
       return ok(withFreshness({ count: rows.length, note: "If you cannot be appointed directly, see list_resellers for thin-primes/VARs that can route you in. " + NOT_ADVICE, instruments: rows.map(deep) }, await freshness()));

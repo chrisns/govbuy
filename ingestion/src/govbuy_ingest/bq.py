@@ -4,6 +4,7 @@ into the typed public tables; CH matching; the §15 spend-coverage metric; run l
 from __future__ import annotations
 import hashlib
 import json
+import re
 from datetime import datetime, timezone, date
 from pathlib import Path
 
@@ -142,11 +143,54 @@ def rebuild_public() -> dict:
                 row["evidence_id"] = pp["_evidence_id"]
         return list(merged.values())
 
+    # Project the instrument family up front so we can dedup instruments by RM stem.
+    operators = project("operator")
+    instruments = project("instrument")
+    lots = project("lot")
+    mechanics = project("award_mechanic")
+    docs = project("buying_doc")
+    obs = project("appointment_observation")
+
+    # --- dedup instruments by RM stem: ONE canonical instrument per framework (keep the richest by
+    #     child-fact count, then field completeness); remap child facts onto the canonical id so a
+    #     thin duplicate (e.g. a census stub) never shadows the detailed record. ---
+    _STEM = re.compile(r"RM[0-9]{3,5}")
+    def _stem(rm):
+        m = _STEM.search(str(rm).upper()) if rm else None
+        return m.group(0) if m else None
+    child_counts: dict[str, int] = {}
+    for lst in (lots, mechanics, docs, obs):
+        for row in lst:
+            iid = row.get("instrument_id")
+            if iid:
+                child_counts[iid] = child_counts.get(iid, 0) + 1
+    by_stem: dict[str, list[dict]] = {}
+    for row in instruments:
+        s = _stem(row.get("rm_reference"))
+        if s:
+            by_stem.setdefault(s, []).append(row)
+    alias: dict[str, str] = {}
+    for s, rws in by_stem.items():
+        if len(rws) > 1:
+            canon = max(rws, key=lambda r: (child_counts.get(r["instrument_id"], 0),
+                                            sum(1 for v in r.values() if v not in (None, ""))))["instrument_id"]
+            for r in rws:
+                if r["instrument_id"] != canon:
+                    alias[r["instrument_id"]] = canon
+    if alias:
+        instruments = [r for r in instruments if r["instrument_id"] not in alias]
+        for lst in (lots, mechanics, docs, obs):
+            for row in lst:
+                if row.get("instrument_id") in alias:
+                    row["instrument_id"] = alias[row["instrument_id"]]
+
     counts = {}
-    for ft in ["operator", "instrument", "lot", "award_mechanic", "buying_doc", "inbound_scope"]:
-        r = project(ft)
-        _replace(ft, r)
-        counts[ft] = len(r)
+    _replace("operator", operators); counts["operator"] = len(operators)
+    _replace("instrument", instruments); counts["instrument"] = len(instruments)
+    _replace("lot", lots); counts["lot"] = len(lots)
+    _replace("award_mechanic", mechanics); counts["award_mechanic"] = len(mechanics)
+    _replace("buying_doc", docs); counts["buying_doc"] = len(docs)
+    inbound = project("inbound_scope"); _replace("inbound_scope", inbound); counts["inbound_scope"] = len(inbound)
     # reseller_channel: dedicated facts + derived from supplier facts that carry a channel_type/role
     rc = project("reseller_channel")
     rc_keys = {(r.get("supplier_id"), r.get("channel_type")) for r in rc}
@@ -156,19 +200,12 @@ def rebuild_public() -> dict:
         if ct and sid and (sid, ct) not in rc_keys:
             rc.append({"supplier_id": sid, "channel_type": ct, "confidence": p.get("confidence", 0.6), "evidence_id": p["_evidence_id"]})
             rc_keys.add((sid, ct))
-    _replace("reseller_channel", rc)
-    counts["reseller_channel"] = len(rc)
-    # supplier base (CH fields filled by ch_match)
+    _replace("reseller_channel", rc); counts["reseller_channel"] = len(rc)
     suppliers = project("supplier")
-    _replace("supplier", suppliers)
-    counts["supplier"] = len(suppliers)
-    # observations -> resolved appointed_supplier
-    obs = project("appointment_observation")
-    _replace("appointment_observation", obs)
-    counts["appointment_observation"] = len(obs)
+    _replace("supplier", suppliers); counts["supplier"] = len(suppliers)
+    _replace("appointment_observation", obs); counts["appointment_observation"] = len(obs)
     resolved = resolve([{**o, "evidence_id": o.get("evidence_id")} for o in obs], today=date.today())
-    _replace("appointed_supplier", resolved)
-    counts["appointed_supplier"] = len(resolved)
+    _replace("appointed_supplier", resolved); counts["appointed_supplier"] = len(resolved)
     return counts
 
 
