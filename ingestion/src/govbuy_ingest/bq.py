@@ -47,6 +47,22 @@ def _append(table: str, rows: list[dict], dataset: str = "raw") -> None:
     job.result()
 
 
+def _latest_ch_matches() -> dict[str, dict]:
+    """Latest Companies House match per normalised source name. The append-only supplier_match log
+    is the source of truth for CH resolution, so a rebuild merges these back instead of wiping
+    accrued CRNs (and re-hitting the CH API on every nightly rebuild)."""
+    try:
+        rows = query(f"""
+            SELECT source_name_norm, company_number, registered_name, match_confidence,
+                   match_band, status_at_match, matched_on
+            FROM `{config.raw('supplier_match')}`
+            QUALIFY ROW_NUMBER() OVER (PARTITION BY source_name_norm ORDER BY matched_on DESC) = 1
+        """)
+    except Exception:  # table may not exist on a cold rebuild
+        return {}
+    return {r["source_name_norm"]: r for r in rows}
+
+
 def _replace(table: str, rows: list[dict]) -> int:
     """Build-and-swap: truncate the public table then load (atomic-ish for the demo; prod uses a
     staging table + table rename). Rows missing a REQUIRED column are dropped (data-quality gate)
@@ -158,24 +174,30 @@ def rebuild_public() -> dict:
                    if not (r.get("operator_id") == "gca" and r.get("rm_reference")
                            and not _CANON_RM.match(str(r["rm_reference"]).upper()))]
 
-    # --- dedup instruments by RM stem: ONE canonical instrument per framework (keep the richest by
-    #     child-fact count, then field completeness); remap child facts onto the canonical id so a
-    #     thin duplicate (e.g. a census stub) never shadows the detailed record. ---
+    # --- dedup instruments to ONE canonical per framework (keep the richest by child-fact count, then
+    #     field completeness); remap child facts onto the canonical id so a thin duplicate (e.g. a
+    #     census stub, or an earlier partial agentic load) never shadows the detailed record. The key
+    #     is OPERATOR-SCOPED: a non-CCS framework that cites a GCA RM (e.g. YPO listing RM6361) must NOT
+    #     merge into the actual GCA instrument, and two operators sharing a local code ("1081") are
+    #     distinct. Within an operator we merge on the reference if present, else on the normalised name
+    #     (so the same framework re-loaded with a different instrument_id still collapses). ---
     def _rmkey(rm):
-        # dedup on the FULL reference (merges true duplicate records, e.g. two RM6200 rows) but keeps
-        # distinct iterations apart (RM1557.14 vs RM1557.15 are different instruments).
         return (str(rm).strip().upper() or None) if rm else None
+    def _name_norm(s):
+        return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9 ]", " ", (s or "").lower())).strip()
+    def _dkey(row):
+        op = row.get("operator_id") or ""
+        rm = _rmkey(row.get("rm_reference"))
+        return (op, "rm:" + rm) if rm else (op, "name:" + _name_norm(row.get("name")))
     child_counts: dict[str, int] = {}
     for lst in (lots, mechanics, docs, obs):
         for row in lst:
             iid = row.get("instrument_id")
             if iid:
                 child_counts[iid] = child_counts.get(iid, 0) + 1
-    by_rm: dict[str, list[dict]] = {}
+    by_rm: dict[tuple, list[dict]] = {}
     for row in instruments:
-        s = _rmkey(row.get("rm_reference"))
-        if s:
-            by_rm.setdefault(s, []).append(row)
+        by_rm.setdefault(_dkey(row), []).append(row)
     alias: dict[str, str] = {}
     for s, rws in by_rm.items():
         if len(rws) > 1:
@@ -198,6 +220,18 @@ def rebuild_public() -> dict:
     docs = [r for r in docs if r.get("instrument_id") in valid_ids]
     obs = [r for r in obs if r.get("instrument_id") in valid_ids]
 
+    # Re-dedup child facts by natural key after the remap (the instrument dedup can collapse two
+    # instrument_ids onto one canonical, producing duplicate child rows — e.g. award mechanics).
+    def _dedup(rows: list[dict], keys: tuple) -> list[dict]:
+        seen: dict[tuple, dict] = {}
+        for r in rows:
+            seen[tuple(str(r.get(k)) for k in keys)] = r
+        return list(seen.values())
+    lots = _dedup(lots, NATURAL_KEY["lot"])
+    mechanics = _dedup(mechanics, NATURAL_KEY["award_mechanic"])
+    docs = _dedup(docs, NATURAL_KEY["buying_doc"])
+    obs = _dedup(obs, NATURAL_KEY["appointment_observation"])
+
     counts = {}
     _replace("operator", operators); counts["operator"] = len(operators)
     _replace("instrument", instruments); counts["instrument"] = len(instruments)
@@ -216,7 +250,24 @@ def rebuild_public() -> dict:
             rc_keys.add((sid, ct))
     _replace("reseller_channel", rc); counts["reseller_channel"] = len(rc)
     suppliers = project("supplier")
+    # Merge back accrued CH matches so a rebuild never wipes resolved CRNs (the match is the
+    # expensive, slowly-accruing part; the supplier_match log is its durable home).
+    ch = _latest_ch_matches()
+    for s in suppliers:
+        m = ch.get(companies_house.normalise(s.get("display_name") or ""))
+        if not (m and m.get("company_number")):
+            continue
+        cn = m["company_number"]
+        mo = m.get("matched_on")
+        s["company_number"] = cn
+        s["registered_name"] = m.get("registered_name")
+        s["match_confidence"] = m.get("match_confidence")
+        s["match_band"] = m.get("match_band")
+        s["status_at_match"] = m.get("status_at_match")
+        s["matched_on"] = mo.isoformat() if hasattr(mo, "isoformat") else mo
+        s["ch_url"] = f"https://find-and-update.company-information.service.gov.uk/company/{cn}"
     _replace("supplier", suppliers); counts["supplier"] = len(suppliers)
+    counts["supplier_ch_matched"] = sum(1 for s in suppliers if s.get("company_number"))
     _replace("appointment_observation", obs); counts["appointment_observation"] = len(obs)
     resolved = resolve([{**o, "evidence_id": o.get("evidence_id")} for o in obs], today=date.today())
     _replace("appointed_supplier", resolved); counts["appointed_supplier"] = len(resolved)
@@ -224,13 +275,40 @@ def rebuild_public() -> dict:
 
 
 # ----------------------------------------------------------------- CH matching
-def ch_match_suppliers() -> dict:
-    suppliers = query(f"SELECT supplier_id, display_name, publisher_ids FROM `{config.pub('supplier')}`")
+def ch_match_suppliers(limit: int | None = None, *, incremental: bool = True) -> dict:
+    """Resolve every supplier name to a CRN, accruing into the append-only supplier_match log.
+
+    `incremental` (default) carries forward suppliers already resolved (a non-null CRN in the log)
+    with NO API call, so the ~74% fuzzy-match cost is paid once and nightly runs only hit CH for
+    new/unresolved names. `limit` then caps how many of the *remaining* unresolved names to attempt
+    this run; the rest load as 'pending' and resolve on a later run. Set incremental=False to force a
+    full re-match (e.g. to refresh point-in-time status snapshots)."""
+    suppliers = query(f"SELECT supplier_id, display_name, publisher_ids FROM `{config.pub('supplier')}` ORDER BY display_name")
+    prior = _latest_ch_matches() if incremental else {}
     out, matches, bands = [], [], {}
+    attempted = carried = 0
     import httpx
     http = httpx.Client(timeout=20, headers={"User-Agent": config.USER_AGENT})
     try:
         for s in suppliers:
+            norm = companies_house.normalise(s["display_name"])
+            pm = prior.get(norm)
+            if pm and pm.get("company_number"):  # already resolved -> carry forward, no API call
+                cn = pm["company_number"]
+                mo = pm.get("matched_on")
+                bands[pm.get("match_band")] = bands.get(pm.get("match_band"), 0) + 1
+                carried += 1
+                out.append({**s, "company_number": cn, "registered_name": pm.get("registered_name"),
+                            "match_confidence": pm.get("match_confidence"), "match_band": pm.get("match_band"),
+                            "status_at_match": pm.get("status_at_match"),
+                            "matched_on": mo.isoformat() if hasattr(mo, "isoformat") else mo,
+                            "ch_url": f"https://find-and-update.company-information.service.gov.uk/company/{cn}"})
+                continue
+            if limit is not None and attempted >= limit:  # budget for unresolved names exhausted this run
+                out.append({**s, "company_number": None, "registered_name": None, "match_confidence": None,
+                            "match_band": "pending", "status_at_match": None, "matched_on": None, "ch_url": None})
+                continue
+            attempted += 1
             m = companies_house.match_name(s["display_name"], client=http)
             cn = m["company_number"]
             bands[m["match_band"]] = bands.get(m["match_band"], 0) + 1
@@ -239,17 +317,21 @@ def ch_match_suppliers() -> dict:
                         "match_confidence": m["match_confidence"], "match_band": m["match_band"],
                         "status_at_match": m["status_at_match"], "matched_on": _now(),
                         "ch_url": f"https://find-and-update.company-information.service.gov.uk/company/{cn}" if cn else None})
-            matches.append({"source_name_norm": companies_house.normalise(s["display_name"]),
+            matches.append({"source_name_norm": norm,
                             "company_number": cn, "registered_name": m["registered_name"],
                             "match_confidence": m["match_confidence"], "match_band": m["match_band"],
                             "status_at_match": m["status_at_match"], "matched_on": _now(),
                             "method": m["method"], "publisher_ids": s.get("publisher_ids") or [],
                             "unresolved_reason": None if cn else "no candidate"})
+            if len(matches) >= 150:  # checkpoint: durable progress so a crash/429 resumes via carry-forward
+                _append("supplier_match", matches); matches = []
     finally:
         http.close()
+        if matches:  # flush remaining checkpoint buffer even on exception
+            _append("supplier_match", matches); matches = []
     _replace("supplier", out)
-    _append("supplier_match", matches)
-    return {"matched": sum(1 for o in out if o["company_number"]), "total": len(out), "bands": bands}
+    return {"matched": sum(1 for o in out if o["company_number"]), "total": len(out),
+            "attempted": attempted, "carried_forward": carried, "bands": bands}
 
 
 # ----------------------------------------------------------------- §15 spend coverage

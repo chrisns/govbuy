@@ -33,11 +33,19 @@ def _band(conf: float, has_candidate: bool) -> str:
 
 
 def search(name: str, *, key: str, client: httpx.Client) -> list[dict]:
-    r = client.get(f"{CH_BASE}/search/companies", params={"q": name, "items_per_page": 10}, auth=(key, ""))
-    if r.status_code == 429:
-        time.sleep(2.0)
+    # CH rate-limits at 600 req / 5 min. Back off on 429 with exponential delay (honouring
+    # Retry-After when present) rather than dying — a long full-estate match must survive bursts.
+    delay = 2.0
+    for attempt in range(6):
         r = client.get(f"{CH_BASE}/search/companies", params={"q": name, "items_per_page": 10}, auth=(key, ""))
-    r.raise_for_status()
+        if r.status_code == 429:
+            ra = r.headers.get("Retry-After")
+            time.sleep(float(ra) if ra and ra.isdigit() else delay)
+            delay = min(delay * 2, 60.0)
+            continue
+        r.raise_for_status()
+        return r.json().get("items", [])
+    r.raise_for_status()  # exhausted retries -> surface the final 429
     return r.json().get("items", [])
 
 
@@ -76,4 +84,4 @@ def match_name(name: str, *, key: str | None = None, client: httpx.Client | None
     finally:
         if own:
             client.close()
-        time.sleep(0.2)  # politeness: well under CH's 600 req / 5 min
+        time.sleep(0.6)  # ~100/min = 500/5min, comfortably under CH's 600/5min limit (was 0.5 = at the edge)

@@ -29,12 +29,14 @@ AC7=$(BQ 'SELECT ARRAY_LENGTH(by_operator) bo, est_gbp FROM `govreposcrape.govbu
 echo "  harness_run(ac7-metered-demo): by_operator_len,est_gbp = $AC7"
 [[ "${AC7%%,*}" -ge 1 ]] && echo "PASS AC-7 (ledger) — per-operator £ recorded ($AC7)" || { echo "FAIL AC-7 (ledger)"; fail=1; }
 
-echo "--- AC-10: public is reprojectable from raw with no re-scrape ---"
+echo "--- AC-10: public is reprojectable from raw with no re-scrape (and CH matches survive) ---"
 BEFORE=$(BQ 'SELECT COUNT(*) FROM `govreposcrape.govbuy_public.instrument`' | tail -1)
-PYTHONPATH="$ROOT/ingestion/src" "$PY" -m govbuy_ingest rebuild >/dev/null 2>&1
-PYTHONPATH="$ROOT/ingestion/src" "$PY" -m govbuy_ingest match >/dev/null 2>&1   # rebuild wipes CH; restore
+CH_BEFORE=$(BQ 'SELECT COUNTIF(company_number IS NOT NULL) FROM `govreposcrape.govbuy_public.supplier`' | tail -1)
+PYTHONPATH="$ROOT/ingestion/src" "$PY" -m govbuy_ingest rebuild >/dev/null 2>&1   # merges CH back from supplier_match — no re-scrape, no CH API
 AFTER=$(BQ 'SELECT COUNT(*) FROM `govreposcrape.govbuy_public.instrument`' | tail -1)
-[[ "$BEFORE" == "$AFTER" && "$AFTER" -gt 0 ]] && echo "PASS AC-10 — reprojected $AFTER instruments from raw (was $BEFORE)" || { echo "FAIL AC-10 ($BEFORE -> $AFTER)"; fail=1; }
+CH_AFTER=$(BQ 'SELECT COUNTIF(company_number IS NOT NULL) FROM `govreposcrape.govbuy_public.supplier`' | tail -1)
+[[ "$BEFORE" == "$AFTER" && "$AFTER" -gt 0 ]] && echo "  reprojected $AFTER instruments from raw (was $BEFORE)" || { echo "FAIL AC-10 instruments ($BEFORE -> $AFTER)"; fail=1; }
+[[ "$CH_AFTER" -ge "$CH_BEFORE" && "$CH_AFTER" -gt 0 ]] && echo "PASS AC-10 — rebuild preserved $CH_AFTER CH matches (was $CH_BEFORE), no re-scrape/no CH API" || { echo "FAIL AC-10 CH-preservation ($CH_BEFORE -> $CH_AFTER)"; fail=1; }
 
 echo "--- AC-8 setup: inject a broken operator (failed/stale) into source_status ---"
 bq query --project_id=govreposcrape --location=EU --use_legacy_sql=false \

@@ -100,18 +100,34 @@ def to_bundle(records: list[dict], run_id: str) -> dict:
         lots = rec.get("lots") or []
         url = f"https://www.gca.gov.uk/agreements/{rm}" if rm else BASE
         doc_id = "gca-api-" + (_slug(rm) or _slug(title))
+        rtype = rec.get("regulation_type") or "framework"
         lot_text = "\n".join(f"{l.get('title') or ''} {_plain(l.get('description'))}" for l in lots)
-        text = f"{title}\n{_plain(rec.get('summary'))}\n{lot_text}\nGovernment Commercial Agency"
+        text = f"{title}\n{_plain(rec.get('summary'))}\nAgreement type: {rtype}\n{lot_text}\nGovernment Commercial Agency"
         documents.append({"document_id": doc_id, "url": url, "source_id": "gca", "operator_id": "gca",
                           "content_type": "application/json", "licence": "ogl", "text": text})
         ev = {"source_url": url, "source_kind": "gca_api", "excerpt": title, "licence": "ogl", "confidence": 1.0}
         tags = _tokens(rec.get("category"), rec.get("pillar"), rec.get("keywords"))
+        itype = _type(rec)
         facts.append({"fact_type": "instrument", "subject_ref": rm or iid, "document_id": doc_id,
                       "payload": {"instrument_id": iid, "operator_id": "gca", "name": title, "rm_reference": rm,
-                                  "type": _type(rec), "regime": _regime(rec), "lifecycle_status": _lifecycle(rec),
+                                  "type": itype, "regime": _regime(rec), "lifecycle_status": _lifecycle(rec),
                                   "starts_on": rec.get("start_date"), "expires_on": rec.get("end_date"),
                                   "category_tags": tags, "official_url": url},
                       "evidence": ev, "confidence": 1.0})
+        # Award mechanics, derived from the agreement TYPE (verify per-lot on the agreement): a
+        # DPS/dynamic market is further-competition-only; a framework allows both routes. Excerpt is
+        # the verbatim agreement type from the API.
+        if itype in ("legacy_dps", "dynamic_market"):
+            mechs = [("further_competition", True, "DPS / dynamic market — award by further competition (competitive flexible procedure)"),
+                     ("call_off_no_further_competition", False, "Direct call-off without competition is NOT available on a DPS/dynamic market")]
+        else:
+            mechs = [("call_off_no_further_competition", True, "Framework permits direct call-off / call-off without further competition (verify per-lot)"),
+                     ("further_competition", True, "Framework permits further competition (verify per-lot)")]
+        mev = {"source_url": url, "source_kind": "gca_api", "excerpt": rtype, "licence": "ogl", "confidence": 0.85}
+        for mech, permitted, cond in mechs:
+            facts.append({"fact_type": "award_mechanic", "subject_ref": f"{iid}-{mech}", "document_id": doc_id,
+                          "payload": {"instrument_id": iid, "lot_id": None, "mechanic": mech, "permitted": permitted, "conditions": cond},
+                          "evidence": dict(mev), "confidence": 0.85})
         for i, l in enumerate(lots, 1):
             lt = l.get("title") or ""
             if not lt:

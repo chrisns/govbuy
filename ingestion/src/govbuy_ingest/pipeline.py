@@ -16,12 +16,19 @@ def refresh(operator: str | None = None, max_docs: int | None = None) -> int:
     meter = CostMeter()
     documents, facts, n = [], [], 0
     paused = False
-    # Deterministic GCA slice via the structured API (no LLM, no scraping, no fabrication risk).
+    # Deterministic GCA estate via structured sources (no LLM, no scraping of free text, no
+    # fabrication risk): frameworks API + appointed-supplier API + the Digital Marketplace
+    # (G-Cloud) public supplier directory. Together these are the complete deterministic spine.
     if operator in (None, "gca"):
         from .gca_api import fetch_all, to_bundle
+        from .gca_suppliers import sync as gca_sup_sync
+        from .gcloud_dm import sync as gcloud_sync
         gb = to_bundle(fetch_all(), run_id)
-        documents += gb["documents"]
-        facts += gb["facts"]
+        documents += gb["documents"]; facts += gb["facts"]
+        sb, _ = gca_sup_sync(run_id)
+        documents += sb["documents"]; facts += sb["facts"]
+        gcb, _ = gcloud_sync(run_id)
+        documents += gcb["documents"]; facts += gcb["facts"]
     # Agentic operators (no structured API) — need the LLM extractor.
     agentic = [] if operator == "gca" else [s for s in frontier.sources(operator) if s["source_id"] != "gca"]
     if agentic and not config.ANTHROPIC_API_KEY:

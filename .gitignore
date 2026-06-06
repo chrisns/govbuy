@@ -30,3 +30,11 @@ build/
 
 # browser-tool scratch
 .playwright-mcp/
+
+# claude local state (scheduler lock etc.)
+.claude/
+
+# local scratch — intermediate scrape dumps (non-CCS working files), not source
+/cpc_*.json
+/cpc_*.html
+/lupc_*.json

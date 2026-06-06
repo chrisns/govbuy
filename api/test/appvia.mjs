@@ -1,0 +1,13 @@
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+const c = new Client({ name: "appvia", version: "0.1.0" });
+await c.connect(new StreamableHTTPClientTransport(new URL("http://localhost:8080/mcp")));
+const J = async (n,a) => JSON.parse((await c.callTool({name:n,arguments:a})).content[0].text);
+let s = (await J("get_supplier",{name:"Appvia"})).supplier;
+console.log("get_supplier(Appvia):", s ? `${s.display_name} CRN=${s.company_number} band=${s.match_band}; appointments=${(s.appointments||[]).map(a=>a.instrument_id).join(',')}` : "NOT FOUND");
+let i = (await J("get_instrument",{rm_reference:"RM6190"})).instrument;
+const appv = (i?.appointed_suppliers||[]).find(x=>/appvia/i.test(x.display_name));
+console.log("get_instrument(RM6190 / TS4):", i?.name, "| appointed_suppliers:", (i?.appointed_suppliers||[]).length, "| Appvia present:", !!appv);
+let cc = (await J("get_instrument",{rm_reference:"RM6292"})).instrument;
+console.log("get_instrument(RM6292 / Cloud Compute 2): award_mechanics:", JSON.stringify((cc?.award_mechanics||[]).map(m=>`${m.mechanic}=${m.permitted}`)));
+await c.close();
