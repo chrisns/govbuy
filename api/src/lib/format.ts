@@ -94,6 +94,19 @@ export async function freshness(): Promise<unknown> {
     lastRun = r[0] ?? null;
   } catch { lastRun = null; }
 
+  // Landscape size (count coverage) — distinct from Pareto spend coverage.
+  let indexSize: Record<string, unknown> | null = null;
+  try {
+    const s = await runQuery(
+      `SELECT (SELECT COUNT(*) FROM ${tableRef("operator")}) AS operators,
+              (SELECT COUNT(*) FROM ${tableRef("instrument")}) AS instruments,
+              (SELECT COUNTIF(lifecycle_status='live_for_call_off') FROM ${tableRef("instrument")}) AS live_instruments,
+              (SELECT COUNT(*) FROM ${tableRef("supplier")}) AS suppliers,
+              (SELECT COUNT(*) FROM ${tableRef("appointed_supplier")}) AS appointed_supplier_edges`,
+    );
+    indexSize = s[0] ? Object.fromEntries(Object.entries(s[0]).map(([k, v]) => [k, p(v)])) : null;
+  } catch { indexSize = null; }
+
   const shaped = sources.map((s) => ({
     source_id: s.source_id,
     operator_id: s.operator_id,
@@ -124,7 +137,8 @@ export async function freshness(): Promise<unknown> {
           spend_coverage_pct: p(lastRun.spend_coverage_pct),
         }
       : null,
-    note: "Route-to-market index — NOT legal advice and not the authority of record. Verify every buying rule on the official source linked in each result's evidence.",
+    index_size: indexSize,
+    note: "Route-to-market index — NOT legal advice and not the authority of record. spend_coverage_pct is of RM-attributable (GCA) spend; index_size is landscape (count) coverage across all providers. Verify every buying rule on the official source linked in each result's evidence.",
   };
   cache = { at: Date.now(), data };
   return data;
