@@ -1,0 +1,29 @@
+# secrets / env — NEVER commit the real .env (holds the Companies House + Anthropic keys)
+.env
+.env.*
+!.env.example
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# node / build
+node_modules/
+dist/
+build/
+
+# terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+
+# os / editor
+.DS_Store
+*.swp
+.idea/
+.vscode/
