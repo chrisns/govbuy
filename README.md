@@ -64,6 +64,8 @@ node test/smoke.mjs http://localhost:8080/mcp
 # Ingestion harness (Python)
 cd ingestion && python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
 .venv/bin/python -m pytest tests -q
+# GCA is DETERMINISTIC — sync all live agreements straight from the GCA frameworks API (no LLM):
+.venv/bin/python -m govbuy_ingest gca-sync
 # load a fact bundle (the in-session / workflow path) — gate + project + CH-match + coverage:
 .venv/bin/python -m govbuy_ingest load-bundle bundle.json --match
 # production nightly (needs ANTHROPIC_API_KEY): walk the frontier and extract for real

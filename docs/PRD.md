@@ -59,9 +59,11 @@ purchase, author the business case, or give legal advice.
 - **Terminology traps.** "direct award" means two different things; "DPS" is now legacy; CCS is now
   GCA; a hyperscaler "marketplace" is not a legal route; a procurement card / expense claim is a
   payment mechanism, not a route (see [CONTEXT.md](../CONTEXT.md)).
-- **The data is not an API.** Only the FTS/Contracts Finder OCDS spine is deterministic; GCA pages,
-  the G-Cloud catalogue and every non-CCS operator are HTML+PDF/XLSX with **no public API and no
-  obtainable key** ([G-Cloud access](research/2026-06-06-gcloud-access.md)).
+- **Most of the data is not an API.** The FTS/Contracts Finder OCDS spine is deterministic, and the
+  **GCA frameworks API** (`gca.gov.uk/api/frameworks`, discovered during the landscape sweep) makes the
+  GCA slice deterministic too — but the G-Cloud per-service priced catalogue and every non-CCS operator
+  remain HTML+PDF/XLSX with no usable API ([G-Cloud access](research/2026-06-06-gcloud-access.md)), so
+  ingestion is hybrid: deterministic where an API exists, agentic otherwise.
 
 ---
 
@@ -169,7 +171,7 @@ Two model invariants that shape the schema:
 | Source | Format | Access | Role |
 |---|---|---|---|
 | Find a Tender / Contracts Finder OCDS | JSON REST + bulk | open, no key | **Deterministic spine** for award value + framework-call-off notices; read via the sibling view. |
-| GCA agreement/lot/supplier pages | HTML + PDF/XLSX | scrape/extract | Instruments, lots, appointed suppliers, buying docs. Agentic. |
+| **GCA frameworks API** (`gca.gov.uk/api/frameworks`) | structured JSON | **Yes — deterministic** | **Refactored to a deterministic adapter** (`govbuy_ingest.gca_api`, `govbuy-ingest gca-sync`): all live GCA agreements (RM ref, type, regime, lifecycle, dates, lots, category) mapped straight to facts — no LLM, no scraping. GCA left the agentic frontier. (Per-service G-Cloud priced catalogue has no API → separate scrape sidecar if/when in scope.) |
 | G-Cloud catalogue (applytosupply) | HTML, no login | **scrape-only, no key exists** | v1: supplier + lot membership only. Per-service catalogue deferred (§11.1). |
 | Non-CCS operators (Bloom, YPO, ESPO, NHS, consortia…) | HTML + PDF/XLSX | scrape/extract | Instruments + per-lot suppliers (often PDF). Agentic, per-operator. |
 | Supplier marketing pages | HTML | scrape/extract | Reseller channel type + inbound-scope edges. Lowest confidence, highest licensing risk. |

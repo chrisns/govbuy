@@ -4,18 +4,11 @@ the discover sweep proposes additions. Ordered GCA-first (most spend), then the 
 """
 from __future__ import annotations
 
+# NOTE: GCA is NOT in the agentic frontier — its frameworks are ingested DETERMINISTICALLY from the
+# structured API (gca.gov.uk/api/frameworks) via govbuy_ingest.gca_api (`govbuy-ingest gca-sync`).
+# Only operators WITHOUT a structured API are agentic. (The G-Cloud per-service priced catalogue,
+# which has no open API, would be a separate scrape sidecar if/when per-service depth is in scope.)
 SEED = [
-    {"source_id": "gca", "operator_id": "gca", "cadence_hint": "weekly",
-     "seed_urls": [
-         "https://www.applytosupply.digitalmarketplace.service.gov.uk/g-cloud/search",
-         "https://www.crowncommercial.gov.uk/agreements/RM1557.14",
-         "https://www.crowncommercial.gov.uk/agreements/RM6200",
-         "https://www.crowncommercial.gov.uk/agreements/RM6190",
-     ],
-     "recipe": {"target_fact_types": ["operator", "instrument", "lot", "award_mechanic", "buying_doc", "appointment_observation", "supplier"],
-                "fetch": {"pagination": "links.next", "follow": ["agreement", "supplier"]},
-                "extractor_prompt_id": "govbuy-extract", "extractor_prompt_version": "1",
-                "locator_strategy": "css-section", "tos_gate": "ogl"}},
     {"source_id": "bramble_hub", "operator_id": None, "cadence_hint": "monthly",
      "seed_urls": ["https://www.bramblehub.com/", "https://www.bramblehub.com/partners"],
      "recipe": {"target_fact_types": ["supplier", "reseller_channel", "inbound_scope", "appointment_observation"],

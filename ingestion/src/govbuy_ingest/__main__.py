@@ -26,7 +26,7 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("status"); sub.add_parser("liveness"); sub.add_parser("seed-reference")
     rf = sub.add_parser("refresh"); rf.add_argument("--operator", default=None); rf.add_argument("--max-docs", type=int, default=0)
     bf = sub.add_parser("backfill"); bf.add_argument("--operator", default=None)
-    sub.add_parser("discover"); sub.add_parser("materialize-sibling")
+    sub.add_parser("discover"); sub.add_parser("materialize-sibling"); sub.add_parser("gca-sync")
     args = ap.parse_args(argv)
 
     from . import bq, config
@@ -68,6 +68,16 @@ def main(argv: list[str] | None = None) -> int:
         return discover()
     if args.mode == "materialize-sibling":
         print(json.dumps(bq.materialize_sibling(), indent=2, default=str)); return 0
+    if args.mode == "gca-sync":
+        from .gca_api import sync
+        bundle, n = sync()
+        stats = bq.load_bundle(bundle)
+        counts = bq.rebuild_public()
+        ch = bq.ch_match_suppliers()
+        cov = bq.coverage()
+        bq.write_status(bundle["run_id"], "refresh", stats, cov, est_gbp=0.0)
+        print(json.dumps({"fetched": n, "load": stats, "public": counts, "ch": ch, "coverage": cov}, indent=2, default=str))
+        return 0
     return 1
 
 

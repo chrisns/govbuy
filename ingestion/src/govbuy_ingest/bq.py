@@ -154,23 +154,23 @@ def rebuild_public() -> dict:
     # --- dedup instruments by RM stem: ONE canonical instrument per framework (keep the richest by
     #     child-fact count, then field completeness); remap child facts onto the canonical id so a
     #     thin duplicate (e.g. a census stub) never shadows the detailed record. ---
-    _STEM = re.compile(r"RM[0-9]{3,5}")
-    def _stem(rm):
-        m = _STEM.search(str(rm).upper()) if rm else None
-        return m.group(0) if m else None
+    def _rmkey(rm):
+        # dedup on the FULL reference (merges true duplicate records, e.g. two RM6200 rows) but keeps
+        # distinct iterations apart (RM1557.14 vs RM1557.15 are different instruments).
+        return (str(rm).strip().upper() or None) if rm else None
     child_counts: dict[str, int] = {}
     for lst in (lots, mechanics, docs, obs):
         for row in lst:
             iid = row.get("instrument_id")
             if iid:
                 child_counts[iid] = child_counts.get(iid, 0) + 1
-    by_stem: dict[str, list[dict]] = {}
+    by_rm: dict[str, list[dict]] = {}
     for row in instruments:
-        s = _stem(row.get("rm_reference"))
+        s = _rmkey(row.get("rm_reference"))
         if s:
-            by_stem.setdefault(s, []).append(row)
+            by_rm.setdefault(s, []).append(row)
     alias: dict[str, str] = {}
-    for s, rws in by_stem.items():
+    for s, rws in by_rm.items():
         if len(rws) > 1:
             canon = max(rws, key=lambda r: (child_counts.get(r["instrument_id"], 0),
                                             sum(1 for v in r.values() if v not in (None, ""))))["instrument_id"]

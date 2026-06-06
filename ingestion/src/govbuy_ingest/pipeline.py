@@ -12,37 +12,45 @@ from .cost import CostMeter
 
 
 def refresh(operator: str | None = None, max_docs: int | None = None) -> int:
-    if not config.ANTHROPIC_API_KEY:
-        print("refresh needs ANTHROPIC_API_KEY (prod path). In-session, use the workflow to produce a "
-              "bundle and `govbuy-ingest load-bundle`.")
-        return 1
-    from .extract import AnthropicExtractor
-    extractor = AnthropicExtractor(config.MODEL_EXTRACT)
     run_id = "run_" + uuid.uuid4().hex[:12]
     meter = CostMeter()
     documents, facts, n = [], [], 0
     paused = False
-    for src in frontier.sources(operator):
-        for url in src["seed_urls"]:
-            if max_docs and n >= max_docs:
+    # Deterministic GCA slice via the structured API (no LLM, no scraping, no fabrication risk).
+    if operator in (None, "gca"):
+        from .gca_api import fetch_all, to_bundle
+        gb = to_bundle(fetch_all(), run_id)
+        documents += gb["documents"]
+        facts += gb["facts"]
+    # Agentic operators (no structured API) — need the LLM extractor.
+    agentic = [] if operator == "gca" else [s for s in frontier.sources(operator) if s["source_id"] != "gca"]
+    if agentic and not config.ANTHROPIC_API_KEY:
+        print("agentic operators need ANTHROPIC_API_KEY — ingested the deterministic GCA slice only. "
+              "In-session, drive non-GCA operators via the workflow + `govbuy-ingest load-bundle`.")
+    elif agentic:
+        from .extract import AnthropicExtractor
+        extractor = AnthropicExtractor(config.MODEL_EXTRACT)
+        for src in agentic:
+            for url in src["seed_urls"]:
+                if max_docs and n >= max_docs:
+                    break
+                doc = fetch(url)
+                if not doc["text"]:
+                    continue
+                doc["document_id"] = document_id(url, doc["text"])
+                doc["source_id"] = src["source_id"]
+                doc["operator_id"] = src["operator_id"]
+                doc["licence"] = src["recipe"].get("tos_gate", "unknown")
+                doc["fetched_at"] = datetime.now(timezone.utc).isoformat()
+                extracted = extractor.extract(doc, meter=meter, operator=src["operator_id"] or src["source_id"])
+                documents.append({k: doc[k] for k in ("document_id", "source_id", "operator_id", "url", "content_type", "http_status", "robots_ok", "licence", "fetched_at", "text")})
+                facts.extend(extracted)
+                n += 1
+                if meter.status() == "pause":
+                    paused = True
+                    break
+            if paused:
                 break
-            doc = fetch(url)
-            if not doc["text"]:
-                continue
-            doc["document_id"] = document_id(url, doc["text"])
-            doc["source_id"] = src["source_id"]
-            doc["operator_id"] = src["operator_id"]
-            doc["licence"] = src["recipe"].get("tos_gate", "unknown")
-            doc["fetched_at"] = datetime.now(timezone.utc).isoformat()
-            extracted = extractor.extract(doc, meter=meter, operator=src["operator_id"] or src["source_id"])
-            documents.append({k: doc[k] for k in ("document_id", "source_id", "operator_id", "url", "content_type", "http_status", "robots_ok", "licence", "fetched_at", "text")})
-            facts.extend(extracted)
-            n += 1
-            if meter.status() == "pause":
-                paused = True
-                break
-        if paused:
-            break
     bundle = {"run_id": run_id, "mode": "refresh", "documents": documents, "facts": facts}
     stats = bq.load_bundle(bundle)
     if paused:
