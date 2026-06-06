@@ -44,13 +44,13 @@ agentic harness (Python + Anthropic API, tiered Haiku/Sonnet/Opus)
    frontier walk → fetch+archive → extract → verify → DETERMINISTIC verbatim-gate → reconcile → commit
         │  raw event log (govbuy_raw)                    build-and-swap ▼
         └────────────────────────────────────────────► govbuy_public (typed, source-anchored)
-                                                              + sibling_call_off_awards (authorized view, non-PII)
+                                                              + sibling_call_off_awards (materialised non-PII snapshot)
    AI assistant ──MCP──► Cloud Run (TypeScript, read-only SA on govbuy_public ONLY) ──► BigQuery
 ```
 
 - **Membership** is evidenced, temporal and confidence-scored; conflicts surfaced ([ADR-0003](docs/adr/0003-evidenced-temporal-membership.md)).
 - **Faithfulness**: nothing asserted without a verbatim-verified excerpt ([ADR-0004](docs/adr/0004-source-anchored-facts-and-mixed-licensing.md)).
-- **Sibling join**: read-only via a curated authorized view that drops the sibling's PII ([ADR-0001](docs/adr/0001-shared-project-read-sibling-dataset.md)).
+- **Sibling join**: the harness materialises a curated, non-PII snapshot of the sibling's call-off awards into `govbuy_public`; the API reads the snapshot, never the sibling ([ADR-0001](docs/adr/0001-shared-project-read-sibling-dataset.md)).
 - **Harness** is portable & unscheduled, with per-run cost reporting + a liveness alert ([ADR-0005](docs/adr/0005-portable-unscheduled-harness.md)).
 
 ## Develop

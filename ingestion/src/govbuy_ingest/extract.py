@@ -30,13 +30,13 @@ class AnthropicExtractor:
         self.client = Anthropic(api_key=config.ANTHROPIC_API_KEY)
         self.model = model or config.MODEL_EXTRACT
 
-    def extract(self, doc: dict, meter=None) -> list[dict]:
+    def extract(self, doc: dict, meter=None, operator: str | None = None) -> list[dict]:
         msg = self.client.messages.create(
             model=self.model, max_tokens=4096, system=SYSTEM,
             messages=[{"role": "user", "content": f"{INSTRUCTION}\n\nDOCUMENT URL: {doc['url']}\n\nDOCUMENT TEXT:\n{doc['text'][:120000]}"}],
         )
         if meter is not None:
-            meter.add(self.model, msg.usage.input_tokens, msg.usage.output_tokens)
+            meter.add(self.model, msg.usage.input_tokens, msg.usage.output_tokens, operator=operator)
         text = "".join(b.text for b in msg.content if getattr(b, "type", None) == "text")
         try:
             start, end = text.index("{"), text.rindex("}") + 1

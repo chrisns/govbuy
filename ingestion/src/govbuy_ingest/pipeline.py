@@ -34,7 +34,7 @@ def refresh(operator: str | None = None, max_docs: int | None = None) -> int:
             doc["operator_id"] = src["operator_id"]
             doc["licence"] = src["recipe"].get("tos_gate", "unknown")
             doc["fetched_at"] = datetime.now(timezone.utc).isoformat()
-            extracted = extractor.extract(doc, meter=meter)
+            extracted = extractor.extract(doc, meter=meter, operator=src["operator_id"] or src["source_id"])
             documents.append({k: doc[k] for k in ("document_id", "source_id", "operator_id", "url", "content_type", "http_status", "robots_ok", "licence", "fetched_at", "text")})
             facts.extend(extracted)
             n += 1
@@ -48,11 +48,36 @@ def refresh(operator: str | None = None, max_docs: int | None = None) -> int:
     if paused:
         print(f"PAUSED at cost ceiling £{meter.gbp()} — NOT rebuilding public (last-good retained).")
         bq.write_status(run_id, "refresh", stats, {"spend_coverage_pct": 0.0, "denominator_gbp_bn": 0, "covered_gbp_bn": 0},
-                        est_gbp=meter.gbp(), status="paused_ceiling", tier_breakdown=meter.breakdown())
+                        est_gbp=meter.gbp(), status="paused_ceiling", tier_breakdown=meter.breakdown(), by_operator=meter.by_operator())
         return 3
     bq.rebuild_public()
+    bq.materialize_sibling()
     bq.ch_match_suppliers()
     cov = bq.coverage()
-    bq.write_status(run_id, "refresh", stats, cov, est_gbp=meter.gbp(), tier_breakdown=meter.breakdown())
-    print(f"refresh ok: {stats} coverage={cov['spend_coverage_pct']}% cost=£{meter.gbp()}")
+    bq.write_status(run_id, "refresh", stats, cov, est_gbp=meter.gbp(), tier_breakdown=meter.breakdown(), by_operator=meter.by_operator())
+    print(f"refresh ok: {stats} coverage={cov['spend_coverage_pct']}% cost=£{meter.gbp()} per-operator={meter.by_operator()}")
     return 0
+
+
+def discover() -> int:
+    """Lower-frequency autonomous sweep (Opus tier): propose NEW operators/instruments/changed
+    structures for the frontier. Outputs PROPOSALS to a review queue — never auto-committed
+    (PRD §7.2). Requires ANTHROPIC_API_KEY."""
+    if not config.ANTHROPIC_API_KEY:
+        print("discover needs ANTHROPIC_API_KEY (Opus tier). It proposes frontier additions for review; "
+              "in-session, frontier curation is done via the workflow layer.")
+        return 1
+    from anthropic import Anthropic
+    client = Anthropic(api_key=config.ANTHROPIC_API_KEY)
+    known = ", ".join(s["source_id"] for s in frontier.sources())
+    msg = client.messages.create(model=config.MODEL_DISCOVER, max_tokens=2048,
+        messages=[{"role": "user", "content": f"Known govbuy frontier sources: {known}. Propose UK public-sector framework operators / standing instruments NOT in that list that run technology/AI agreements, as JSON [{{operator, why, seed_url}}]. These are PROPOSALS for human review, not facts."}])
+    text = "".join(b.text for b in msg.content if getattr(b, "type", None) == "text")
+    print("DISCOVERY PROPOSALS (review before adding to the frontier):\n" + text)
+    return 0
+
+
+def backfill(operator: str | None = None) -> int:
+    """Operator-scoped full (re)load — same windowed-replay code path as refresh, scoped to one
+    operator (PRD §7.2). Resumable/idempotent via the content-hash MERGE."""
+    return refresh(operator=operator, max_docs=None)

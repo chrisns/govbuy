@@ -97,6 +97,7 @@ CREATE TABLE IF NOT EXISTS `govbuy_raw.harness_run` (
   tokens_out      INT64,
   est_gbp         NUMERIC,
   model_tier_breakdown ARRAY<STRUCT<tier STRING, tokens_in INT64, tokens_out INT64, est_gbp NUMERIC>>,
+  by_operator     ARRAY<STRUCT<operator_id STRING, est_gbp NUMERIC>>,  -- £-per-operator (PRD §7.2)
   ceiling_gbp     NUMERIC,                        -- the soft ceiling in force this run
   error_summary   STRING
 )
@@ -312,6 +313,10 @@ CREATE TABLE IF NOT EXISTS `govbuy_public.run_summary` (
 -- relatedProcesses / procurementMethodDetails — contactPoint is never re-exposed.
 -- query_sql joins against THIS view, not the raw sibling dataset.
 -- ============================================================================
+-- NOTE: the harness REPLACES this view with a MATERIALISED TABLE of the same name
+-- (`govbuy-ingest materialize-sibling`) for query economy — one paid scan at ingest, cheap reads
+-- after, so a 2 GiB per-query cap both protects AND lets cross-dataset joins run. Re-run
+-- materialize-sibling after re-running this file. Same least-privilege boundary either way.
 CREATE OR REPLACE VIEW `govbuy_public.sibling_call_off_awards` AS
 SELECT
   cp.ocid,

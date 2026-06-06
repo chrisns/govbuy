@@ -221,22 +221,60 @@ def coverage() -> dict:
             "spend_coverage_pct": float(r["pct"] or 0)}
 
 
+# ----------------------------------------------------------------- sibling snapshot (materialised)
+def materialize_sibling() -> dict:
+    """Materialise the sibling call-off awards as a SMALL physical table (one paid scan at ingest,
+    cheap reads after) instead of a per-query view scan of compiled_json. Same least-privilege
+    boundary (built by the ingest SA; API reads the table, never uk_tenders_public). Drops
+    parties[].contactPoint; surfaces the §14 framework-reference keys."""
+    full = config.pub("sibling_call_off_awards")
+    client().query(f"DROP VIEW IF EXISTS `{full}`").result()
+    client().query(f"""
+      CREATE OR REPLACE TABLE `{full}` AS
+      SELECT cp.ocid, cp.source, cp.buyer_name, cp.cpv_division, cp.awarded_amount, cp.awarded_currency,
+             cp.published_date, a.supplier_name, a.supplier_id, a.amount AS award_amount, a.currency AS award_currency,
+             cp.official_url,
+             ( SELECT JSON_VALUE(rp,'$.identifier') FROM UNNEST(JSON_QUERY_ARRAY(cp.compiled_json,'$.relatedProcesses')) rp
+               WHERE JSON_VALUE(rp,'$.scheme')='ocid' AND EXISTS (SELECT 1 FROM UNNEST(JSON_QUERY_ARRAY(rp,'$.relationship')) r WHERE JSON_VALUE(r)='framework') LIMIT 1) AS framework_ocid,
+             REGEXP_EXTRACT(UPPER(CONCAT(IFNULL(cp.title,''),' ',IFNULL(cp.description,''))), r'RM[0-9]{{3,5}}') AS rm_reference,
+             (JSON_VALUE(cp.compiled_json,'$.tender.procurementMethodDetails')='Call-off from a framework agreement') AS is_framework_call_off
+      FROM `{config.PROJECT}.{config.SIBLING_DATASET}.compiled_process` cp, UNNEST(cp.awards) a
+    """).result()
+    n = query(f"SELECT COUNT(*) AS n FROM `{full}`")[0]["n"]
+    return {"sibling_call_off_awards_rows": n}
+
+
 # ----------------------------------------------------------------- status + run ledger
+def _health(last_run_status: str, last_success_iso: str | None) -> str:
+    """green/amber/red (PRD §11/N6): red if last run failed/paused or no success within the
+    liveness window; green otherwise (amber reserved for a tracked-degraded signal)."""
+    from datetime import datetime, timezone
+    if last_run_status in ("failed", "paused_ceiling") or not last_success_iso:
+        return "red"
+    last = datetime.fromisoformat(last_success_iso)
+    if last.tzinfo is None:
+        last = last.replace(tzinfo=timezone.utc)
+    age_h = (datetime.now(timezone.utc) - last).total_seconds() / 3600
+    return "red" if age_h > config.LIVENESS_MAX_HOURS else "green"
+
+
 def write_status(run_id: str, mode: str, stats: dict, cov: dict, *, est_gbp: float, status: str = "success",
-                 tier_breakdown: list[dict] | None = None) -> None:
-    # source_status: one row per operator currently in the index
+                 tier_breakdown: list[dict] | None = None, by_operator: list[dict] | None = None) -> None:
+    now = _now()
+    last_success = now if status == "success" else None
     ops = query(f"SELECT operator_id, COUNT(*) AS n FROM `{config.pub('instrument')}` GROUP BY operator_id")
     src_rows = [{"source_id": (o["operator_id"] or "unknown"), "operator_id": o["operator_id"],
-                 "last_run_at": _now(), "last_success_at": _now(), "last_run_status": status,
-                 "facts_total": o["n"], "health": "green",
+                 "last_run_at": now, "last_success_at": last_success, "last_run_status": status,
+                 "facts_total": o["n"], "health": _health(status, last_success),
                  "spend_coverage_note": f"index covers {cov['spend_coverage_pct']}% of the framework-attributable GBP denominator"} for o in ops]
     _replace("source_status", src_rows)
-    _append("run_summary", [{"run_id": run_id, "mode": mode, "finished_at": _now(), "status": status,
+    _append("run_summary", [{"run_id": run_id, "mode": mode, "finished_at": now, "status": status,
                              "docs_seen": stats.get("documents"), "facts_committed": stats.get("verified"),
                              "est_gbp": est_gbp, "spend_coverage_pct": cov["spend_coverage_pct"]}], "pub")
-    _append("harness_run", [{"run_id": run_id, "mode": mode, "started_at": _now(), "finished_at": _now(),
+    _append("harness_run", [{"run_id": run_id, "mode": mode, "started_at": now, "finished_at": now,
                              "status": status, "operators": [o["operator_id"] for o in ops if o["operator_id"]],
                              "docs_seen": stats.get("documents"), "facts_committed": stats.get("verified"),
                              "facts_quarantined": stats.get("quarantined"), "tokens_in": 0, "tokens_out": 0,
                              "est_gbp": est_gbp, "model_tier_breakdown": tier_breakdown or [],
+                             "by_operator": by_operator or [],
                              "ceiling_gbp": config.CEILING_PAUSE_GBP, "error_summary": None}])

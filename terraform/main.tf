@@ -66,15 +66,13 @@ resource "google_project_iam_member" "api_jobuser" {
   member  = "serviceAccount:${google_service_account.api.email}"
 }
 
-# --- authorized view: the ONLY surface onto the sibling's award data (M8). Additive grant on the
-#     sibling dataset so sibling_call_off_awards can read it WITHOUT the API SA having direct access. ---
-resource "google_bigquery_dataset_access" "sibling_authorized_view" {
+# --- sibling access (M8): the INGEST SA reads uk_tenders_public to BUILD the materialised, non-PII
+#     sibling_call_off_awards snapshot table (`govbuy-ingest materialize-sibling`). The API SA never
+#     gets access to the sibling — it reads only the snapshot in govbuy_public. ---
+resource "google_bigquery_dataset_iam_member" "ingest_reads_sibling" {
   dataset_id = var.sibling_dataset
-  view {
-    project_id = var.project
-    dataset_id = var.public_dataset
-    table_id   = "sibling_call_off_awards"
-  }
+  role       = "roles/bigquery.dataViewer"
+  member     = "serviceAccount:${google_service_account.ingest.email}"
 }
 
 # --- GCS raw doc archive (replay + substring-gate source) -----------------------

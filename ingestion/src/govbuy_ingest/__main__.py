@@ -25,6 +25,8 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("rebuild"); sub.add_parser("match"); sub.add_parser("coverage")
     sub.add_parser("status"); sub.add_parser("liveness"); sub.add_parser("seed-reference")
     rf = sub.add_parser("refresh"); rf.add_argument("--operator", default=None); rf.add_argument("--max-docs", type=int, default=0)
+    bf = sub.add_parser("backfill"); bf.add_argument("--operator", default=None)
+    sub.add_parser("discover"); sub.add_parser("materialize-sibling")
     args = ap.parse_args(argv)
 
     from . import bq, config
@@ -58,6 +60,14 @@ def main(argv: list[str] | None = None) -> int:
     if args.mode == "refresh":
         from .pipeline import refresh
         return refresh(operator=args.operator, max_docs=args.max_docs or None)
+    if args.mode == "backfill":
+        from .pipeline import backfill
+        return backfill(operator=args.operator)
+    if args.mode == "discover":
+        from .pipeline import discover
+        return discover()
+    if args.mode == "materialize-sibling":
+        print(json.dumps(bq.materialize_sibling(), indent=2, default=str)); return 0
     return 1
 
 
