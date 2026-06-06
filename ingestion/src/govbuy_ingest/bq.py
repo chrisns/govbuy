@@ -151,6 +151,13 @@ def rebuild_public() -> dict:
     docs = project("buying_doc")
     obs = project("appointment_observation")
 
+    # GCA is deterministic now: a GCA instrument must carry a CANONICAL RM reference. Drop scrape
+    # artifacts (e.g. a lot mis-recorded as an instrument: 'RM1557.14L4' = G-Cloud 14 Lot 4).
+    _CANON_RM = re.compile(r"^RM[0-9]{3,5}(\.[0-9]+)?$")
+    instruments = [r for r in instruments
+                   if not (r.get("operator_id") == "gca" and r.get("rm_reference")
+                           and not _CANON_RM.match(str(r["rm_reference"]).upper()))]
+
     # --- dedup instruments by RM stem: ONE canonical instrument per framework (keep the richest by
     #     child-fact count, then field completeness); remap child facts onto the canonical id so a
     #     thin duplicate (e.g. a census stub) never shadows the detailed record. ---
@@ -183,6 +190,13 @@ def rebuild_public() -> dict:
             for row in lst:
                 if row.get("instrument_id") in alias:
                     row["instrument_id"] = alias[row["instrument_id"]]
+
+    # Drop child facts orphaned by the GCA-artifact filter / dedup (no lot/mechanic without an instrument).
+    valid_ids = {r["instrument_id"] for r in instruments}
+    lots = [r for r in lots if r.get("instrument_id") in valid_ids]
+    mechanics = [r for r in mechanics if r.get("instrument_id") in valid_ids]
+    docs = [r for r in docs if r.get("instrument_id") in valid_ids]
+    obs = [r for r in obs if r.get("instrument_id") in valid_ids]
 
     counts = {}
     _replace("operator", operators); counts["operator"] = len(operators)
