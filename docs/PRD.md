@@ -426,10 +426,14 @@ derivation.
 
 ## 15. Success metrics (v1) — measurable
 
-- **Frozen-denominator spend coverage:** denominator = total `awarded_amount` in
-  `sibling_call_off_awards` for awards attributable to a framework/standing instrument, over a fixed
-  trailing window (FY2024-25), single-currency GBP. Metric = fraction of *that* whose instrument govbuy
-  has indexed; **target ≥80%**, with the unresolved-award-value undercount reported alongside.
+- **Spend coverage — denominator = ATTRIBUTABLE spend** (GBP `award_amount` in
+  `sibling_call_off_awards` that carries an RM reference, i.e. names a framework — £321.3bn). Metric =
+  fraction of that whose framework govbuy has indexed. **Target ≥80% — MET at 86.8%** (£278.9bn covered
+  via the top ~30 RM frameworks; sharply Pareto). Call-offs flagged as framework spend but carrying
+  **no** RM reference (£222.4bn — unkeyable by anyone from the source) are reported **separately** as
+  `unattributable_flagged_gbp_bn`, never charged against coverage. (Award values are framework
+  ceilings, not actual spend — some carry placeholder maxima; the metric inherits that caveat.) See
+  [`docs/research/2026-06-06-spend-coverage.md`](research/2026-06-06-spend-coverage.md).
 - **Feature completeness:** ≥1 worked example of each entity type present and source-anchored (§5).
 - **Extraction precision ≥0.90** on the golden set; **verify rejects ≥0.95** of injected-wrong claims.
 - **Supplier-match precision ≥0.90** on the gold set (auto_accept band); recall reported.
@@ -467,7 +471,7 @@ derivation.
   the liveness script fires when no successful run completed within the threshold.
 - **AC-8** A broken operator scrape surfaces that operator as `red`/stale in `get_status` without
   breaking queries on the others (operator isolation).
-- **AC-9 (spend gate)** Indexed instruments cover **≥80% of the frozen denominator** (§15), with the
+- **AC-9 (spend gate) — MET (86.8%):** indexed instruments cover **≥80% of the attributable denominator** (§15), with the
   excluded tail and unresolved-award-value undercount logged.
 - **AC-10** `govbuy_public` is fully rebuildable from `govbuy_raw` with no re-scrape (reproject test).
 - **AC-11 (ADR-0003 invariant)** Where two sources disagree on a supplier's membership, the resolved

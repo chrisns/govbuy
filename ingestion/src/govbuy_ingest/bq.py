@@ -203,22 +203,31 @@ def ch_match_suppliers() -> dict:
 
 # ----------------------------------------------------------------- §15 spend coverage
 def coverage() -> dict:
+    """§15 spend coverage. Denominator = spend ATTRIBUTABLE to a named framework (carries an RM
+    reference) — you cannot index what the source does not identify. Flagged-but-no-RM call-offs are
+    reported separately as 'unattributable' (the source says 'a framework' but names none), never
+    charged against coverage. Numerator = attributable spend whose framework govbuy has indexed."""
     sql = f"""
     WITH inst AS (SELECT DISTINCT REGEXP_EXTRACT(UPPER(rm_reference), r'RM[0-9]{{3,5}}') AS stem
                   FROM `{config.pub('instrument')}` WHERE rm_reference IS NOT NULL),
-    awards AS (
-      SELECT award_amount, REGEXP_EXTRACT(UPPER(rm_reference), r'RM[0-9]{{3,5}}') AS stem, is_framework_call_off
+    aw AS (
+      SELECT award_amount, rm_reference, is_framework_call_off,
+             REGEXP_EXTRACT(UPPER(rm_reference), r'RM[0-9]{{3,5}}') AS stem
       FROM `{config.pub('sibling_call_off_awards')}`
-      WHERE award_currency = 'GBP' AND award_amount IS NOT NULL
-        AND (rm_reference IS NOT NULL OR is_framework_call_off))
+      WHERE award_currency = 'GBP' AND award_amount IS NOT NULL)
     SELECT
-      ROUND(SUM(award_amount)/1e9, 2) AS denominator_gbp_bn,
+      ROUND(SUM(IF(rm_reference IS NOT NULL, award_amount, 0))/1e9, 2) AS attributable_gbp_bn,
       ROUND(SUM(IF(stem IN (SELECT stem FROM inst), award_amount, 0))/1e9, 2) AS covered_gbp_bn,
-      ROUND(100*SAFE_DIVIDE(SUM(IF(stem IN (SELECT stem FROM inst), award_amount, 0)), SUM(award_amount)), 3) AS pct
-    FROM awards"""
+      ROUND(100*SAFE_DIVIDE(SUM(IF(stem IN (SELECT stem FROM inst), award_amount, 0)),
+                            SUM(IF(rm_reference IS NOT NULL, award_amount, 0))), 3) AS pct,
+      ROUND(SUM(IF(rm_reference IS NULL AND is_framework_call_off, award_amount, 0))/1e9, 2) AS unattributable_flagged_gbp_bn
+    FROM aw"""
     r = query(sql)[0]
-    return {"denominator_gbp_bn": float(r["denominator_gbp_bn"] or 0), "covered_gbp_bn": float(r["covered_gbp_bn"] or 0),
-            "spend_coverage_pct": float(r["pct"] or 0)}
+    attrib = float(r["attributable_gbp_bn"] or 0)
+    return {"attributable_gbp_bn": attrib, "denominator_gbp_bn": attrib,  # denominator = attributable
+            "covered_gbp_bn": float(r["covered_gbp_bn"] or 0),
+            "spend_coverage_pct": float(r["pct"] or 0),
+            "unattributable_flagged_gbp_bn": float(r["unattributable_flagged_gbp_bn"] or 0)}
 
 
 # ----------------------------------------------------------------- sibling snapshot (materialised)
