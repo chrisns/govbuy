@@ -43,7 +43,7 @@ CREATE TABLE IF NOT EXISTS `govbuy_raw.extracted_fact` (
                                                  -- buying_doc | appointment_observation | supplier |
                                                  -- reseller_channel | inbound_scope
   subject_ref     STRING,                         -- natural key of the entity this fact is about
-  payload         JSON      NOT NULL,            -- the typed fields for fact_type (validated on write)
+  payload         STRING    NOT NULL,            -- JSON text of the typed fields for fact_type (PARSE_JSON on read)
   evidence_id     STRING    NOT NULL,            -- FK claim_evidence.evidence_id (source-anchor; NOT NULL)
   confidence      FLOAT64   NOT NULL,            -- 0..1
   verify_status   STRING    NOT NULL,            -- pending | verified | quarantined
@@ -74,7 +74,7 @@ CREATE TABLE IF NOT EXISTS `govbuy_raw.frontier` (
   source_id     STRING    NOT NULL,
   operator_id   STRING,
   seed_url      STRING    NOT NULL,
-  recipe        JSON      NOT NULL,             -- {target_fact_types[], fetch:{pagination,follow}, extractor_prompt_id, extractor_prompt_version, locator_strategy, tos_gate}
+  recipe        STRING    NOT NULL,             -- JSON text: {target_fact_types[], fetch:{pagination,follow}, extractor_prompt_id, extractor_prompt_version, locator_strategy, tos_gate}
   cadence_hint  STRING,                          -- nightly | weekly | monthly
   enabled       BOOL      NOT NULL,
   status        STRING,                          -- proposed | active | broken | retired
@@ -227,7 +227,7 @@ CREATE TABLE IF NOT EXISTS `govbuy_public.appointed_supplier` (
   status         STRING NOT NULL,                -- active | left | unconfirmed | conflicted
   confidence     FLOAT64 NOT NULL,               -- aggregate
   conflict       BOOL   NOT NULL,
-  evidence_ids   ARRAY<STRING> NOT NULL          -- all contributing observation evidence
+  evidence_ids   ARRAY<STRING>                   -- contributing observation evidence (BQ stores NULL arrays as empty; harness guarantees >=1)
 )
 CLUSTER BY instrument_id, lot_id, supplier_id;
 
@@ -289,13 +289,27 @@ CREATE TABLE IF NOT EXISTS `govbuy_public.source_status` (
 )
 CLUSTER BY operator_id;
 
+-- Public run summary so get_status can surface last-run cost + spend coverage without
+-- the API SA touching the raw tier (the full ledger is govbuy_raw.harness_run).
+CREATE TABLE IF NOT EXISTS `govbuy_public.run_summary` (
+  run_id             STRING NOT NULL,
+  mode               STRING NOT NULL,        -- refresh | discover | backfill
+  finished_at        TIMESTAMP,
+  status             STRING,
+  docs_seen          INT64,
+  facts_committed    INT64,
+  est_gbp            NUMERIC,
+  spend_coverage_pct NUMERIC
+);
+
 -- ============================================================================
 -- AUTHORIZED VIEW (M8) — the ONLY surface onto the sibling's award data.
 -- The API SA gets dataViewer on govbuy_public ONLY. This view is authorized on the sibling's
 -- uk_tenders_public, so it can read it WITHOUT the API SA having direct access — and it DROPS the
--- PII-bearing parties[].contactPoint by selecting only award value + supplier identity. (A
--- framework-reference column is intentionally NOT included yet — which OCDS field expresses it is
--- unverified and gated behind PRD §14; add it to this view only once §14 pins the field.)
+-- PII-bearing parties[].contactPoint by selecting only award value + supplier identity +
+-- framework-reference keys. §14 RESOLVED (docs/research/2026-06-06-framework-ref-join.md): the RM-number
+-- stem is the operative instrument join key (11.2% of awarded spend); compiled_json is parsed ONLY for
+-- relatedProcesses / procurementMethodDetails — contactPoint is never re-exposed.
 -- query_sql joins against THIS view, not the raw sibling dataset.
 -- ============================================================================
 CREATE OR REPLACE VIEW `govbuy_public.sibling_call_off_awards` AS
@@ -311,7 +325,17 @@ SELECT
   a.supplier_id,                                   -- GB-COH-*/GB-FTS-*/GB-CFS-* (join key, two-tier match — B3)
   a.amount        AS award_amount,
   a.currency      AS award_currency,
-  cp.official_url
+  cp.official_url,
+  -- (1) canonical parent-framework OCID (authoritative when present; sparse)
+  ( SELECT JSON_VALUE(rp,'$.identifier')
+    FROM UNNEST(JSON_QUERY_ARRAY(cp.compiled_json,'$.relatedProcesses')) rp
+    WHERE JSON_VALUE(rp,'$.scheme') = 'ocid'
+      AND EXISTS (SELECT 1 FROM UNNEST(JSON_QUERY_ARRAY(rp,'$.relationship')) r WHERE JSON_VALUE(r) = 'framework')
+    LIMIT 1 )                                                                   AS framework_ocid,
+  -- (2) de-facto CCS/GCA instrument key — the operative join (RM stem; strip lot suffix to match)
+  REGEXP_EXTRACT(UPPER(CONCAT(IFNULL(cp.title,''),' ',IFNULL(cp.description,''))), r'RM[0-9]{3,5}') AS rm_reference,
+  -- (3) call-off flag (label only — parent unknown)
+  (JSON_VALUE(cp.compiled_json,'$.tender.procurementMethodDetails') = 'Call-off from a framework agreement') AS is_framework_call_off
 FROM `uk_tenders_public.compiled_process` cp, UNNEST(cp.awards) a;
 -- NOTE: grant this view authorized-view access on uk_tenders_public; do NOT grant the API SA
 -- dataViewer on uk_tenders_public directly. Deploy-time IAM assertion: API SA reads only the two

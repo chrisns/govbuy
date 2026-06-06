@@ -1,0 +1,124 @@
+# govbuy — infrastructure (ADR-0001/0002/0005). Datasets + least-privilege IAM + the sibling
+# authorized-view grant + GCS archive + Cloud Run (API). NO scheduler: the ingest harness is
+# operator-hosted (ADR-0005). Tables are created by `sql/schema.sql` (the contract), not duplicated
+# here. (For the working session the datasets were bootstrapped via `bq`; this is the reproducible IaC.)
+
+terraform {
+  required_version = ">= 1.5"
+  required_providers {
+    google = { source = "hashicorp/google", version = ">= 5.0" }
+  }
+}
+
+provider "google" {
+  project = var.project
+  region  = var.region
+}
+
+# --- datasets: least-privilege read boundary -----------------------------------
+resource "google_bigquery_dataset" "raw" {
+  dataset_id  = var.raw_dataset
+  location    = var.bq_location
+  description = "govbuy raw (write): doc archive, fact event log, evidence, frontier, runs"
+}
+
+resource "google_bigquery_dataset" "public" {
+  dataset_id  = var.public_dataset
+  location    = var.bq_location
+  description = "govbuy public (read): typed source-anchored query-serving + sibling authorized view"
+}
+
+# --- service accounts ----------------------------------------------------------
+resource "google_service_account" "ingest" {
+  account_id   = "govbuy-ingest"
+  display_name = "govbuy ingestion harness (write)"
+}
+
+resource "google_service_account" "api" {
+  account_id   = "govbuy-api"
+  display_name = "govbuy MCP API (read-only)"
+}
+
+# --- IAM: ingestion writes both; API reads ONLY govbuy_public (never *_raw, never the sibling) ---
+resource "google_bigquery_dataset_iam_member" "ingest_raw" {
+  dataset_id = google_bigquery_dataset.raw.dataset_id
+  role       = "roles/bigquery.dataEditor"
+  member     = "serviceAccount:${google_service_account.ingest.email}"
+}
+resource "google_bigquery_dataset_iam_member" "ingest_public" {
+  dataset_id = google_bigquery_dataset.public.dataset_id
+  role       = "roles/bigquery.dataEditor"
+  member     = "serviceAccount:${google_service_account.ingest.email}"
+}
+resource "google_bigquery_dataset_iam_member" "api_public_read" {
+  dataset_id = google_bigquery_dataset.public.dataset_id
+  role       = "roles/bigquery.dataViewer"
+  member     = "serviceAccount:${google_service_account.api.email}"
+}
+resource "google_project_iam_member" "ingest_jobuser" {
+  project = var.project
+  role    = "roles/bigquery.jobUser"
+  member  = "serviceAccount:${google_service_account.ingest.email}"
+}
+resource "google_project_iam_member" "api_jobuser" {
+  project = var.project
+  role    = "roles/bigquery.jobUser"
+  member  = "serviceAccount:${google_service_account.api.email}"
+}
+
+# --- authorized view: the ONLY surface onto the sibling's award data (M8). Additive grant on the
+#     sibling dataset so sibling_call_off_awards can read it WITHOUT the API SA having direct access. ---
+resource "google_bigquery_dataset_access" "sibling_authorized_view" {
+  dataset_id = var.sibling_dataset
+  view {
+    project_id = var.project
+    dataset_id = var.public_dataset
+    table_id   = "sibling_call_off_awards"
+  }
+}
+
+# --- GCS raw doc archive (replay + substring-gate source) -----------------------
+resource "google_storage_bucket" "raw_archive" {
+  name                        = "${var.project}-govbuy-raw"
+  location                    = var.bq_location
+  uniform_bucket_level_access = true
+  lifecycle_rule {
+    condition { age = 730 }
+    action { type = "Delete" }
+  }
+}
+
+# --- API: public, unauthenticated MCP, read-only SA, single instance -----------
+resource "google_cloud_run_v2_service" "api" {
+  count    = var.api_image == "" ? 0 : 1
+  name     = "govbuy-mcp"
+  location = var.region
+  template {
+    service_account = google_service_account.api.email
+    scaling {
+      min_instance_count = 0
+      max_instance_count = 1
+    }
+    session_affinity = true
+    containers {
+      image = var.api_image
+      ports { container_port = 8080 }
+      env { name = "GCP_PROJECT"      value = var.project }
+      env { name = "BQ_PUBLIC_DATASET" value = var.public_dataset }
+      env { name = "BQ_LOCATION"      value = var.bq_location }
+      env { name = "MAX_BYTES_BILLED" value = var.max_bytes_billed }
+      resources { limits = { cpu = "1", memory = "512Mi" } }
+    }
+  }
+}
+
+resource "google_cloud_run_v2_service_iam_member" "api_public" {
+  count    = var.api_image == "" ? 0 : 1
+  name     = google_cloud_run_v2_service.api[0].name
+  location = var.region
+  role     = "roles/run.invoker"
+  member   = "allUsers"
+}
+
+# Deploy-time IAM assertion (PRD §11): the API SA must read ONLY the two named public datasets,
+# never any *_raw and never uk_tenders_public directly. Enforced as a check in scripts/deploy_api.sh.

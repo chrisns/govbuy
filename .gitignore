@@ -27,3 +27,6 @@ build/
 *.swp
 .idea/
 .vscode/
+
+# browser-tool scratch
+.playwright-mcp/
