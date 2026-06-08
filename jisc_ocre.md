@@ -1,0 +1,317 @@
+- generic [active] [ref=e1]:
+  - region "Cookie preferences":
+    - button "Set cookie preferences" [ref=e2]:
+      - img [ref=e3]
+  - generic [ref=e10]:
+    - navigation "Skip to main content":
+      - link "Skip to main content" [ref=e11] [cursor=pointer]:
+        - /url: "#main-content"
+        - generic [ref=e12]: Skip to main content
+    - generic [ref=e15]:
+      - generic [ref=e17]:
+        - link "Jisc homepage" [ref=e18] [cursor=pointer]:
+          - /url: /
+          - img "Jisc" [ref=e19]
+        - generic [ref=e20]:
+          - button "Solutions" [ref=e21] [cursor=pointer]:
+            - generic [ref=e22]: Solutions
+            - img [ref=e23]
+          - button "Support" [ref=e25] [cursor=pointer]:
+            - generic [ref=e26]: Support
+            - img [ref=e27]
+          - button "Explore" [ref=e29] [cursor=pointer]:
+            - generic [ref=e30]: Explore
+            - img [ref=e31]
+          - button "Sector" [ref=e33] [cursor=pointer]:
+            - generic [ref=e34]: Sector
+            - img [ref=e35]
+          - link "Contact us" [ref=e37] [cursor=pointer]:
+            - /url: /contact
+      - generic [ref=e41]:
+        - searchbox "Search Jisc Search Jisc" [ref=e43]
+        - button "Search" [ref=e44] [cursor=pointer]:
+          - img [ref=e45]
+    - banner "Site header" [ref=e47]:
+      - navigation "Partial breadcrumb" [ref=e52]:
+        - list [ref=e53]:
+          - listitem [ref=e54]:
+            - link "Jisc homepage" [ref=e55] [cursor=pointer]:
+              - /url: /
+              - img [ref=e56]
+          - img [ref=e59]
+          - generic [ref=e61]:
+            - listitem [ref=e62]:
+              - link "Cloud" [ref=e63] [cursor=pointer]:
+                - /url: /cloud
+            - listitem [ref=e64]:
+              - img [ref=e66]
+              - link "OCRE 2024 cloud framework" [ref=e68] [cursor=pointer]:
+                - /url: /ocre-cloud-framework
+      - navigation "Section navigation" [ref=e69]:
+        - list [ref=e71]:
+          - listitem [ref=e72]:
+            - link "Cloud assist" [ref=e73] [cursor=pointer]:
+              - /url: /cloud-assist
+          - listitem [ref=e74]:
+            - link "Cloud architecture and readiness review" [ref=e75] [cursor=pointer]:
+              - /url: /cloud-architecture-and-readiness-review
+          - listitem [ref=e76]:
+            - link "Microsoft 365 migration" [ref=e77] [cursor=pointer]:
+              - /url: /microsoft-365-migration
+          - listitem [ref=e78]:
+            - link "Cloud security review" [ref=e79] [cursor=pointer]:
+              - /url: /cloud-security-review
+          - listitem [ref=e80]:
+            - link "Azure and AWS migration" [ref=e81] [cursor=pointer]:
+              - /url: /azure-and-aws-migration
+          - listitem [ref=e82]:
+            - link "Managed cloud" [ref=e83] [cursor=pointer]:
+              - /url: /managed-cloud
+          - listitem [ref=e84]:
+            - link "Intune deployment accelerator" [ref=e85] [cursor=pointer]:
+              - /url: /intune-deployment-accelerator
+          - listitem [ref=e86]:
+            - link "Microsoft Purview governance" [ref=e87] [cursor=pointer]:
+              - /url: /microsoft-purview-governance
+          - listitem [ref=e88]:
+            - link "Roadmap planning" [ref=e89] [cursor=pointer]:
+              - /url: /roadmap-planning
+          - listitem [ref=e90]:
+            - link "CIS remediation" [ref=e91] [cursor=pointer]:
+              - /url: /cis-remediation
+          - listitem [ref=e92]:
+            - link "Intune review" [ref=e93] [cursor=pointer]:
+              - /url: /intune-review
+    - main [ref=e94]:
+      - article "OCRE 2024 cloud framework" [ref=e95]:
+        - generic "OCRE 2024 cloud framework" [ref=e96]:
+          - generic [ref=e97]:
+            - heading "OCRE 2024 cloud framework" [level=1] [ref=e98]
+            - img "Female student using a laptop" [ref=e100]
+            - generic [ref=e101]:
+              - paragraph [ref=e102]: An EU-compliant procurement framework for cloud infrastructure as a service (IaaS), platform as a service (PaaS) and associated software as a service (SaaS).
+              - generic [ref=e103]:
+                - paragraph [ref=e104]:
+                  - link "Contact your relationship manager" [ref=e105] [cursor=pointer]:
+                    - /url: /contact/your-relationship-manager
+                - list [ref=e107]:
+                  - listitem [ref=e108]:
+                    - link "help@jisc.ac.uk" [ref=e109] [cursor=pointer]:
+                      - /url: mailto:help@jisc.ac.uk
+                      - img [ref=e111]
+                      - generic [ref=e113]: help@jisc.ac.uk
+        - generic [ref=e115]:
+          - generic [ref=e117]:
+            - paragraph
+            - img "OCRE logo 2024" [ref=e118]
+            - paragraph [ref=e119]: Procuring from a cloud provider on your own can be complex and time-consuming. By purchasing services via the OCRE (Open Clouds for Research and Education) 2024 framework you get predictable, safe and cost-effective access to a portfolio of cloud providers.
+            - paragraph [ref=e120]:
+              - text: The OCRE 2024 framework is the latest iteration in
+              - link "GÉANT’s" [ref=e121] [cursor=pointer]:
+                - /url: http://www.geant.org/
+              - text: flagship series of public cloud frameworks. It aims to simplify the procurement process so you can find the EU-compliant solution you need.
+          - generic [ref=e123]:
+            - heading "Why procure via the framework?" [level=2] [ref=e124]
+            - paragraph [ref=e125]: "By accessing services via the OCRE 2024 framework, you can:"
+            - heading "Save time and money" [level=3] [ref=e126]
+            - list [ref=e127]:
+              - listitem [ref=e128]: Quickly find compliant suppliers, saving resources compared to the time and money involved in procuring a service in-house
+              - listitem [ref=e129]: Cost-effective pricing - purchasing power is increased because demand is aggregated across the UK and Europe
+              - listitem [ref=e130]: Network traffic costs are limited, with egress charges either discounted or free
+            - heading "Get peace of mind" [level=3] [ref=e131]
+            - paragraph [ref=e132]: GÉANT conducted appropriate due diligence throughout the tender process, providing reassurance in terms of compliance and, where possible, better legal conditions than you are likely to find by approaching suppliers independently. A standard, negotiated call-off contract applies to all suppliers on the framework.
+            - paragraph [ref=e133]: You can also be assured that data handling and storage will meet European and national regulations.
+            - heading "Make the most of our world-class Janet Network" [level=3] [ref=e134]
+            - paragraph [ref=e135]:
+              - text: Suppliers and services on the framework are connected to the
+              - link "Janet Network" [ref=e136] [cursor=pointer]:
+                - /url: /janet/
+              - text: ", either directly or via GÉANT, so you make full use of the high-capacity, low-latency Janet Network."
+            - heading "Benefit from the simplicity of single sign-on" [level=3] [ref=e137]
+            - paragraph [ref=e138]:
+              - text: If you're a member of the
+              - link "UK Access Management Federation" [ref=e139] [cursor=pointer]:
+                - /url: /uk-federation/
+              - text: ", your users can use their home organisation login to access the portals of some of the cloud providers on the framework – using"
+              - link "eduGAIN" [ref=e140] [cursor=pointer]:
+                - /url: https://www.geant.org/Services/Trust_identity_and_security/eduGAIN
+              - text: ", which interconnects identity federations around the world."
+            - paragraph [ref=e141]: Like the UK Access Management Federation, eduGAIN uses the de facto standard protocol, SAML (Security Assertion Markup Language).
+          - generic [ref=e143]:
+            - heading "Eligibility" [level=2] [ref=e144]
+            - paragraph [ref=e145]: Higher education institutions, further education colleges and Research Council establishments in the UK are eligible to use the framework. Services are also available to other organisations, such as local authorities and other bodies who are members of higher and further education purchasing consortia.
+            - heading "Services available via the framework" [level=2] [ref=e146]
+            - paragraph [ref=e147]: "Each supplier provides their own cloud management portal, giving you a centralised view of your accounts and helping you understand how cloud services are used across your organisation. They also provide dashboards showing you full details of metering, billing, analytics and reporting. The services available through the framework include but are not limited to the following:"
+          - generic [ref=e149]:
+            - heading "How to access the services" [level=2] [ref=e150]
+            - paragraph [ref=e151]: The 2024 framework offers multiple suppliers for many of the platforms, providing more choice to customers seeking the most appropriate solution for their needs.
+          - table [ref=e155]:
+            - caption [ref=e156]
+            - rowgroup
+          - generic [ref=e158]:
+            - heading "Start using the framework" [level=2] [ref=e159]
+            - paragraph [ref=e160]:
+              - text: To find out more about the OCRE 2024 framework,
+              - link "contact your relationship manager" [ref=e161] [cursor=pointer]:
+                - /url: /contact/your-relationship-manager/
+              - text: and
+              - link "view the buyer's guide (.pdf)" [ref=e162] [cursor=pointer]:
+                - /url: https://repository.jisc.ac.uk/10061/1/framework-buyers-guide-ocre-2024-cloud-framework.pdf
+              - text: .
+            - paragraph [ref=e163]:
+              - text: In addition, the
+              - link "OCRE Cloud Catalogue" [ref=e164] [cursor=pointer]:
+                - /url: https://clouds.geant.org/ocre-2024-catalogue
+              - text: provides details of the suppliers available in each country under the framework.
+          - generic [ref=e166]:
+            - group [ref=e167]:
+              - generic "Service level description" [ref=e168] [cursor=pointer]:
+                - heading "Service level description" [level=3] [ref=e169]:
+                  - generic [ref=e170]: Service level description
+                  - generic [ref=e171]:
+                    - text: Show
+                    - img [ref=e172]
+            - group [ref=e174]:
+              - generic "Jisc's OCRE roles and behaviours" [ref=e175] [cursor=pointer]:
+                - heading "Jisc's OCRE roles and behaviours" [level=3] [ref=e176]:
+                  - generic [ref=e177]: Jisc's OCRE roles and behaviours
+                  - generic [ref=e178]:
+                    - text: Show
+                    - img [ref=e179]
+          - generic [ref=e183]:
+            - heading "Get involved" [level=3] [ref=e184]
+            - paragraph [ref=e185]:
+              - link "Visit our cloud blog" [ref=e186] [cursor=pointer]:
+                - /url: https://cloud.jiscinvolve.org/wp/tag/ocre/
+              - text: for the latest OCRE news, events and case studies.
+    - contentinfo "Site footer" [ref=e187]:
+      - generic [ref=e191]:
+        - heading "Site footer" [level=2] [ref=e192]
+        - navigation "Breadcrumb" [ref=e194]:
+          - list [ref=e195]:
+            - listitem [ref=e196]:
+              - link "Jisc homepage" [ref=e197] [cursor=pointer]:
+                - /url: /
+                - img [ref=e198]
+            - listitem [ref=e200]:
+              - generic [ref=e201]:
+                - text: ">"
+                - link "Cloud" [ref=e202] [cursor=pointer]:
+                  - /url: /cloud
+            - listitem [ref=e203]: ">OCRE 2024 cloud framework"
+      - generic [ref=e206]:
+        - heading "Jisc product areas" [level=3] [ref=e207]
+        - generic [ref=e208]:
+          - generic [ref=e209]:
+            - heading "Areas" [level=4] [ref=e210]
+            - list [ref=e211]:
+              - listitem [ref=e212]:
+                - link "Connectivity" [ref=e213] [cursor=pointer]:
+                  - /url: /connectivity
+              - listitem [ref=e214]:
+                - link "Cyber security" [ref=e215] [cursor=pointer]:
+                  - /url: /cyber-security
+              - listitem [ref=e216]:
+                - link "Cloud" [ref=e217] [cursor=pointer]:
+                  - /url: /cloud
+              - listitem [ref=e218]:
+                - link "Data and analytics" [ref=e219] [cursor=pointer]:
+                  - /url: /data-analytics
+              - listitem [ref=e220]:
+                - link "Licensed software and content" [ref=e221] [cursor=pointer]:
+                  - /url: /licensed-software-and-content
+              - listitem [ref=e222]:
+                - link "Research management" [ref=e223] [cursor=pointer]:
+                  - /url: /research-management
+              - listitem [ref=e224]:
+                - link "Library and learning resources" [ref=e225] [cursor=pointer]:
+                  - /url: /libraries-and-learning-resources
+              - listitem [ref=e226]:
+                - link "Student experience" [ref=e227] [cursor=pointer]:
+                  - /url: /student-experience
+              - listitem [ref=e228]:
+                - link "Trust and identity" [ref=e229] [cursor=pointer]:
+                  - /url: /trust-and-identity
+              - listitem [ref=e230]:
+                - link "Advice and guidance" [ref=e231] [cursor=pointer]:
+                  - /url: /advice-and-guidance
+          - generic [ref=e232]:
+            - heading "Explore" [level=4] [ref=e233]
+            - list [ref=e234]:
+              - listitem [ref=e235]:
+                - link "Guides" [ref=e236] [cursor=pointer]:
+                  - /url: /guides
+              - listitem [ref=e237]:
+                - link "Training" [ref=e238] [cursor=pointer]:
+                  - /url: /training
+              - listitem [ref=e239]:
+                - link "Consultancy" [ref=e240] [cursor=pointer]:
+                  - /url: /consultancy
+              - listitem [ref=e241]:
+                - link "Events" [ref=e242] [cursor=pointer]:
+                  - /url: /events
+              - listitem [ref=e243]:
+                - link "Innovation" [ref=e244] [cursor=pointer]:
+                  - /url: /innovation
+          - generic [ref=e245]:
+            - heading "Useful" [level=4] [ref=e246]
+            - list [ref=e247]:
+              - listitem [ref=e248]:
+                - link "About" [ref=e249] [cursor=pointer]:
+                  - /url: /about-us
+              - listitem [ref=e250]:
+                - link "Membership" [ref=e251] [cursor=pointer]:
+                  - /url: /membership
+              - listitem [ref=e252]:
+                - link "Get involved" [ref=e253] [cursor=pointer]:
+                  - /url: /get-involved
+              - listitem [ref=e254]:
+                - link "Intelligence, ideas, insights" [ref=e255] [cursor=pointer]:
+                  - /url: /intelligence-ideas-insights
+              - listitem [ref=e256]:
+                - link "Jobs" [ref=e257] [cursor=pointer]:
+                  - /url: /jobs
+          - generic [ref=e258]:
+            - heading "Get in touch" [level=4] [ref=e259]
+            - list [ref=e260]:
+              - listitem [ref=e261]:
+                - link "Contact us" [ref=e262] [cursor=pointer]:
+                  - /url: /contact
+              - listitem [ref=e263]:
+                - link "Sign up to our newsletter" [ref=e264] [cursor=pointer]:
+                  - /url: /forms/headlines
+              - listitem [ref=e265]:
+                - img [ref=e266]
+                - link "LinkedIn" [ref=e268] [cursor=pointer]:
+                  - /url: https://www.linkedin.com/company/jisc
+              - listitem [ref=e269]:
+                - img [ref=e270]
+                - link "Instagram" [ref=e272] [cursor=pointer]:
+                  - /url: https://www.instagram.com/jiscsocial/
+              - listitem [ref=e273]:
+                - img [ref=e274]
+                - link "Facebook" [ref=e276] [cursor=pointer]:
+                  - /url: https://www.facebook.com/jiscsocial
+              - listitem [ref=e277]:
+                - img [ref=e278]
+                - link "YouTube" [ref=e280] [cursor=pointer]:
+                  - /url: https://www.youtube.com/user/JISCmedia
+      - generic [ref=e284]:
+        - heading "Site utilities" [level=3] [ref=e285]
+        - list [ref=e286]:
+          - listitem [ref=e287]:
+            - link "Cookies" [ref=e288] [cursor=pointer]:
+              - /url: /cookies
+          - listitem [ref=e289]:
+            - link "Privacy" [ref=e290] [cursor=pointer]:
+              - /url: /website/privacy-notice
+          - listitem [ref=e291]:
+            - link "Modern slavery" [ref=e292] [cursor=pointer]:
+              - /url: /about-us/modern-slavery-statement
+          - listitem [ref=e293]:
+            - link "Carbon reduction plan" [ref=e294] [cursor=pointer]:
+              - /url: /about-us/carbon-reduction-plan
+          - listitem [ref=e295]:
+            - link "Accessibility" [ref=e296] [cursor=pointer]:
+              - /url: /accessibility-statement
+  - alert [ref=e297]

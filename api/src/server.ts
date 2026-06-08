@@ -128,7 +128,14 @@ export function buildServer(): McpServer {
         FROM ${tableRef("instrument")} i
         JOIN ${tableRef("operator")} o USING (operator_id)
         LEFT JOIN ${CE} ie ON ie.evidence_id = i.evidence_id
-        WHERE i.instrument_id = @id OR i.rm_reference = @rm LIMIT 1`;
+        WHERE i.instrument_id = @id OR i.rm_reference = @rm
+        -- an exact id match wins; then prefer the CANONICAL agreement (the operator that owns the RM
+        -- namespace, i.e. GCA) over other operators that merely list it as an access route, so an
+        -- RM-number lookup returns the real framework rather than a reseller's copy.
+        ORDER BY CASE WHEN i.instrument_id = @id THEN 0 ELSE 1 END,
+                 CASE WHEN i.operator_id = 'gca' THEN 0 ELSE 1 END,
+                 i.instrument_id
+        LIMIT 1`;
       const rows = await runQuery(sql, { params: { id: args.id ?? "", rm: args.rm_reference ?? "" } });
       if (!rows.length) return toolError("UNKNOWN_ID", `No instrument for '${args.id ?? args.rm_reference}'.`, "Try the RM reference (e.g. RM1557.14) or call find_routes.");
       const r = deep(rows[0]) as Record<string, unknown>;
