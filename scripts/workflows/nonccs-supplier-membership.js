@@ -37,8 +37,8 @@ const SCHEMA = {
 
 const prompt = (offset) => `You extract the APPOINTED / AWARDED SUPPLIER LIST from UK public-sector procurement framework web pages.
 
-STEP 1 — get your batch of frameworks by running exactly this query:
-  bq query --use_legacy_sql=false --project_id=govreposcrape --location=EU --format=json 'SELECT instrument_id i, operator_id o, name n, official_url u FROM \`govreposcrape.govbuy_public.instrument\` WHERE operator_id!="gca" AND official_url IS NOT NULL AND official_url!="" ORDER BY operator_id, instrument_id LIMIT ${B} OFFSET ${offset}'
+STEP 1 — get your batch of frameworks by running exactly this query (it returns only frameworks that do NOT yet have a supplier list, so the sweep is idempotent and re-runs only fill gaps):
+  bq query --use_legacy_sql=false --project_id=govreposcrape --location=EU --format=json 'SELECT instrument_id i, operator_id o, name n, official_url u FROM \`govreposcrape.govbuy_public.instrument\` i WHERE operator_id!="gca" AND official_url IS NOT NULL AND official_url!="" AND instrument_id NOT IN (SELECT DISTINCT instrument_id FROM \`govreposcrape.govbuy_public.appointed_supplier\`) ORDER BY operator_id, instrument_id LIMIT ${B} OFFSET ${offset}'
 
 STEP 2 — for EACH framework row, fetch its url (u) and find the list of suppliers appointed to THAT framework. Look for sections headed "Suppliers", "Appointed suppliers", "Awarded suppliers", "Approved suppliers", "Framework suppliers", supplier directories, or per-lot supplier tables. Prefer the clean-text extractor: \`defuddle parse <url> --md\` (fall back to \`curl -sL -A "govbuy/0.1 (chris@cns.me.uk)" <url>\`). Do not follow more than one link deep. Be efficient — this is one of ~110 parallel workers.
 
