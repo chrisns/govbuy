@@ -30,7 +30,7 @@ const prompt = (angle) => `You are a COMPLETENESS CRITIC for a UK public-sector 
 
 phase('Hunt');
 const found = await parallel(ANGLES.map((a, i) => () =>
-  agent(prompt(a), { label: `angle:${i}`, phase: 'Hunt', schema: SCHEMA }).then(r => r?.operators || []).catch(() => [])
+  agent(prompt(a), { label: `angle:${i}`, phase: 'Hunt', schema: SCHEMA, model: 'sonnet' }).then(r => r?.operators || []).catch(() => [])
 ));
 const norm = (s) => (s||'').toLowerCase().replace(/\b(ltd|limited|plc|llp|the|group|uk|services|procurement|consortium|council|authority)\b/g,' ').replace(/[^a-z0-9]+/g,' ').trim();
 const knownNorms = new Set(KNOWN.map(norm));

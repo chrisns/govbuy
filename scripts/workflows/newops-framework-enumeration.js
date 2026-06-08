@@ -61,7 +61,7 @@ const kindFor = (sectors) => {
 const slug = (s) => (s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 70)
 
 const results = await parallel(ops.map((op, i) => () =>
-  agent(prompt(op), { label: `op:${op.operator_id}`, phase: 'Enumerate', schema: SCHEMA })
+  agent(prompt(op), { label: `op:${op.operator_id}`, phase: 'Enumerate', schema: SCHEMA, model: 'sonnet' })
     .then(r => ({ op, r })).catch(() => ({ op, r: null }))
 ))
 

@@ -51,7 +51,7 @@ ${KNOWN.join(', ')}`
 
 phase('Discover')
 const found = await parallel(SECTORS.map((s, i) => () =>
-  agent(prompt(s), { label: `sector:${i}`, phase: 'Discover', schema: SCHEMA }).then(r => r?.operators || []).catch(() => [])
+  agent(prompt(s), { label: `sector:${i}`, phase: 'Discover', schema: SCHEMA, model: 'sonnet' }).then(r => r?.operators || []).catch(() => [])
 ))
 
 // dedup by normalised name, and flag any that look like a known operator
