@@ -33,11 +33,19 @@ def _band(conf: float, has_candidate: bool) -> str:
 
 
 def search(name: str, *, key: str, client: httpx.Client) -> list[dict]:
-    # CH rate-limits at 600 req / 5 min. Back off on 429 with exponential delay (honouring
-    # Retry-After when present) rather than dying — a long full-estate match must survive bursts.
+    # CH rate-limits at 600 req / 5 min. Back off (exponential, honouring Retry-After) on a 429 OR a
+    # transient network error (connection reset, timeout) rather than dying — a long full-estate match
+    # of ~18k suppliers WILL hit the odd dropped connection and must survive it.
     delay = 2.0
-    for attempt in range(6):
-        r = client.get(f"{CH_BASE}/search/companies", params={"q": name, "items_per_page": 10}, auth=(key, ""))
+    last_exc: Exception | None = None
+    for attempt in range(8):
+        try:
+            r = client.get(f"{CH_BASE}/search/companies", params={"q": name, "items_per_page": 10}, auth=(key, ""))
+        except httpx.RequestError as e:  # connect/read/timeout — retry, do not abort the run
+            last_exc = e
+            time.sleep(delay)
+            delay = min(delay * 2, 60.0)
+            continue
         if r.status_code == 429:
             ra = r.headers.get("Retry-After")
             time.sleep(float(ra) if ra and ra.isdigit() else delay)
@@ -45,6 +53,8 @@ def search(name: str, *, key: str, client: httpx.Client) -> list[dict]:
             continue
         r.raise_for_status()
         return r.json().get("items", [])
+    if last_exc is not None:
+        raise last_exc  # exhausted retries on a network error
     r.raise_for_status()  # exhausted retries -> surface the final 429
     return r.json().get("items", [])
 

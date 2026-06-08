@@ -341,7 +341,12 @@ def ch_match_suppliers(limit: int | None = None, *, incremental: bool = True) ->
                             "match_band": "pending", "status_at_match": None, "matched_on": None, "ch_url": None})
                 continue
             attempted += 1
-            m = companies_house.match_name(s["display_name"], client=http)
+            try:
+                m = companies_house.match_name(s["display_name"], client=http)
+            except Exception as e:  # never let one stubborn name abort an 18k-supplier run
+                m = {"company_number": None, "registered_name": None, "match_confidence": 0.0,
+                     "match_band": "unresolved", "status_at_match": None, "method": "error"}
+                print(f"  [ch] error matching {s['display_name']!r}: {type(e).__name__}", file=__import__("sys").stderr)
             cn = m["company_number"]
             bands[m["match_band"]] = bands.get(m["match_band"], 0) + 1
             out.append({**s,
