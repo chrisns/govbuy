@@ -59,6 +59,10 @@ STEP 2 — for EACH framework, fetch its url (\`defuddle parse <url> --md\` or \
 - further_competition  (a.k.a. "mini-competition", "mini comp", "further competition", "secondary competition") — permitted if buyers run a competition among appointed suppliers.
 (competitive_flexible_procedure only for PA2023 dynamic markets.)
 
+PDF USER GUIDES — call-off routes are very often stated in a linked PDF ("Framework User Guide", "How to buy", "Customer Guide", "Access Agreement", "Buyer Guide"). If the page links one, DOWNLOAD and READ it:
+  curl -sL -A "govbuy/0.1 (chris@cns.me.uk)" "<pdf-url>" -o /tmp/mech_${offset}.pdf && pdftotext -layout /tmp/mech_${offset}.pdf - | head -c 20000
+Then quote the call-off route from the PDF text (the PDF text becomes your evidence_text). pdftotext is at /opt/homebrew/bin/pdftotext.
+
 STEP 3 — per framework return: instrument_id, operator_id, url (copy from the query row i,o,u); found (true if the page states the call-off route); mechanics: one entry per route you can evidence, each with mechanic (one of: ${ALLOWED.join(', ')}), permitted (true/false), and quote — a VERBATIM phrase from the page proving it; evidence_text: a verbatim contiguous on-page region containing those quotes (max 4000 chars); note (reason if found=false).
 
 ABSOLUTE RULE: only assert a mechanic if the page actually says so — each quote MUST be a literal substring of evidence_text. If the page does not describe call-off routes, found=false, mechanics=[]. Many framework pages DO say "available via direct award or further competition" — capture that. Return a result for every framework in your batch.`
