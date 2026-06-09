@@ -64,7 +64,7 @@ STEP 3 — per framework return: instrument_id, operator_id, url (copy from the 
 ABSOLUTE RULE: only assert a mechanic if the page actually says so — each quote MUST be a literal substring of evidence_text. If the page does not describe call-off routes, found=false, mechanics=[]. Many framework pages DO say "available via direct award or further competition" — capture that. Return a result for every framework in your batch.`
 
 const results = await parallel(offsets.map((off, idx) => () =>
-  agent(prompt(off), { label: `mech:${idx}`, phase: 'Extract', schema: SCHEMA, model: 'sonnet' }).catch(() => null)
+  agent(prompt(off), { label: `mech:${idx}`, phase: 'Extract', schema: SCHEMA, model: 'haiku' }).catch(() => null)
 ))
 
 const documents = [], facts = []

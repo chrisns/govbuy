@@ -68,7 +68,7 @@ STEP 3 — return one result object per framework:
 ABSOLUTE RULE: never invent or infer a supplier name. Only names that literally appear in the fetched page or PDF. If no usable list, set found=false, suppliers=[], evidence_text="", and set access_barrier honestly. Return a result for EVERY framework in your batch (${B} rows, or fewer if the query returns fewer).`
 
 const raw = await parallel(offsets.map((off, idx) => () =>
-  agent(prompt(off), { label: `nccs:${idx}`, phase: 'Extract', schema: SCHEMA, model: 'sonnet' }).catch(() => null)
+  agent(prompt(off), { label: `nccs:${idx}`, phase: 'Extract', schema: SCHEMA, model: 'haiku' }).catch(() => null)
 ))
 
 // ---- assemble a source-anchored bundle (gate enforces excerpt ⊂ evidence_text at load) ----
