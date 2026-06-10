@@ -141,6 +141,19 @@ questions than "which IT framework." Answers are collapsed — click to expand.
 > the catalogue spans the whole of public-sector spend, not just the digital slice.
 </details>
 
+<details>
+<summary><b>"I rent out a herd of goats that clear invasive scrub and bramble — no mowers, no herbicide. How do I sell conservation grazing to the public sector?"</b></summary>
+
+> Strange product, ordinary route. To a buyer it's a **green-space / grounds-maintenance service**, and
+> those frameworks are live and named: **ESPO Grounds Maintenance Services (`245_25`)**, **CBC's Grounds
+> Maintenance & Associated Services (`Y23022`)**, and the housing/construction consortia (CHIC, CPC,
+> Fusion21) all run one. `find_instruments_to_list("grounds maintenance")` returns the ones **open to new
+> applicants** (and any DPS, which you can join at any time) with the how-to-apply. If your model is too
+> bespoke to fit a lot, govbuy tells you that too — you're then into below-threshold direct award or a
+> one-off tender. And `list_resellers` flags any grounds-maintenance managed-service prime who could
+> carry your goats onto a framework you're not yet on. The animal is novel; the route to market isn't.
+</details>
+
 Every asserted fact carries a **source-anchored evidence block** (a verbatim excerpt that passed a
 deterministic substring check, plus the source URL + licence + confidence). Every response says
 **not legal advice**.
