@@ -265,6 +265,27 @@ CREATE TABLE IF NOT EXISTS `govbuy_public.inbound_scope` (
 )
 CLUSTER BY supplier_id;
 
+-- Per-listing service/product on a catalogue framework (G-Cloud 14 today). What a supplier actually
+-- SELLS (vs. appointed_supplier = that it is merely on the framework), so capability questions
+-- ("host my app", "an M365 mailbox", "a service desk") resolve to a citable listing URL. Source:
+-- the public Digital Marketplace (OGL). One row per /g-cloud/services/<id>; supplier_id resolved by
+-- name to the supplier table (NULL if unmatched). description/features/benefits power free-text search.
+CREATE TABLE IF NOT EXISTS `govbuy_public.service` (
+  service_id    STRING NOT NULL,                  -- catalogue-unique listing id (e.g. the URL path)
+  catalogue     STRING,                            -- g-cloud | nhs-buying-catalogue | ndx | espo | ypo | aws | azure | gcp
+  supplier_id   STRING,                            -- FK supplier (resolved by name; NULL if unmatched)
+  supplier_name STRING,                            -- as published on the listing
+  instrument_id STRING NOT NULL,                  -- FK instrument (g-cloud-14)
+  lot           STRING,                            -- cloud-hosting | cloud-software | cloud-support
+  name          STRING NOT NULL,
+  description   STRING,                            -- the service summary (full, from the detail page)
+  features      ARRAY<STRING>,
+  benefits      ARRAY<STRING>,
+  url           STRING NOT NULL,                  -- the citable /g-cloud/services/<id> listing
+  evidence_id   STRING NOT NULL
+)
+CLUSTER BY supplier_id, lot;
+
 -- Reference: payment/settlement mechanisms — is_route is ALWAYS FALSE (CONTEXT.md; payment-mechanisms.md).
 CREATE TABLE IF NOT EXISTS `govbuy_public.payment_mechanism` (
   mechanism                STRING NOT NULL,        -- purchase_order_invoice | gpc | expenses | petty_cash | direct_debit | marketplace_consumption | inter_entity_recharge

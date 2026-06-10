@@ -29,6 +29,7 @@ claude mcp add --transport http govbuy https://govbuy.run.cns.me/mcp
 | Frameworks, DPS & dynamic markets | **3,207** (3,108 live for call-off) |
 | Suppliers | **28,247** — 99.2% resolved to a Companies House CRN |
 | Appointed-supplier edges | **57,055** (77% of frameworks carry a supplier list) |
+| Catalogue **services** (what suppliers actually sell) | **43,821** — every G-Cloud 14 listing (43,733) + NHS Buying Catalogue + NDX, each a citable listing URL, searchable by capability via `find_services` |
 | How-to-call-off mechanics | direct award vs further competition on **71%** of frameworks |
 | Spend coverage | **91.4%** of framework-attributable UK public spend |
 
@@ -47,6 +48,7 @@ purchase or give legal advice, and it is not the authority of record. See [VISIO
 |------|--------------|
 | `find_routes` | **Buyer:** instruments/lots that fit a need + permitted award mechanics + required docs + GPC/marketplace caveats. Doesn't rank or assemble the buy. |
 | `get_instrument` | One framework/dynamic market: lots, lifecycle status, mechanics, buying docs, appointed suppliers (each with a membership qualifier + evidence). RM lookups return the canonical GCA agreement, not a reseller's listing of it. |
+| `find_services` | **Capability search:** given a need ('host an open-source app', 'M365 mailbox', 'service desk'), the specific catalogue **services** that do it — supplier, lot, full description, and the citable `applytosupply.../g-cloud/services/<id>` listing URL. Answers "who can actually do this", not just "which framework". |
 | `find_instruments_to_list` | **Seller:** instruments a vendor can be appointed to (open frameworks / dynamic markets) + how-to-apply. |
 | `list_resellers` | "Who's like Bramble" — thin-primes & VARs by channel/category/vendor, with their inbound scope. |
 | `get_supplier` | One supplier: Companies House match snapshot, frameworks/lots, channel, inbound scope. |
@@ -179,32 +181,30 @@ questions than "which IT framework." Answers are collapsed — click to expand.
 </details>
 
 <details>
-<summary><b>"I'm a council. I want to commission someone to run a government-built open-source AI tool (i.AI's Minute) for me — how do I buy that?"</b></summary>
+<summary><b>"I'm a council. I want to commission someone to host & run a government-built open-source AI tool (i.AI's Minute) for me — who can actually do this?"</b></summary>
 
-> *(Condensed from an actual `claude -p` run against the live MCP — the routes, mechanics, quotes and
-> timing below are what it genuinely returned, not a hand-picked answer.)*
+> *(Condensed from an actual `claude -p` run against the live MCP — every listing URL below is one it
+> genuinely returned via `find_services`, not hand-picked.)*
 >
-> **First the framing govbuy gets right:** Minute is government-built, open-source software, so you're
-> not "buying Minute" off a framework — you're commissioning a supplier to **deploy, host and operate**
-> it as a managed service, and *that service* is what needs a route. It then surfaces the real routes,
-> each with a verbatim sourced quote:
+> **Framing govbuy gets right:** Minute is government-built, open-source software, so you're not "buying
+> Minute" — you're commissioning a supplier to **deploy, host and operate** a containerised app. The
+> route is [**G-Cloud 14**](https://www.applytosupply.digitalmarketplace.service.gov.uk/g-cloud) (cloud
+> hosting + cloud support, direct award or further competition). Then `find_services` hands you **real,
+> citable listings** that can do it:
 >
-> - **Recommended:** [**G-Cloud 14 (`RM1557.14`)**](https://www.gca.gov.uk/agreements/RM1557.14) —
->   cloud hosting + support, **direct award allowed**, deepest pool. ⚠️ but it **expires 2026-10-28**,
->   so the call-off must be signed first; govbuy flags the timing unprompted.
-> - **Build-and-operate team:** [**Digital Outcomes and Specialists 7 (`RM1043.9`)**](https://www.gca.gov.uk/agreements/RM1043.9)
->   — an open framework to 2032, direct call-off *or* further competition.
-> - **AI-specialist field:** [**AI DPS (`RM6200`)**](https://www.gca.gov.uk/agreements/RM6200) — note a
->   DPS is **mini-competition only; direct award is barred**.
-> - Plus [DIPS (`RM6249`)](https://www.gca.gov.uk/agreements/RM6249) and
->   [TePAS 2 (`RM6098`)](https://www.gca.gov.uk/agreements/RM6098) lower down.
+> *Host it (cloud-hosting lot):*
+> - [Web Application Cloud Hosting](https://www.applytosupply.digitalmarketplace.service.gov.uk/g-cloud/services/313553318918936) — [Just After Midnight Ltd](https://find-and-update.company-information.service.gov.uk/company/10307714): managed app hosting on AWS/Azure, build → ongoing patching, 24h monitoring.
+> - [Container Application Platform as a Service](https://www.applytosupply.digitalmarketplace.service.gov.uk/g-cloud/services/500868769862816) — [Sopra Steria](https://find-and-update.company-information.service.gov.uk/company/04077975): managed OpenShift/Kubernetes with DevSecOps CI/CD.
+> - [Civica Managed Service for AWS](https://www.applytosupply.digitalmarketplace.service.gov.uk/g-cloud/services/499073985225263) — established local-gov supplier.
 >
-> **What it deliberately does *not* do:** it won't hand you "these five companies can host it." govbuy
-> indexes *appointments* and *framework scope*, **not** the per-supplier G-Cloud service descriptions
-> that would let it capability-match "hosts open-source LLM apps" ([the honest gap](docs/STATUS.md)). So
-> it gives you the route, the mechanic and the timing, then offers to pull the **appointed-supplier list**
-> for the framework you pick — your shortlist to take to a mini-competition. It routes; it doesn't guess
-> who's good.
+> *Deploy, run & support it (cloud-support lot):*
+> - [Microsoft Workloads and Modernisation on Cloud](https://www.applytosupply.digitalmarketplace.service.gov.uk/g-cloud/services/359357479975483) — "architect… deploy… **run, and manage**", incl. containerisation.
+> - [OPS Platform – Planning, Design, Integration & Support](https://www.applytosupply.digitalmarketplace.service.gov.uk/g-cloud/services/408809349652068) — Deloitte's listing for hosting & supporting *the GLA's open-sourced platform* — proof G-Cloud suppliers take on open-sourced gov software.
+>
+> It even flags the bits it can't see: the LLM component (self-hosted vs API), data residency, and the
+> [AI DPS (`RM6200`)](https://www.gca.gov.uk/agreements/RM6200) if you'd rather procure the model
+> separately. **govbuy now searches what suppliers actually sell** — 43,733 G-Cloud service listings —
+> so the answer is concrete services you can open and call off, not just a framework name.
 </details>
 
 Every asserted fact carries a **source-anchored evidence block** (a verbatim excerpt that passed a

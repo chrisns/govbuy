@@ -44,13 +44,19 @@ Extraction workflows run on **Haiku** (gate-protected, cheap); re-discovery on S
 The page and any linked user-guide PDF don't state direct-award vs further-competition. Inferring a
 route would be fabrication (the gate forbids it). PDF user guides were the big unlock (44% → 71%).
 
-### Capability search — no per-supplier service descriptions
-govbuy indexes *appointments*, lot scope, award mechanics and source excerpts — **not** the free-text
-service-level listings a supplier publishes (e.g. each G-Cloud service's description of what it does).
-So "find a supplier that hosts open-source LLM apps / runs Kubernetes / offers X capability" can't be
-keyword-matched today; the tools answer it indirectly via the lots a supplier is appointed to and the
-framework's own scope. Adding the G-Cloud service-description corpus (deterministic, from the Digital
-Marketplace) is the highest-value capability-search unlock.
+### Capability search — service-level descriptions (DONE for G-Cloud; expanding)
+govbuy now indexes per-listing **service descriptions**, so "find a supplier that hosts open-source
+LLM apps / runs Kubernetes / offers X capability" resolves to concrete, citable listings via the
+`find_services` tool (and the `service` table). Coverage:
+- **G-Cloud 14 — 43,733 services** (every live listing: name, supplier, lot, full description), 99.9%
+  supplier-resolved to a CRN. Deterministic crawl of the public Digital Marketplace search.
+- **NHS Buying Catalogue (48)** and **NDX / National Digital Exchange (40)** — the other open digital
+  catalogues.
+
+Still to ingest (per [marketplaces.md](marketplaces.md)) — all JS-rendered, so each needs its backend
+product API discovered (browser-assisted) then crawled: **ESPO** (~28k physical goods), **YPO** (~23k),
+and the hyperscaler marketplaces (**AWS** static / **Azure** + **GCP** JS). Features/benefits
+enrichment of the G-Cloud descriptions (Stage 2, detail pages) is a quality follow-up.
 
 ### Structural / upstream limits
 - **GCA DPS & dynamic markets (27 live):** rolling membership not exposed by the GCA suppliers API.

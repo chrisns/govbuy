@@ -303,6 +303,21 @@ def rebuild_public() -> dict:
     _replace("appointment_observation", obs); counts["appointment_observation"] = len(obs)
     resolved = resolve([{**o, "evidence_id": o.get("evidence_id")} for o in obs], today=date.today())
     _replace("appointed_supplier", resolved); counts["appointed_supplier"] = len(resolved)
+
+    # Per-listing services (G-Cloud catalogue). Resolve each service's supplier_name to a supplier_id
+    # by exact normalised name (both sides come from the Digital Marketplace, so the match is clean),
+    # giving the API a join to the supplier's CH link. Unmatched names keep supplier_name only.
+    services = project("service")
+    if services:
+        sup_by_name = {(s.get("display_name") or "").strip().lower(): s["supplier_id"]
+                       for s in suppliers if (s.get("display_name") or "").strip()}
+        for sv in services:
+            if not sv.get("catalogue"):  # G-Cloud loads predate the catalogue tag
+                sv["catalogue"] = "g-cloud" if sv.get("instrument_id") == "g-cloud-14" else None
+            if not sv.get("supplier_id"):
+                sv["supplier_id"] = sup_by_name.get((sv.get("supplier_name") or "").strip().lower())
+        _replace("service", services)
+    counts["service"] = len(services)
     return counts
 
 

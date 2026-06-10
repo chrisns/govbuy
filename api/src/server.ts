@@ -83,6 +83,7 @@ export function buildServer(): McpServer {
         "govbuy maps UK public-sector routes to market (how to buy, how to sell, who resells). " +
         "Responses are source-anchored and carry URLs: framework official_url, operator_url, supplier ch_url (Companies House), buying-document urls, and an evidence.source_url on every asserted claim. " +
         "ALWAYS surface these to the user as clickable markdown links with the thing's name as the link text — naming a framework, supplier, or source without linking its URL is not useful. " +
+        "When a buyer describes a concrete capability they want delivered (e.g. 'host this app', 'an M365 mailbox', 'a service desk'), find_routes gives the framework/route, then call find_services to surface the specific G-Cloud catalogue services that do it — each with a citable applytosupply.../g-cloud/services/<id> listing URL to link. Prefer naming concrete services over only naming a framework. " +
         "Anchor each fact to its evidence.source_url so the user can verify it. govbuy documents routes; it does not assemble the purchase or give legal advice — tell the user to confirm on the official source.",
     },
   );
@@ -259,6 +260,56 @@ export function buildServer(): McpServer {
       const appointments = (r.appointments as Record<string, unknown>[]).map((a) => ({ ...a, membership: membership(a) }));
       const payload = await withEvidence({ supplier: { ...r, appointments }, display_guidance: DISPLAY_GUIDANCE });
       return ok(withFreshness(payload, await freshness()));
+    }),
+  );
+
+  server.registerTool(
+    "find_services",
+    {
+      title: "Find catalogue services",
+      description:
+        "CAPABILITY search: given a real need (e.g. 'host an open-source app', 'Microsoft 365 mailbox management', 'IT service desk'), return the specific G-Cloud catalogue SERVICES that match — each with its supplier, lot, the verbatim service description, and the citable Digital Marketplace listing URL (applytosupply.../g-cloud/services/<id>). This is how you answer 'who can actually DO this thing' rather than just naming a framework: surface 3-8 concrete services and link each one. Use after find_routes establishes the route is G-Cloud.",
+      inputSchema: {
+        need: z.string().optional(), keyword: z.string().optional(),
+        lot: z.enum(["cloud-hosting", "cloud-software", "cloud-support"]).optional(),
+        supplier: z.string().optional(),
+        limit: z.number().int().min(1).max(30).default(8),
+      },
+    },
+    guard(async (args) => {
+      const toks = tokenize(args.need || args.keyword || "");
+      if (!toks.length && !args.supplier) return toolError("INVALID_QUERY", "Provide a need/keyword (e.g. 'host an open-source app') or a supplier name.");
+      // Word-boundary token scoring over name+description+features+benefits; rank by tokens matched.
+      const score = `(SELECT COUNT(1) FROM UNNEST(@toks) tok WHERE REGEXP_CONTAINS(hay, CONCAT(r'\\b', tok, r'\\b')))`;
+      const sql = `
+        WITH s AS (
+          SELECT sv.service_id, sv.name, sv.supplier_name, sv.lot, sv.description, sv.features, sv.benefits,
+                 sv.url, sv.instrument_id, sup.company_number, sup.ch_url, sup.match_band,
+                 LOWER(CONCAT(sv.name, ' ', IFNULL(sv.description, ''), ' ',
+                              ARRAY_TO_STRING(sv.features, ' '), ' ', ARRAY_TO_STRING(sv.benefits, ' '))) AS hay
+          FROM ${tableRef("service")} sv
+          LEFT JOIN ${tableRef("supplier")} sup ON sup.supplier_id = sv.supplier_id
+          WHERE (@sup IS NULL OR LOWER(sv.supplier_name) LIKE @sup)
+            AND (@lot IS NULL OR sv.lot = @lot))
+        SELECT * EXCEPT(hay), ${score} AS match_score FROM s
+        WHERE (ARRAY_LENGTH(@toks) = 0 OR ${score} > 0)
+        ORDER BY match_score DESC, name
+        LIMIT @lim`;
+      const rows = await runQuery(sql, {
+        params: { toks, lot: args.lot ?? null, sup: args.supplier ? `%${args.supplier.toLowerCase()}%` : null, lim: args.limit },
+        types: { toks: ["STRING"], lot: "STRING", sup: "STRING" },
+      });
+      const services = rows.map((r) => {
+        const d = deep(r) as Record<string, unknown>;
+        const desc = typeof d.description === "string" ? d.description : "";
+        return { ...d, description: desc.length > 600 ? desc.slice(0, 600) + "…" : desc };
+      });
+      return ok(withFreshness({
+        count: services.length,
+        note: "G-Cloud 14 catalogue services (RM1557.14). Each is a real, citable listing; call-off is by direct award or further competition on G-Cloud. " + NOT_ADVICE,
+        display_guidance: "Present each service as a clickable link (its url, an applytosupply.../g-cloud/services/<id> page) with the service name as the link text, and link the supplier's ch_url (Companies House). Cite the listing URL so the buyer can open the exact service. " + DISPLAY_GUIDANCE,
+        services,
+      }, await freshness()));
     }),
   );
 

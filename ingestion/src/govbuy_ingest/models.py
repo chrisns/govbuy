@@ -28,6 +28,11 @@ TABLE_COLUMNS = {
     "supplier": ["supplier_id", "display_name", "publisher_ids"],
     "reseller_channel": ["supplier_id", "channel_type", "confidence"],
     "inbound_scope": ["supplier_id", "vendor_name", "vendor_company_number", "confidence"],
+    # A per-listing service/product on a catalogue framework (G-Cloud today): what a supplier
+    # actually sells, so capability questions ("host my app", "an M365 mailbox", "a service desk")
+    # resolve to a citable listing URL rather than only a framework name.
+    "service": ["service_id", "catalogue", "supplier_id", "supplier_name", "instrument_id", "lot",
+                "name", "description", "features", "benefits", "url"],
 }
 
 FACT_TYPES = list(TABLE_COLUMNS.keys())
@@ -41,6 +46,7 @@ NATURAL_KEY = {
     "buying_doc": ("doc_id",),
     "appointment_observation": ("instrument_id", "lot_id", "supplier_id", "source_id", "observed_on"),
     "supplier": ("supplier_id",),
+    "service": ("service_id",),
     "reseller_channel": ("supplier_id", "channel_type"),
     "inbound_scope": ("supplier_id", "vendor_name"),
 }

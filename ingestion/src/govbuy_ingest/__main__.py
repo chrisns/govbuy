@@ -27,6 +27,10 @@ def main(argv: list[str] | None = None) -> int:
     rf = sub.add_parser("refresh"); rf.add_argument("--operator", default=None); rf.add_argument("--max-docs", type=int, default=0)
     bf = sub.add_parser("backfill"); bf.add_argument("--operator", default=None)
     sub.add_parser("discover"); sub.add_parser("materialize-sibling"); sub.add_parser("gca-sync"); sub.add_parser("gcloud-sync")
+    gss = sub.add_parser("gcloud-services-sync"); gss.add_argument("--detail", action="store_true"); gss.add_argument("--max-pages", type=int, default=0)
+    gsc = sub.add_parser("gcloud-services-shard"); gsc.add_argument("--lots", required=True); gsc.add_argument("--pages", required=True); gsc.add_argument("--out", required=True); gsc.add_argument("--no-detail", action="store_true")
+    gsb = sub.add_parser("gcloud-services-bundle"); gsb.add_argument("--glob", required=True); gsb.add_argument("--out", required=True)
+    cat = sub.add_parser("catalogues-sync"); cat.add_argument("--only", default="ndx,nhsbc")
     args = ap.parse_args(argv)
 
     from . import bq, config
@@ -94,6 +98,49 @@ def main(argv: list[str] | None = None) -> int:
         cov = bq.coverage()
         bq.write_status(gb["run_id"], "refresh", stats, cov, est_gbp=0.0)
         print(json.dumps({"gcloud_suppliers": ng, "load": stats, "public": counts, "ch": ch, "coverage": cov}, indent=2, default=str))
+        return 0
+    if args.mode == "gcloud-services-sync":
+        from .gcloud_services import sync as svc_sync
+        bundle, n = svc_sync(detail=args.detail, max_pages=args.max_pages or None)
+        stats = bq.load_bundle(bundle)
+        counts = bq.rebuild_public()
+        print(json.dumps({"services": n, "load": stats, "public": counts}, indent=2, default=str))
+        return 0
+    if args.mode == "gcloud-services-shard":
+        from .gcloud_services import crawl_shard
+        lots = [x for x in args.lots.split(",") if x]
+        a, b = (int(x) for x in args.pages.split("-"))
+        crawl_shard(lots, a, b, args.out, detail=not args.no_detail)
+        return 0
+    if args.mode == "catalogues-sync":
+        from . import catalogues as cat
+        only = set(x.strip() for x in args.only.split(",") if x.strip())
+        runners = {"ndx": cat.ndx_sync, "nhsbc": cat.nhsbc_sync}
+        out = {}
+        for key in only:
+            if key not in runners:
+                continue
+            bundle, n = runners[key]()
+            stats = bq.load_bundle(bundle)
+            out[key] = {"records": n, "load": stats}
+        counts = bq.rebuild_public()
+        print(json.dumps({"catalogues": out, "public_service_rows": counts.get("service")}, indent=2, default=str))
+        return 0
+    if args.mode == "gcloud-services-bundle":
+        import glob
+        from .gcloud_services import to_bundle
+        recs = []
+        for path in sorted(glob.glob(args.glob)):
+            for line in open(path, encoding="utf-8"):
+                line = line.strip()
+                if line:
+                    recs.append(json.loads(line))
+        # dedup by service_id (shards may overlap at lot boundaries)
+        recs = list({r["service_id"]: r for r in recs}.values())
+        bundle = to_bundle(recs, run_id="gcloud-services-detail")
+        with open(args.out, "w", encoding="utf-8") as f:
+            json.dump(bundle, f, ensure_ascii=False)
+        print(json.dumps({"records": len(recs), "documents": len(bundle["documents"]), "facts": len(bundle["facts"]), "out": args.out}))
         return 0
     return 1
 
