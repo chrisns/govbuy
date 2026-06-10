@@ -44,6 +44,14 @@ Extraction workflows run on **Haiku** (gate-protected, cheap); re-discovery on S
 The page and any linked user-guide PDF don't state direct-award vs further-competition. Inferring a
 route would be fabrication (the gate forbids it). PDF user guides were the big unlock (44% → 71%).
 
+### Capability search — no per-supplier service descriptions
+govbuy indexes *appointments*, lot scope, award mechanics and source excerpts — **not** the free-text
+service-level listings a supplier publishes (e.g. each G-Cloud service's description of what it does).
+So "find a supplier that hosts open-source LLM apps / runs Kubernetes / offers X capability" can't be
+keyword-matched today; the tools answer it indirectly via the lots a supplier is appointed to and the
+framework's own scope. Adding the G-Cloud service-description corpus (deterministic, from the Digital
+Marketplace) is the highest-value capability-search unlock.
+
 ### Structural / upstream limits
 - **GCA DPS & dynamic markets (27 live):** rolling membership not exposed by the GCA suppliers API.
 - **No-public-catalogue bodies:** DE&S/DIO/AWE (defence), NHS commissioning support units, individual

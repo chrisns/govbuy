@@ -14,7 +14,8 @@ claude mcp add --transport http govbuy https://govbuy.run.cns.me/mcp
 
 > *"I want Appvia to build me a landing zone. How can I contract them?"* →
 > [Appvia](https://find-and-update.company-information.service.gov.uk/company/10653692) (CRN 10653692,
-> Companies House auto-matched) is appointed to **Technology Services 4 (RM6190)** and **G-Cloud 14
+> Companies House auto-matched) is appointed to
+> [Technology Services 4 (RM6190)](https://www.gca.gov.uk/agreements/RM6190) and **G-Cloud 14
 > (RM1557.14)**; both permit direct award or further competition — each claim carrying a verbatim
 > excerpt, and a clickable link, to the operator's own page. (Responses ship the real URLs — the
 > official framework page, the Companies House record, the source of every claim — so your assistant
@@ -57,9 +58,12 @@ purchase or give legal advice, and it is not the authority of record. See [VISIO
 `official_url`, the operator's `operator_url`, each supplier's `ch_url` (its Companies House record),
 the buying/guidance-document URLs, and an `evidence.source_url` on every asserted claim. Each tool
 result — and the server's MCP `instructions` — tells the host assistant to render these as clickable
-links with the thing's name as the link text, so you get *"[Appvia](…) is on [G-Cloud 14](…), per
-[this page](…)"* rather than a bare list of names. Naming a framework or supplier without a link to
-reach it isn't useful; govbuy ships the link.
+links with the thing's name as the link text, so you get
+*"[Appvia](https://find-and-update.company-information.service.gov.uk/company/10653692) is on
+[Technology Services 4](https://www.gca.gov.uk/agreements/RM6190)"* rather than a bare list of names.
+Naming a framework or supplier without a link to reach it isn't useful; govbuy ships the link. (Every
+link in the demos below is a real, verified govbuy URL — Companies House records and operator
+framework pages — so you can click straight through.)
 
 ## Ask it anything
 
@@ -69,16 +73,18 @@ questions than "which IT framework." Answers are collapsed — click to expand.
 <details>
 <summary><b>"How do I get Control Plane (controlplane.io) to run a capture-the-flag exercise for my Kubernetes platform team?"</b></summary>
 
-> **Control Plane Limited** (CRN **10964729**, Companies House auto-matched, band `auto_accept`) is
-> appointed to **G-Cloud 14 (`RM1557.14`)**. A hands-on Kubernetes-security / CTF training engagement
-> is a *cloud support / specialist cloud services* buy, so G-Cloud is the clean route: find Control
-> Plane on the Digital Marketplace, then either **direct-award** against their published rate card or
-> run a **further competition** on the lot — G-Cloud 14 permits both.
+> [**Control Plane Limited**](https://find-and-update.company-information.service.gov.uk/company/10964729)
+> (CRN **10964729**, Companies House auto-matched, band `auto_accept`) is appointed to
+> [**G-Cloud 14 (`RM1557.14`)**](https://www.gca.gov.uk/agreements/RM1557.14). A hands-on
+> Kubernetes-security / CTF training engagement is a *cloud support / specialist cloud services* buy, so
+> G-Cloud is the clean route: find Control Plane on the Digital Marketplace, then either **direct-award**
+> against their published rate card or run a **further competition** on the lot — G-Cloud 14 permits both.
 >
-> If you'd rather a panel competed for it, the adjacent cyber routes are **GCA Cyber Security Services 3
-> (`RM3764.3`)** and **BlueLight Commercial's Cyber Security Penetration Testing framework** — but Control
-> Plane isn't appointed to those, so you'd be buying a *different* supplier there. govbuy hands you the
-> route, the mechanic and the verbatim source line; you place the call-off.
+> If you'd rather a panel competed for it, the adjacent cyber routes are
+> [**GCA Cyber Security Services 3 (`RM3764.3`)**](https://www.gca.gov.uk/agreements/RM3764.3) and
+> [**BlueLight Commercial's Cyber Security Penetration Testing framework**](https://bluelightcommercial.police.uk/helping-police/ict/)
+> — but Control Plane isn't appointed to those, so you'd be buying a *different* supplier there. govbuy
+> hands you the route, the mechanic and the verbatim source line; you place the call-off.
 </details>
 
 <details>
@@ -86,27 +92,30 @@ questions than "which IT framework." Answers are collapsed — click to expand.
 
 > Two parallel routes. `find_instruments_to_list` returns the **open frameworks and dynamic markets you
 > can apply to join now** (AI/digital DPS, G-Cloud's scheduled re-opens) with the how-to-apply. In the
-> meantime `list_resellers` surfaces the **thin-primes and VARs** — Bramble Hub and its peers — whose
-> `inbound_scope` already carries third-party software onto NHS frameworks, so you sell *through* them
-> while your own appointment is in flight.
+> meantime `list_resellers` surfaces the **thin-primes and VARs** —
+> [Bramble Hub](https://find-and-update.company-information.service.gov.uk/company/04136381) and its
+> peers — whose `inbound_scope` already carries third-party software onto NHS frameworks, so you sell
+> *through* them while your own appointment is in flight.
 </details>
 
 <details>
 <summary><b>"My council is scrapping 200 end-of-life EVs. Who's appointed to take them and can I just direct-award?"</b></summary>
 
-> `find_routes("vehicle disposal")` returns the fleet-disposal routes — **BlueLight Commercial's Auction
-> & Disposal of End-of-Life Vehicles** agreement among them — each with the per-lot appointed suppliers
-> and whether **direct award** is allowed or a mini-competition is required. govbuy tells you the route
-> and the mechanic; it does not run the auction or write your spec.
+> `find_routes("vehicle disposal")` returns the fleet-disposal routes —
+> [**BlueLight Commercial's Auction & Disposal of End-of-Life Vehicles**](https://bluelightcommercial.police.uk/helping-police/fleet/disposal/)
+> agreement among them — each with the per-lot appointed suppliers and whether **direct award** is
+> allowed or a mini-competition is required. govbuy tells you the route and the mechanic; it does not
+> run the auction or write your spec.
 </details>
 
 <details>
 <summary><b>"Fire service here — I need drone thermal-imaging kit fast and compliantly."</b></summary>
 
-> `find_routes("drone thermal imaging")` surfaces **BlueLight Commercial's operational-equipment and
-> emergency-response-vehicle frameworks**, plus local-government security-and-surveillance routes (ESPO
-> and friends), with appointed suppliers and the call-off method on each — so you can pick the fastest
-> compliant lot rather than running a fresh tender.
+> `find_routes("drone thermal imaging")` surfaces the
+> [**YPO Drones and Associated Services DPS (1148)**](https://www.ypo.co.uk/frameworks-home/900632),
+> **BlueLight Commercial's operational-equipment frameworks**, and local-government
+> security-and-surveillance routes (ESPO and friends), with appointed suppliers and the call-off method
+> on each — so you can pick the fastest compliant lot rather than running a fresh tender.
 </details>
 
 <details>
@@ -156,13 +165,46 @@ questions than "which IT framework." Answers are collapsed — click to expand.
 <summary><b>"I rent out a herd of goats that clear invasive scrub and bramble — no mowers, no herbicide. How do I sell conservation grazing to the public sector?"</b></summary>
 
 > Strange product, ordinary route. To a buyer it's a **green-space / grounds-maintenance service**, and
-> those frameworks are live and named: **ESPO Grounds Maintenance Services (`245_25`)**, **CBC's Grounds
-> Maintenance & Associated Services (`Y23022`)**, and the housing/construction consortia (CHIC, CPC,
-> Fusion21) all run one. `find_instruments_to_list("grounds maintenance")` returns the ones **open to new
+> those frameworks are live and named:
+> [**ESPO Grounds Maintenance Services (`245_25`)**](https://www.espo.org/grounds-maintenance-services-245-25.html),
+> [**Grounds Maintenance & Associated Services (`Y23022`)**](https://www.procurementservices.co.uk/our-solutions/frameworks/property-management/grounds-maintenance-associated-services),
+> and the housing/construction consortia
+> ([CHIC](https://www.chicltd.co.uk/services/dynamic-purchasing-system-solutions/grounds-maintenance/),
+> CPC, [Fusion21](https://www.fusion21.co.uk/frameworks-grounds-maintenance)) all run one.
+> `find_instruments_to_list("grounds maintenance")` returns the ones **open to new
 > applicants** (and any DPS, which you can join at any time) with the how-to-apply. If your model is too
 > bespoke to fit a lot, govbuy tells you that too — you're then into below-threshold direct award or a
 > one-off tender. And `list_resellers` flags any grounds-maintenance managed-service prime who could
 > carry your goats onto a framework you're not yet on. The animal is novel; the route to market isn't.
+</details>
+
+<details>
+<summary><b>"I'm a council. I want to commission someone to run a government-built open-source AI tool (i.AI's Minute) for me — how do I buy that?"</b></summary>
+
+> *(Condensed from an actual `claude -p` run against the live MCP — the routes, mechanics, quotes and
+> timing below are what it genuinely returned, not a hand-picked answer.)*
+>
+> **First the framing govbuy gets right:** Minute is government-built, open-source software, so you're
+> not "buying Minute" off a framework — you're commissioning a supplier to **deploy, host and operate**
+> it as a managed service, and *that service* is what needs a route. It then surfaces the real routes,
+> each with a verbatim sourced quote:
+>
+> - **Recommended:** [**G-Cloud 14 (`RM1557.14`)**](https://www.gca.gov.uk/agreements/RM1557.14) —
+>   cloud hosting + support, **direct award allowed**, deepest pool. ⚠️ but it **expires 2026-10-28**,
+>   so the call-off must be signed first; govbuy flags the timing unprompted.
+> - **Build-and-operate team:** [**Digital Outcomes and Specialists 7 (`RM1043.9`)**](https://www.gca.gov.uk/agreements/RM1043.9)
+>   — an open framework to 2032, direct call-off *or* further competition.
+> - **AI-specialist field:** [**AI DPS (`RM6200`)**](https://www.gca.gov.uk/agreements/RM6200) — note a
+>   DPS is **mini-competition only; direct award is barred**.
+> - Plus [DIPS (`RM6249`)](https://www.gca.gov.uk/agreements/RM6249) and
+>   [TePAS 2 (`RM6098`)](https://www.gca.gov.uk/agreements/RM6098) lower down.
+>
+> **What it deliberately does *not* do:** it won't hand you "these five companies can host it." govbuy
+> indexes *appointments* and *framework scope*, **not** the per-supplier G-Cloud service descriptions
+> that would let it capability-match "hosts open-source LLM apps" ([the honest gap](docs/STATUS.md)). So
+> it gives you the route, the mechanic and the timing, then offers to pull the **appointed-supplier list**
+> for the framework you pick — your shortlist to take to a mini-competition. It routes; it doesn't guess
+> who's good.
 </details>
 
 Every asserted fact carries a **source-anchored evidence block** (a verbatim excerpt that passed a
