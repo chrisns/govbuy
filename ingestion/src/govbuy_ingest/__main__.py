@@ -115,7 +115,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.mode == "catalogues-sync":
         from . import catalogues as cat
         only = set(x.strip() for x in args.only.split(",") if x.strip())
-        runners = {"ndx": cat.ndx_sync, "nhsbc": cat.nhsbc_sync}
+        runners = {"ndx": cat.ndx_sync, "nhsbc": cat.nhsbc_sync, "espo": cat.espo_sync, "ypo": cat.ypo_sync}
         out = {}
         for key in only:
             if key not in runners:

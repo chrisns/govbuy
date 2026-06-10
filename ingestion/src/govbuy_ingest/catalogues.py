@@ -159,3 +159,140 @@ def nhsbc_sync(run_id: str = "nhs-buying-catalogue-sync") -> tuple[dict, int]:
     recs = _fetch_all(urls, _nhsbc_parse)
     return service_bundle(recs, "nhs-buying-catalogue", run_id, instrument_id="nhs-buying-catalogue",
                           source_kind="nhs_buying_catalogue", licence="ogl"), len(recs)
+
+
+# ----------------------------------------------------------------- ESPO (Klevu search API)
+# ESPO's Magento storefront renders products client-side via Klevu (SaaS search). The Klevu v2 search
+# API is a public JSON endpoint keyed by the client-side apiKey embedded in the page — so we page the
+# whole catalogue token-free, no browser. (key/server are public client config, not secrets.)
+ESPO_KLEVU = "https://eucs32v2.ksearchnet.com/cs/v2/search"
+ESPO_KEY = "klevu-169116356914516627"
+
+
+def espo_sync(run_id: str = "espo-sync", page: int = 100) -> tuple[dict, int]:
+    recs: list[dict] = []
+    seen: set[str] = set()
+    with httpx.Client(timeout=40, headers={"User-Agent": config.USER_AGENT}) as client:
+        offset, total = 0, None
+        while total is None or offset < total:
+            body = {"context": {"apiKeys": [ESPO_KEY]},
+                    "recordQueries": [{"id": "p", "typeOfRequest": "SEARCH",
+                        "settings": {"query": {"term": "*"}, "limit": page, "offset": offset,
+                                     "typeOfRecords": ["KLEVU_PRODUCT"],
+                                     "fields": ["name", "url", "shortDesc", "price", "sku", "category", "brand"]}}]}
+            r = client.post(ESPO_KLEVU, json=body)
+            if r.status_code != 200:
+                break
+            qr = r.json()["queryResults"][0]
+            total = qr["meta"]["totalResultsFound"]
+            records = qr.get("records") or []
+            if not records:
+                break
+            for x in records:
+                sid = str(x.get("id") or x.get("sku") or "").split(";;")[0]
+                if not sid or sid in seen:
+                    continue
+                seen.add(sid)
+                cat = (x.get("category") or "").replace(";;", " / ").strip(" /")
+                desc = (x.get("shortDesc") or "").strip()
+                bits = []
+                if desc:
+                    bits.append(desc)
+                if cat:
+                    bits.append("Categories: " + cat)
+                if x.get("price"):
+                    bits.append("Price (ex VAT): £" + str(x["price"]))
+                recs.append({"service_id": sid, "name": (x.get("name") or "").strip(),
+                             "supplier_name": (x.get("brand") or "ESPO").strip(),
+                             "description": " — ".join(bits), "url": x.get("url"),
+                             "lot": cat.split(" / ")[0] if cat else None})
+            offset += page
+    return service_bundle(recs, "espo", run_id, instrument_id="espo", source_kind="espo_catalogue",
+                          licence="operator_tos"), len(recs)
+
+
+# ----------------------------------------------------------------- YPO (Sitecore Discover search API)
+# YPO renders its grid from Sitecore Discover (entity "ypocontent", widget rfkid_7). The endpoint is
+# authorised by a CLIENT token (the public VITE_API_KEY in www.ypo.co.uk/dist/config.json — not a
+# secret; it's shipped to every browser). We replay it server-side: page the whole catalogue with no
+# category filter; if Discover caps deep pagination, shard by top_level_taxonomy. Token-free.
+YPO_DISCOVER = "https://discover-euc1.sitecorecloud.io/discover/v2/245100621"
+
+
+def _ypo_auth() -> str:
+    try:
+        with _client() as c:
+            return _get("https://www.ypo.co.uk/dist/config.json", c)[1] and __import__("json").loads(
+                _get("https://www.ypo.co.uk/dist/config.json", c)[1])["VITE_API_KEY"]
+    except Exception:
+        return "01-a3aae7ab-cded78930528ce6102cf1dcc23b9be1501fb0781"
+
+
+def _ypo_query(client: httpx.Client, taxonomy: str | None, offset: int, limit: int) -> dict:
+    filters = [{"type": "not", "filter": {"type": "eq", "name": "indexing_failed", "value": True}}]
+    if taxonomy:
+        filters.append({"type": "eq", "name": "top_level_taxonomy", "value": taxonomy})
+    body = {"context": {"page": {"uri": "/products"}},
+            "widget": {"items": [{"rfk_id": "rfkid_7", "entity": "ypocontent",
+                "search": {"content": {}, "offset": offset, "limit": limit, "query": {"operator": "and"},
+                           "facet": {"all": True}, "filter": {"type": "and", "filters": filters}}}]}}
+    return (client.post(YPO_DISCOVER, json=body).json().get("widgets") or [{}])[0]
+
+
+def _ypo_rec(x: dict) -> dict | None:
+    sid = str(x.get("unique_id") or x.get("id") or x.get("sitecore_product_id") or "")
+    url = x.get("product_url") or ""
+    name = (x.get("name") or x.get("title") or "").strip()
+    if not sid or not url or not name:
+        return None
+    if not url.startswith("http"):
+        url = "https://www.ypo.co.uk" + url
+    tax = x.get("product_taxonomy_titles")
+    cat = " / ".join(tax) if isinstance(tax, list) else (tax or "")
+    desc = (x.get("web_description") or x.get("description") or "").strip()
+    bits = [desc] if desc else []
+    if cat:
+        bits.append("Categories: " + cat)
+    if x.get("price"):
+        bits.append("Price: £" + str(x["price"]))
+    return {"service_id": sid, "name": name, "supplier_name": x.get("brand") or "YPO",
+            "description": " — ".join(bits), "url": url,
+            "lot": cat.split(" / ")[0] if cat else None}
+
+
+def ypo_sync(run_id: str = "ypo-sync", page: int = 100) -> tuple[dict, int]:
+    auth = _ypo_auth()
+    recs: list[dict] = []
+    seen: set[str] = set()
+    with httpx.Client(timeout=40, headers={"User-Agent": config.USER_AGENT, "Authorization": auth,
+                                           "Content-Type": "application/json"}) as client:
+        def crawl(taxonomy: str | None) -> int:
+            offset = 0
+            w0 = _ypo_query(client, taxonomy, 0, page)
+            total = w0.get("total_item", 0)
+            while True:
+                w = w0 if offset == 0 else _ypo_query(client, taxonomy, offset, page)
+                items = w.get("content") or []
+                if not items:
+                    break
+                for x in items:
+                    rec = _ypo_rec(x)
+                    if rec and rec["service_id"] not in seen:
+                        seen.add(rec["service_id"]); recs.append(rec)
+                offset += page
+                if offset >= total or offset >= 10000:  # Discover caps deep pagination ~10k
+                    break
+            return total
+        total = crawl(None)
+        if total >= 10000:  # capped — shard by top-level taxonomy to get the rest
+            w = _ypo_query(client, None, 0, 1)
+            facets = w.get("facet") or w.get("facets") or []
+            taxes: list[str] = []
+            for f in facets:
+                if (f.get("name") or f.get("identifier")) == "top_level_taxonomy":
+                    taxes = [v.get("text") or v.get("value") for v in (f.get("value") or f.get("values") or [])]
+            for t in taxes:
+                if t:
+                    crawl(t)
+    return service_bundle(recs, "ypo", run_id, instrument_id="ypo", source_kind="ypo_catalogue",
+                          licence="operator_tos"), len(recs)
