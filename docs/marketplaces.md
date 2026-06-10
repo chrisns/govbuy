@@ -39,17 +39,24 @@ service index.
 - **Expired / closed**: NHS Health Systems Support Framework (HSSF).
 - **Member-walled**: Jisc services and subscriptions catalogues (403 to anonymous fetch).
 
-## Backend-API findings (for the JS-rendered ones)
+## Backend-API findings — and what got ingested
 
-Browser network-inspection (June 2026) of the JS catalogues to find their crawlable product APIs:
+All the JS-rendered catalogues turned out to sit on **public, replayable SaaS search APIs** (the keys
+are client-side config, shipped to every browser — not secrets). Captured via Playwright network
+inspection, then replayed server-side as deterministic, **token-free** crawlers:
 
-- **YPO** → **Sitecore Discover** SaaS search. Endpoint `https://discover-euc1.sitecorecloud.io/discover/v2/245100621` (POST). The client keys are public in `https://www.ypo.co.uk/dist/config.json` (`VITE_API_KEY`, `VITE_CUSTOMER_KEY 118281098-245100621`, tracking hash `245100621`). YPO's own `/api/products/TaxonomyPath` returns the category tree. Crawlable via the Discover widget API, but the request body is a bespoke Sitecore Discover payload that must be captured/replayed per widget — a dedicated crawler.
-- **ESPO** → JS product grid, no API exposed in page source; needs the same network-inspection pass.
-- **Azure / GCP marketplaces** → JS SPAs over public catalog APIs; each a bespoke crawler.
+- **ESPO** → **Klevu** v2 search (`eucs32v2.ksearchnet.com/cs/v2/search`, apiKey `klevu-169116356914516627`). **INGESTED: 11,621 products.**
+- **YPO** → **Sitecore Discover** (`discover-euc1.sitecorecloud.io/discover/v2/245100621`, `Authorization` = the public `VITE_API_KEY` from `/dist/config.json`, entity `ypocontent`, widget `rfkid_7`). **INGESTED: 10,000** (Discover caps deep pagination at ~10k).
+- **Azure Marketplace** → `catalogapi.azure.com/products` is public (full objects incl. description/publisher/categories with `storefront=any`, no `$select`); the gallery pages are SSR with embedded product JSON. **NOT ingested** — see below.
+- **AWS / GCP marketplaces** → JS gallery with no open token-free enumeration (AWS gallery is client-rendered; GCP is console-auth-walled).
 
-Each of these is a separate, non-trivial adapter (capture the SaaS search payload, page it, parse).
-G-Cloud, NDX and NHS Buying Catalogue (all deterministic HTML) are ingested; these JS/SaaS ones are
-the queued next adapters.
+### Why the hyperscaler marketplaces are excluded
+govbuy's model classifies hyperscaler marketplaces as **`marketplace_consumption` — explicitly NOT a
+route** (consumption bills *on top of* a route like G-Cloud; it isn't itself a way to procure). They
+are global commercial catalogues (50k+ offers each), not UK public-sector routes-to-market, and
+ingesting them would dilute UK-procurement answers with global SaaS. The Azure catalog API is recorded
+above so it's a trivial add if that modelling decision ever changes. AWS/GCP have no token-free
+enumeration regardless.
 
 ## Takeaway
 

@@ -268,9 +268,10 @@ export function buildServer(): McpServer {
     {
       title: "Find catalogue services",
       description:
-        "CAPABILITY search: given a real need (e.g. 'host an open-source app', 'Microsoft 365 mailbox management', 'IT service desk'), return the specific G-Cloud catalogue SERVICES that match — each with its supplier, lot, the verbatim service description, and the citable Digital Marketplace listing URL (applytosupply.../g-cloud/services/<id>). This is how you answer 'who can actually DO this thing' rather than just naming a framework: surface 3-8 concrete services and link each one. Use after find_routes establishes the route is G-Cloud.",
+        "CAPABILITY search across every public-sector buying catalogue govbuy holds: given a real need (e.g. 'host an open-source app', 'Microsoft 365 mailbox', 'IT service desk', 'a desk', 'classroom furniture'), return the specific catalogue listings that match — each with supplier, the verbatim description, and the citable listing URL to link. Catalogues: g-cloud (43,733 cloud services, the main digital route), espo + ypo (physical goods — furniture, supplies), nhs-buying-catalogue (clinical IT), ndx. This answers 'who can actually DO/SUPPLY this' rather than just naming a framework: surface 3-8 concrete listings and link each. Filter by `catalogue` to scope (e.g. g-cloud for digital, espo/ypo for physical goods).",
       inputSchema: {
         need: z.string().optional(), keyword: z.string().optional(),
+        catalogue: z.enum(["g-cloud", "espo", "ypo", "nhs-buying-catalogue", "ndx"]).optional(),
         lot: z.enum(["cloud-hosting", "cloud-software", "cloud-support"]).optional(),
         supplier: z.string().optional(),
         limit: z.number().int().min(1).max(30).default(8),
@@ -279,25 +280,32 @@ export function buildServer(): McpServer {
     guard(async (args) => {
       const toks = tokenize(args.need || args.keyword || "");
       if (!toks.length && !args.supplier) return toolError("INVALID_QUERY", "Provide a need/keyword (e.g. 'host an open-source app') or a supplier name.");
-      // Word-boundary token scoring over name+description+features+benefits; rank by tokens matched.
-      const score = `(SELECT COUNT(1) FROM UNNEST(@toks) tok WHERE REGEXP_CONTAINS(hay, CONCAT(r'\\b', tok, r'\\b')))`;
+      // Word-boundary token scoring. A token hit in the NAME is worth far more than one buried in the
+      // description (so "Teacher's Desk" beats a whiteboard rule that merely says "office"); requiring
+      // every token to appear somewhere (allTok) is the strongest signal and dominates the ranking.
+      const nameHits = `(SELECT COUNT(1) FROM UNNEST(@toks) tok WHERE REGEXP_CONTAINS(nm, CONCAT(r'\\b', tok, r'\\b')))`;
+      const anyHits = `(SELECT COUNT(1) FROM UNNEST(@toks) tok WHERE REGEXP_CONTAINS(hay, CONCAT(r'\\b', tok, r'\\b')))`;
+      const allTok = `(${anyHits} = ARRAY_LENGTH(@toks))`;
+      const score = `(IF(${allTok}, 1000, 0) + 5 * ${nameHits} + ${anyHits})`;
       const sql = `
         WITH s AS (
-          SELECT sv.service_id, sv.name, sv.supplier_name, sv.lot, sv.description, sv.features, sv.benefits,
+          SELECT sv.service_id, sv.catalogue, sv.name, sv.supplier_name, sv.lot, sv.description, sv.features, sv.benefits,
                  sv.url, sv.instrument_id, sup.company_number, sup.ch_url, sup.match_band,
+                 LOWER(sv.name) AS nm,
                  LOWER(CONCAT(sv.name, ' ', IFNULL(sv.description, ''), ' ',
                               ARRAY_TO_STRING(sv.features, ' '), ' ', ARRAY_TO_STRING(sv.benefits, ' '))) AS hay
           FROM ${tableRef("service")} sv
           LEFT JOIN ${tableRef("supplier")} sup ON sup.supplier_id = sv.supplier_id
           WHERE (@sup IS NULL OR LOWER(sv.supplier_name) LIKE @sup)
+            AND (@cat IS NULL OR sv.catalogue = @cat)
             AND (@lot IS NULL OR sv.lot = @lot))
-        SELECT * EXCEPT(hay), ${score} AS match_score FROM s
-        WHERE (ARRAY_LENGTH(@toks) = 0 OR ${score} > 0)
+        SELECT * EXCEPT(hay, nm), ${score} AS match_score FROM s
+        WHERE (ARRAY_LENGTH(@toks) = 0 OR ${anyHits} > 0)
         ORDER BY match_score DESC, name
         LIMIT @lim`;
       const rows = await runQuery(sql, {
-        params: { toks, lot: args.lot ?? null, sup: args.supplier ? `%${args.supplier.toLowerCase()}%` : null, lim: args.limit },
-        types: { toks: ["STRING"], lot: "STRING", sup: "STRING" },
+        params: { toks, cat: args.catalogue ?? null, lot: args.lot ?? null, sup: args.supplier ? `%${args.supplier.toLowerCase()}%` : null, lim: args.limit },
+        types: { toks: ["STRING"], cat: "STRING", lot: "STRING", sup: "STRING" },
       });
       const services = rows.map((r) => {
         const d = deep(r) as Record<string, unknown>;
@@ -306,8 +314,8 @@ export function buildServer(): McpServer {
       });
       return ok(withFreshness({
         count: services.length,
-        note: "G-Cloud 14 catalogue services (RM1557.14). Each is a real, citable listing; call-off is by direct award or further competition on G-Cloud. " + NOT_ADVICE,
-        display_guidance: "Present each service as a clickable link (its url, an applytosupply.../g-cloud/services/<id> page) with the service name as the link text, and link the supplier's ch_url (Companies House). Cite the listing URL so the buyer can open the exact service. " + DISPLAY_GUIDANCE,
+        note: "Catalogue listings across UK public-sector buying catalogues (each row's `catalogue` shows which). g-cloud = cloud services on RM1557.14 (call off by direct award or further competition); espo/ypo = physical-goods catalogues; nhs-buying-catalogue = clinical IT; ndx = digital exchange. Each is a real, citable listing. " + NOT_ADVICE,
+        display_guidance: "Present each listing as a clickable link (its url) with the service/product name as the link text, and link the supplier's ch_url (Companies House) when present. Cite the listing URL so the buyer can open the exact item. Group or label by `catalogue` when results span several. " + DISPLAY_GUIDANCE,
         services,
       }, await freshness()));
     }),

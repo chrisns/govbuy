@@ -44,19 +44,22 @@ Extraction workflows run on **Haiku** (gate-protected, cheap); re-discovery on S
 The page and any linked user-guide PDF don't state direct-award vs further-competition. Inferring a
 route would be fabrication (the gate forbids it). PDF user guides were the big unlock (44% → 71%).
 
-### Capability search — service-level descriptions (DONE for G-Cloud; expanding)
-govbuy now indexes per-listing **service descriptions**, so "find a supplier that hosts open-source
-LLM apps / runs Kubernetes / offers X capability" resolves to concrete, citable listings via the
-`find_services` tool (and the `service` table). Coverage:
-- **G-Cloud 14 — 43,733 services** (every live listing: name, supplier, lot, full description), 99.9%
-  supplier-resolved to a CRN. Deterministic crawl of the public Digital Marketplace search.
-- **NHS Buying Catalogue (48)** and **NDX / National Digital Exchange (40)** — the other open digital
-  catalogues.
+### Capability search — service-level descriptions (DONE across all UK buying catalogues)
+govbuy indexes **65,442 per-listing descriptions** across every public UK public-sector buying
+catalogue, so "find who can host open-source LLM apps / supply a desk / run a service desk" resolves
+to concrete, citable listings via `find_services` (filterable by `catalogue`). All crawlers are
+deterministic + re-runnable **token-free** (no LLM in the loop), each row carries its source URL:
+- **G-Cloud 14 — 43,733** services (Digital Marketplace search), 99.9% CRN-resolved.
+- **ESPO — 11,621** products (Klevu search API).
+- **YPO — 10,000** products (Sitecore Discover API; Discover's deep-pagination cap).
+- **NHS Buying Catalogue — 48** clinical-IT solutions; **NDX — 40** digital-exchange products.
 
-Still to ingest (per [marketplaces.md](marketplaces.md)) — all JS-rendered, so each needs its backend
-product API discovered (browser-assisted) then crawled: **ESPO** (~28k physical goods), **YPO** (~23k),
-and the hyperscaler marketplaces (**AWS** static / **Azure** + **GCP** JS). Features/benefits
-enrichment of the G-Cloud descriptions (Stage 2, detail pages) is a quality follow-up.
+**Deliberately excluded: hyperscaler marketplaces (Azure/AWS/GCP).** Per govbuy's own model these
+are `marketplace_consumption` — explicitly NOT a route (consumption sits *on* a route like G-Cloud).
+They're global commercial catalogues, not UK routes-to-market, and AWS/GCP expose no open token-free
+enumeration. Azure's public catalog API is documented in [marketplaces.md](marketplaces.md) so it can
+be added trivially if that modelling call ever changes. Optional quality follow-up: features/benefits
+enrichment of G-Cloud descriptions from the detail pages.
 
 ### Structural / upstream limits
 - **GCA DPS & dynamic markets (27 live):** rolling membership not exposed by the GCA suppliers API.
