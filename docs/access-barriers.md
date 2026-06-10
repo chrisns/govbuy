@@ -1,96 +1,46 @@
-# govbuy — supplier-list access barriers
+# govbuy — supplier-list access barriers & credentials needed
 
-Frameworks whose **appointed-supplier list is not publicly reachable**, by reason. The `login` group is the actionable one: those portals need member/buyer credentials to read the supplier list. Give me creds (or a logged-in export) for the operators below and I can ingest them.
+Of the frameworks still without a supplier list: **login-walled 270** (creds unlock these), no public list 307, JS/blocked 86, dead link 28.
 
-**Totals** — login-walled: **248** frameworks · blocked (JS/anti-bot): **103** · no public list: **328** · dead link: **24**
+## Credentials to obtain — ranked by frameworks unlocked
 
-## 1. LOGIN REQUIRED — need credentials (priority)
+One login per **portal** (several operators share a portal). Log in on the laptop Chrome and I drive the browser to extract; or paste a logged-in supplier-list export.
 
-| Operator | Frameworks behind login | Portal(s) needing credentials |
-|---|---:|---|
-| North Eastern Universities Purchasing Consortium Ltd (NEUPC) | 72 | https://hunterpcm.uk/login |
-| Pagabo | 23 | https://app.pagabo.co.uk/login <br> https://app.mypagabo.co.uk/register-supplier |
-| Advanced Procurement for Universities and Colleges | 21 | https://hunterpcm.uk/login <br> https://hunterpcm.uk/portal/framework/24657/view |
-| YPO | 15 | https://www.ypo.co.uk/login |
-| NHS London Procurement Partnership (NHS LPP) | 13 | https://my.lpp.nhs.uk/Login.aspx |
-| TPPL (The Procurement Partnership Limited) | 11 | https://www.tppl.co.uk/membership/ |
-| Advantage South West | 10 | https://www.advantageswtenders.co.uk <br> https://www.advantagesouthwest.co.uk/login/ |
-| CHIC (Communities & Housing Investment Consortium) | 9 | https://www.chicltd.co.uk/services/dynamic-purchasing-system-solutions/all-under-one-roof/ <br> https://www.chicltd.co.uk/services/dynamic-purchasing-system-solutions/asbestos/ <br> https://www.chicltd.co.uk/services/dynamic-purchasing-system-solutions/cleaning-services/ |
-| East of England NHS Collaborative Procurement Hub (EoECPH) / National Ambulance Procurement | 8 | https://www.eoecph.nhs.uk/frameworks/nhs-clinical-and-healthcare-agency-staffing/ <br> https://www.eoecph.nhs.uk/frameworks/consultancy-and-associated-services/ <br> https://www.eoecph.nhs.uk/frameworks/health-and-social-care-apps-dps/ |
-| NHS Commercial Solutions (NHSCS, South East Coast) | 8 | https://www.commercialsolutions-sec.nhs.uk/login |
-| Scottish Government - Scottish Procurement (Scottish Procurement and Property Directorate / National Collaborative Procurement) | 7 | https://khub.net/ |
-| Clarion Housing Group | 6 | https://atamis-clarionhousing.my.salesforce-sites.com/ProSpend__CS_ContractPage |
-| BlueLight Commercial (BLC) | 5 | https://in-tendorganiser.co.uk/BLPD2/aspx/itlogin.aspx <br> https://bluelightcommercial.police.uk/helping-fire/professional-services/ |
-| London Universities Purchasing Consortium | 5 | https://hunterpcm.uk/login |
-| NWADCS (North West Association of Directors of Children's Services) - Regional Purchasing Systems | 5 | https://www.nwadcs.org.uk/regional-purchasing-systems |
-| TUCO (The University Caterers Organisation) | 5 | https://www.tuco.ac.uk/procurement/our-suppliers |
-| Warwickshire County Council / CSW (Coventry–Solihull–Warwickshire joint procurement) | 5 | https://sell2.in-tend.co.uk/midlands/register |
-| NOE CPC (North of England Commercial Procurement Collaborative) | 4 | https://www.noecpc.nhs.uk <br> https://healthappsdps.orcha.co.uk/ <br> https://www.noecpc.nhs.uk/contracts/provision-of-education-and-cpd-training |
-| North West Construction Hub (NWCH) | 3 | https://northwestconstructionhub.org/construction-frameworks/ |
-| London Construction Programme (LCP) | 2 | https://lboh.outsystemsenterprise.com/login/Login.aspx |
-| Business Services Organisation – Procurement and Logistics Service (BSO PaLS) | 1 | https://bso.hscni.net/directorates/operations/procurement-and-logistics-service/procurement/dynamic-purchasing-system-dps-for-personal-protective-equipment-ppe/ |
-| Constellia (Neutral Vendor Framework for Innovation - NVfI) | 1 | https://www.constellia.com/solutions/information-for-suppliers/#join-marketplace |
-| EPH Frameworks (Essex Procurement Hub) | 1 | https://www.ephframeworks.org/specialist |
-| Hertfordshire County Council (Property Works Framework / HCC Contracts catalogue) | 1 | https://www.hertfordshire.gov.uk/contractcatalogue/default.aspx |
-| LHC Procurement Group | 1 | https://www.scottishprocurement.scot/my-spa/ |
-| Manchester City Council (TC886 Highways Construction Works Framework) | 1 | mailto:olayinka.seriki@manchester.gov.uk |
-| NEPO (North East Procurement Organisation) | 1 | https://procontract.due-north.com/Login |
-| NHS ProCure (ProCure22 / ProCure23 / ProCure24) - NHS England Estates & Facilities programme | 1 | https://procure22.nhs.uk |
-| NHS Workforce Alliance | 1 | https://www.workforcealliance.nhs.uk/wp-login.php |
-| Northern Procurement Alliance (NPA) | 1 | https://www.northernprocurement.org.uk/frameworks/consultancy/ |
-| West Yorkshire Combined Authority (WYCA) | 1 | https://yortender.eu-supply.com/login.asp |
+| Portal | Frameworks | Operators | How to get access |
+|---|---:|---|---|
+| `hunterpcm.uk` | 84 | Advanced Procurement for Universities and Colleges, London U | Hunter CSM — UKUPC HE-consortia portal; buyer (member institution) or supplier registration |
+| `www.ppsa.nhs.uk` | 20 | Peninsula Purchasing and Supply Alliance (PPSA) | PPSA — NHS member login |
+| `procontract.due-north.com` | 19 | Advantage South West, NEPO (North East Procurement Organisat | ProContract/Due North — free supplier+buyer registration per authority |
+| `app.pagabo.co.uk` | 15 | Pagabo | Pagabo — free buyer account |
+| `my.lpp.nhs.uk` | 14 | NHS London Procurement Partnership (NHS LPP) | NHS LPP — NHS buyer login |
+| `pharmaqc-trust.cmu.nhs.uk` | 13 | NHS England Medicines Procurement and Supply Chain (MPSC) /  | NHS pharmacy QC — NHS login |
+| `www.tppl.co.uk` | 12 | TPPL (The Procurement Partnership Limited) | TPPL — free membership |
+| `www.efficiencynorth.org` | 11 | EN:Procure / Efficiency North Holdings (EN:Able Build, EN:Ab | EN — member login |
+| `in-tendhost.co.uk` | 10 | Crescent Purchasing Consortium (CPC), Warwickshire County Co | In-tend — free registration per authority |
+| `www.ypo.co.uk` | 8 | YPO | YPO — free account |
+| `www.commercialsolutions-sec.nhs.uk` | 7 | NHS Commercial Solutions (NHSCS, South East Coast) | NHS Commercial Solutions — NHS login |
+| `www.procurementhub.co.uk` | 6 | Procurement Hub (Places for People) | Procurement Hub (PfP) — buyer account |
+| `www.advantageswtenders.co.uk` | 6 | Advantage South West | Advantage SW tenders — register |
+| `app.mypagabo.co.uk` | 6 | Pagabo | Pagabo (myPagabo) — free buyer account |
+| `suppliers.procurementhub.co.uk` | 4 | Procurement Hub (Places for People) | register / request access |
+| `uk.eu-supply.com` | 4 | Peninsula Purchasing and Supply Alliance (PPSA) | EU-Supply — free registration |
+| `www.eoecph.nhs.uk` | 4 | East of England NHS Collaborative Procurement Hub (EoECPH) / | register / request access |
+| `www.tuco.ac.uk` | 2 | Crescent Purchasing Consortium (CPC), Tenet Procurement Serv | register / request access |
+| `khub.net` | 2 | Scottish Government - Scottish Procurement (Scottish Procure | Knowledge Hub — free account |
+| `suppliers.multiquote.com` | 2 | Tenet Procurement Services (part of CPL Group) | register / request access |
+| `future.nhs.uk` | 2 | NOE CPC (North of England Commercial Procurement Collaborati | register / request access |
+| `lboh.outsystemsenterprise.com` | 2 | London Construction Programme (LCP) | register / request access |
+| `southeastconsortium.org.uk` | 2 | South East Consortium | register / request access |
+| `www.lancashire.gov.uk` | 1 | NWADCS (North West Association of Directors of Children's Se | register / request access |
+| `pfhscotland.co.uk` | 1 | PfH Scotland (Procurement for Housing Scotland) | register / request access |
+| `bso.hscni.net` | 1 | Business Services Organisation – Procurement and Logistics S | register / request access |
+| `yortender.eu-supply.com` | 1 | West Yorkshire Combined Authority (WYCA) | register / request access |
+| `www.southampton.gov.uk` | 1 | Southampton City Council — South Central Children's Commissi | register / request access |
+| `healthappsdps.orcha.co.uk` | 1 | NOE CPC (North of England Commercial Procurement Collaborati | register / request access |
+| `www.noecpc.nhs.uk` | 1 | NOE CPC (North of England Commercial Procurement Collaborati | register / request access |
+| `supplierlive.proactisp2p.com` | 1 | Somerset Council – Specialist Adults Support in Somerset DPS | register / request access |
+| `bluelight.eu-supply.com` | 1 | BlueLight Commercial (BLC) | register / request access |
 
-## 2. BLOCKED (JS-rendered / anti-bot) — may yield to a headless browser
+**Top by leverage:** `hunterpcm.uk` (84 — all the HE consortia), NHS portals (`ppsa`/`lpp`/`pharmaqc`/`commercialsolutions` ≈ 54), `procontract.due-north.com` + `pagabo` (≈ 40 construction/works).
 
-| Operator | Frameworks |
-|---|---:|
-| Warwickshire County Council / CSW (Coventry–Solihull–Warwickshire joint procurement) | 34 |
-| NHS England Medicines Procurement and Supply Chain (MPSC) / Specialist Pharmacy Service (SPS) | 13 |
-| Tenet Procurement Services (part of CPL Group) | 9 |
-| Efficiency North / EN:Procure | 8 |
-| ESPO | 8 |
-| Frameworks Scotland (NHS Scotland Assure / NSS construction frameworks) | 7 |
-| EN:Procure / Efficiency North Holdings (EN:Able Build, EN:Able Futures) | 5 |
-| Welsh Procurement Alliance | 4 |
-| South West Procurement Alliance (SWPA) | 3 |
-| East Midlands Regional Children's Framework (EMRCF) - lead authority Northamptonshire / now West Northamptonshire Council | 2 |
-| Jisc | 2 |
-| NHS London Purchased Healthcare (LPH) Team — Pan-London Nursing Homes AQP and Pan-London Domiciliary Care AQP | 2 |
-| Beond Group / Gwynedd Council Energy Procurement DPS | 1 |
-| National Education Frameworks (EduFrameworks) | 1 |
-| Hampshire County Council (Southern Modular Building Framework / Contracting Direct) | 1 |
-| Nuclear Decommissioning Authority (NDA) group - BATS Marketplace | 1 |
-| QE Facilities (Gateshead Health NHS Foundation Trust) | 1 |
-| TPPL (The Procurement Partnership Limited) | 1 |
-
-## 3. NO PUBLIC SUPPLIER LIST (informational — page loads, lists no suppliers)
-
-| Operator | Frameworks |
-|---|---:|
-| Peninsula Purchasing and Supply Alliance (PPSA) | 39 |
-| COCH CPS (Countess of Chester Commercial Procurement Services) | 23 |
-| Durham Commercial Services (Housing & Blue Light) | 22 |
-| Inprova | 22 |
-| NEPO (North East Procurement Organisation) | 13 |
-| 2buy2 / Church Buying / Parish Buying | 11 |
-| East of England NHS Collaborative Procurement Hub (EoECPH) / National Ambulance Procurement | 11 |
-| Procurement Hub (Places for People) | 10 |
-| North of England Commissioning Support (NECS) | 9 |
-| Scottish Government - Scottish Procurement (Scottish Procurement and Property Directorate / National Collaborative Procurement) | 9 |
-| National Public Sector Frameworks (psframeworks.co.uk) – operated by Dukefield Group | 8 |
-| YPO | 8 |
-| CHIC (Communities & Housing Investment Consortium) | 6 |
-| MIAA (Mersey Internal Audit Agency) | 6 |
-| Pinnacle / The AD Group (AD frameworks) | 6 |
-| Placements North West (NWADCS) | 6 |
-| Police Digital Service (PDS) | 6 |
-| West Yorkshire Combined Authority (WYCA) | 6 |
-| BlueLight Commercial (BLC) | 5 |
-| Crescent Purchasing Consortium (CPC) | 5 |
-| Inspired PLC (Inspired Energy) | 5 |
-| London Borough of Barking and Dagenham – Construction Frameworks (East London Solutions Group) | 5 |
-| Procure Partnerships Framework | 5 |
-| South East Consortium | 5 |
-| Thirteen Group (Thirteen Housing Group) | 5 |
-
-_Generated from the supplier-sweep access_barrier inventory (scripts/workflows/nonccs-supplier-membership.js)._
+_PDF supplier lists are now read directly, so 'PDF only' is no longer a barrier._
