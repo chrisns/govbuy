@@ -14,6 +14,12 @@ import { validateReadOnlySql } from "./lib/sqlguard.js";
 const RESULT_MODE = z.enum(["minimal", "standard", "full"]).default("minimal");
 const NOT_ADVICE = "Candidate route-to-market information, source-anchored. NOT legal advice and not the authority of record; you must confirm compliance on the official source. govbuy documents routes — it does not assemble the purchase or author the business case.";
 
+// Display directive carried in every response so the host LLM renders the URLs we return as
+// clickable links rather than naming things bare. A framework/supplier/source named without its
+// link is not actionable — the user cannot reach the official page, the Companies House record, or
+// the evidence. Always link the NAME (link text = the thing's name), never paste a bare URL.
+const DISPLAY_GUIDANCE = "Render every URL in this response as a clickable markdown link whose text is the name of the thing it points to — do not just cite names. Specifically: official_url is the framework/instrument's official page; operator_url is the operator's site; each supplier's ch_url is its Companies House record; buying_docs[].url and how_to_apply[].url are the buying/guidance/application documents; and every evidence.source_url is the source a claim is anchored to (link it so the user can verify). When a thing has a URL, present its name as a link to that URL; reserve bare-text mentions for things that genuinely have no URL.";
+
 const CE = tableRef("claim_evidence");
 // Evidence STRUCT from a joined claim_evidence alias.
 const EV = (a: string) => `STRUCT(${a}.source_url, ${a}.source_kind, ${a}.excerpt, ${a}.licence, ${a}.confidence)`;
@@ -70,7 +76,16 @@ async function withEvidence<T>(payload: T): Promise<T> {
 }
 
 export function buildServer(): McpServer {
-  const server = new McpServer({ name: "govbuy-mcp", version: "0.1.0" });
+  const server = new McpServer(
+    { name: "govbuy-mcp", version: "0.1.0" },
+    {
+      instructions:
+        "govbuy maps UK public-sector routes to market (how to buy, how to sell, who resells). " +
+        "Responses are source-anchored and carry URLs: framework official_url, operator_url, supplier ch_url (Companies House), buying-document urls, and an evidence.source_url on every asserted claim. " +
+        "ALWAYS surface these to the user as clickable markdown links with the thing's name as the link text — naming a framework, supplier, or source without linking its URL is not useful. " +
+        "Anchor each fact to its evidence.source_url so the user can verify it. govbuy documents routes; it does not assemble the purchase or give legal advice — tell the user to confirm on the official source.",
+    },
+  );
 
   server.registerTool(
     "find_routes",
@@ -89,7 +104,7 @@ export function buildServer(): McpServer {
       const sql = `
         SELECT i.instrument_id, i.name, i.rm_reference, i.type, i.regime, i.lifecycle_status,
                i.starts_on, i.expires_on, i.category_tags, i.official_url,
-               o.name AS operator, o.kind AS operator_kind,
+               o.name AS operator, o.kind AS operator_kind, o.home_url AS operator_url,
                ${LOTS("i")} AS lots, ${MECHANICS("i")} AS award_mechanics, ${DOCS("i")} AS buying_docs,
                ${EV("ie")} AS evidence
         FROM ${tableRef("instrument")} i
@@ -102,7 +117,7 @@ export function buildServer(): McpServer {
             OR EXISTS (SELECT 1 FROM ${tableRef("lot")} l, UNNEST(@toks) tok WHERE l.instrument_id = i.instrument_id AND (REGEXP_CONTAINS(LOWER(l.title), CONCAT(r'\b', tok, r'\b')) OR REGEXP_CONTAINS(LOWER(IFNULL(l.scope,'')), CONCAT(r'\b', tok, r'\b')))))
         ORDER BY i.name LIMIT @lim`;
       const rows = await runQuery(sql, { params: { toks, lim: args.limit }, types: { toks: ["STRING"] } });
-      return ok(withFreshness({ count: rows.length, note: NOT_ADVICE, payment_caveats: await paymentCaveats(), routes: rows.map(deep) }, await freshness()));
+      return ok(withFreshness({ count: rows.length, note: NOT_ADVICE, display_guidance: DISPLAY_GUIDANCE, payment_caveats: await paymentCaveats(), routes: rows.map(deep) }, await freshness()));
     }),
   );
 
@@ -118,7 +133,7 @@ export function buildServer(): McpServer {
       const sql = `
         SELECT i.instrument_id, i.name, i.rm_reference, i.type, i.regime, i.lifecycle_status,
                i.starts_on, i.expires_on, i.predecessor_id, i.category_tags, i.official_url,
-               o.name AS operator, o.kind AS operator_kind,
+               o.name AS operator, o.kind AS operator_kind, o.home_url AS operator_url,
                ${LOTS("i")} AS lots, ${MECHANICS("i")} AS award_mechanics, ${DOCS("i")} AS buying_docs,
                ARRAY(SELECT AS STRUCT s.display_name, s.company_number, s.match_band, s.status_at_match, s.ch_url,
                         aps.lot_id, aps.status, aps.appointed_from, aps.last_seen_on, aps.left_on, aps.confidence, aps.conflict
@@ -140,7 +155,7 @@ export function buildServer(): McpServer {
       if (!rows.length) return toolError("UNKNOWN_ID", `No instrument for '${args.id ?? args.rm_reference}'.`, "Try the RM reference (e.g. RM1557.14) or call find_routes.");
       const r = deep(rows[0]) as Record<string, unknown>;
       const suppliers = (r.appointed_suppliers as Record<string, unknown>[]).map((s) => ({ ...s, membership: membership(s) }));
-      return ok(withFreshness({ instrument: { ...r, appointed_suppliers: suppliers }, note: NOT_ADVICE }, await freshness()));
+      return ok(withFreshness({ instrument: { ...r, appointed_suppliers: suppliers }, note: NOT_ADVICE, display_guidance: DISPLAY_GUIDANCE }, await freshness()));
     }),
   );
 
@@ -156,7 +171,7 @@ export function buildServer(): McpServer {
       const openClause = args.openOnly ? `i.type IN ('open_framework','dynamic_market')` : `i.lifecycle_status = 'live_for_call_off'`;
       const sql = `
         SELECT i.instrument_id, i.name, i.rm_reference, i.type, i.lifecycle_status, i.expires_on, i.category_tags, i.official_url,
-               o.name AS operator, (i.type IN ('open_framework','dynamic_market')) AS joinable_now,
+               o.name AS operator, o.home_url AS operator_url, (i.type IN ('open_framework','dynamic_market')) AS joinable_now,
                ${LOTS("i")} AS lots,
                ARRAY(SELECT AS STRUCT d.doc_type, d.title, d.url FROM ${tableRef("buying_doc")} d
                      WHERE d.instrument_id = i.instrument_id AND d.doc_type IN ('buyer_guide','required_documents','order_form')) AS how_to_apply,
@@ -171,7 +186,7 @@ export function buildServer(): McpServer {
             OR EXISTS (SELECT 1 FROM ${tableRef("lot")} l, UNNEST(@toks) tok WHERE l.instrument_id = i.instrument_id AND (REGEXP_CONTAINS(LOWER(l.title), CONCAT(r'\b', tok, r'\b')) OR REGEXP_CONTAINS(LOWER(IFNULL(l.scope,'')), CONCAT(r'\b', tok, r'\b')))))
         ORDER BY joinable_now DESC, i.name LIMIT @lim`;
       const rows = await runQuery(sql, { params: { toks, lim: args.limit }, types: { toks: ["STRING"] } });
-      return ok(withFreshness({ count: rows.length, note: "If you cannot be appointed directly, see list_resellers for thin-primes/VARs that can route you in. " + NOT_ADVICE, instruments: rows.map(deep) }, await freshness()));
+      return ok(withFreshness({ count: rows.length, note: "If you cannot be appointed directly, see list_resellers for thin-primes/VARs that can route you in. " + NOT_ADVICE, display_guidance: DISPLAY_GUIDANCE, instruments: rows.map(deep) }, await freshness()));
     }),
   );
 
@@ -214,7 +229,7 @@ export function buildServer(): McpServer {
       }
       if (args.instrument) rows = rows.filter((r) => (r.frameworks_held as string[]).includes(args.instrument as string));
       rows = rows.slice(0, args.limit);
-      const payload = await withEvidence({ count: rows.length, note: NOT_ADVICE, resellers: rows });
+      const payload = await withEvidence({ count: rows.length, note: NOT_ADVICE, display_guidance: DISPLAY_GUIDANCE, resellers: rows });
       return ok(withFreshness(payload, await freshness()));
     }),
   );
@@ -242,7 +257,7 @@ export function buildServer(): McpServer {
       if (!rows.length) return toolError("UNKNOWN", `No supplier for '${args.name ?? args.crn}'.`);
       const r = deep(rows[0]) as Record<string, unknown>;
       const appointments = (r.appointments as Record<string, unknown>[]).map((a) => ({ ...a, membership: membership(a) }));
-      const payload = await withEvidence({ supplier: { ...r, appointments } });
+      const payload = await withEvidence({ supplier: { ...r, appointments }, display_guidance: DISPLAY_GUIDANCE });
       return ok(withFreshness(payload, await freshness()));
     }),
   );

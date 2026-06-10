@@ -12,10 +12,13 @@ whose inbound scope can carry an off-framework product to market.
 claude mcp add --transport http govbuy https://govbuy.run.cns.me/mcp
 ```
 
-> *"I want Appvia to build me a landing zone. How can I contract them?"* → Appvia (CRN 10653692,
+> *"I want Appvia to build me a landing zone. How can I contract them?"* →
+> [Appvia](https://find-and-update.company-information.service.gov.uk/company/10653692) (CRN 10653692,
 > Companies House auto-matched) is appointed to **Technology Services 4 (RM6190)** and **G-Cloud 14
 > (RM1557.14)**; both permit direct award or further competition — each claim carrying a verbatim
-> excerpt from the operator's own page.
+> excerpt, and a clickable link, to the operator's own page. (Responses ship the real URLs — the
+> official framework page, the Companies House record, the source of every claim — so your assistant
+> links you straight to them.)
 
 ## What's inside
 
@@ -49,6 +52,14 @@ purchase or give legal advice, and it is not the authority of record. See [VISIO
 | `query_sql` | Read-only BigQuery over `govbuy_public` (+ the `sibling_call_off_awards` snapshot to join real call-offs). Byte-capped. |
 | `get_schema` | Tables/columns + byte cap. |
 | `get_status` | Per-source freshness/health, last-run cost (£), spend-coverage %. |
+
+**Everything links out.** Every response carries the *actual URLs*, not just names: the framework's
+`official_url`, the operator's `operator_url`, each supplier's `ch_url` (its Companies House record),
+the buying/guidance-document URLs, and an `evidence.source_url` on every asserted claim. Each tool
+result — and the server's MCP `instructions` — tells the host assistant to render these as clickable
+links with the thing's name as the link text, so you get *"[Appvia](…) is on [G-Cloud 14](…), per
+[this page](…)"* rather than a bare list of names. Naming a framework or supplier without a link to
+reach it isn't useful; govbuy ships the link.
 
 ## Ask it anything
 
