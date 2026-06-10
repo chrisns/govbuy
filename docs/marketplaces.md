@@ -39,6 +39,18 @@ service index.
 - **Expired / closed**: NHS Health Systems Support Framework (HSSF).
 - **Member-walled**: Jisc services and subscriptions catalogues (403 to anonymous fetch).
 
+## Backend-API findings (for the JS-rendered ones)
+
+Browser network-inspection (June 2026) of the JS catalogues to find their crawlable product APIs:
+
+- **YPO** → **Sitecore Discover** SaaS search. Endpoint `https://discover-euc1.sitecorecloud.io/discover/v2/245100621` (POST). The client keys are public in `https://www.ypo.co.uk/dist/config.json` (`VITE_API_KEY`, `VITE_CUSTOMER_KEY 118281098-245100621`, tracking hash `245100621`). YPO's own `/api/products/TaxonomyPath` returns the category tree. Crawlable via the Discover widget API, but the request body is a bespoke Sitecore Discover payload that must be captured/replayed per widget — a dedicated crawler.
+- **ESPO** → JS product grid, no API exposed in page source; needs the same network-inspection pass.
+- **Azure / GCP marketplaces** → JS SPAs over public catalog APIs; each a bespoke crawler.
+
+Each of these is a separate, non-trivial adapter (capture the SaaS search payload, page it, parse).
+G-Cloud, NDX and NHS Buying Catalogue (all deterministic HTML) are ingested; these JS/SaaS ones are
+the queued next adapters.
+
 ## Takeaway
 
 For *digital/technology* capability search, G-Cloud (done) + NHS Buying Catalogue + NDX cover the
