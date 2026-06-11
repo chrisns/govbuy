@@ -47,16 +47,16 @@ inspection, then replayed server-side as deterministic, **token-free** crawlers:
 
 - **ESPO** → **Klevu** v2 search (`eucs32v2.ksearchnet.com/cs/v2/search`, apiKey `klevu-169116356914516627`). **INGESTED: 11,621 products.**
 - **YPO** → **Sitecore Discover** (`discover-euc1.sitecorecloud.io/discover/v2/245100621`, `Authorization` = the public `VITE_API_KEY` from `/dist/config.json`, entity `ypocontent`, widget `rfkid_7`). **INGESTED: 10,000** (Discover caps deep pagination at ~10k).
-- **Azure Marketplace** → `catalogapi.azure.com/products` is public (full objects incl. description/publisher/categories with `storefront=any`, no `$select`); the gallery pages are SSR with embedded product JSON. **NOT ingested** — see below.
-- **AWS / GCP marketplaces** → JS gallery with no open token-free enumeration (AWS gallery is client-rendered; GCP is console-auth-walled).
+- **Azure Marketplace** → gallery pages (`marketplace.microsoft.com/en-gb/marketplace/apps?page=N`) are SSR with embedded `"bigId"`s (needs a browser UA); the public `catalogapi.azure.com/products?$filter=bigId in (…)&storefront=any` enriches them to full objects (name/summary/description/publisher/categories). **INGESTED** — tagged `catalogue="azure"`, capability-search only (see below).
+- **AWS Marketplace** → client-rendered; search runs on a Coral RPC at `discovery.marketplace.us-east-1.amazonaws.com` that needs an `X-Amz-Target` operation header (and likely SigV4 signing) — no clean token-free replay. **NOT ingested.**
+- **GCP Marketplace** → the public `cloud.google.com/marketplace` page is SSR but exposes only ~72 *featured* products; the full catalogue lives in `console.cloud.google.com/marketplace`, which is auth-walled. No token-free full enumeration. **NOT ingested.**
 
-### Why the hyperscaler marketplaces are excluded
+### Hyperscaler marketplaces are a catalogue, never a route
 govbuy's model classifies hyperscaler marketplaces as **`marketplace_consumption` — explicitly NOT a
-route** (consumption bills *on top of* a route like G-Cloud; it isn't itself a way to procure). They
-are global commercial catalogues (50k+ offers each), not UK public-sector routes-to-market, and
-ingesting them would dilute UK-procurement answers with global SaaS. The Azure catalog API is recorded
-above so it's a trivial add if that modelling decision ever changes. AWS/GCP have no token-free
-enumeration regardless.
+route** (consumption bills *on top of* a route like G-Cloud; it isn't itself a way to procure). So
+Azure listings are ingested ONLY as a capability-searchable catalogue (tagged `catalogue="azure"`),
+making "what's on Azure that does X" findable — but `find_routes`/`instrument` never treat it as a
+route. AWS/GCP stay out purely because they expose no token-free enumeration.
 
 ## Takeaway
 

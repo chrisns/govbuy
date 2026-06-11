@@ -29,7 +29,7 @@ claude mcp add --transport http govbuy https://govbuy.run.cns.me/mcp
 | Frameworks, DPS & dynamic markets | **3,207** (3,108 live for call-off) |
 | Suppliers | **28,247** — 99.2% resolved to a Companies House CRN |
 | Appointed-supplier edges | **57,055** (77% of frameworks carry a supplier list) |
-| Catalogue **listings** (what suppliers actually sell) | **65,442** across 5 buying catalogues — G-Cloud 14 (43,733), ESPO (11,621), YPO (10,000), NHS Buying Catalogue (48), NDX (40) — each a citable listing URL with a full description, searchable by capability via `find_services` |
+| Catalogue **listings** (what suppliers actually sell) | **104,370** across 6 buying catalogues — G-Cloud 14 (43,733), Azure Marketplace (38,928), ESPO (11,621), YPO (10,000), NHS Buying Catalogue (48), NDX (40) — each a citable listing URL with a full description, searchable by capability via `find_services`. All crawlers are deterministic + token-free re-runnable. |
 | How-to-call-off mechanics | direct award vs further competition on **71%** of frameworks |
 | Spend coverage | **91.4%** of framework-attributable UK public spend |
 

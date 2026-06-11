@@ -296,3 +296,76 @@ def ypo_sync(run_id: str = "ypo-sync", page: int = 100) -> tuple[dict, int]:
                     crawl(t)
     return service_bundle(recs, "ypo", run_id, instrument_id="ypo", source_kind="ypo_catalogue",
                           licence="operator_tos"), len(recs)
+
+
+# ----------------------------------------------------------------- Azure Marketplace
+# Not a UK route (the model treats marketplace_consumption as NOT a route) — ingested ONLY as a
+# capability-searchable catalogue, tagged catalogue="azure", so it never enters routing. The gallery
+# pages are SSR with embedded bigIds; the public catalog API (storefront=any) enriches them to full
+# objects (name/summary/description/publisher/categories). Token-free.
+AZ_GALLERY = "https://marketplace.microsoft.com/en-gb/marketplace/apps"
+AZ_CATALOG = "https://catalogapi.azure.com/products"
+_BIGID = re.compile(r'"bigId":"([^"]+)"')
+
+
+def azure_enumerate(client: httpx.Client, max_pages: int = 800, stop_after_dry: int = 4) -> list[str]:
+    seen: dict[str, None] = {}
+    dry = 0
+    for page in range(1, max_pages + 1):
+        try:
+            r = client.get(AZ_GALLERY, params={"page": page})
+        except Exception:
+            break
+        ids = _BIGID.findall(r.text)
+        new = [b for b in ids if b not in seen]
+        for b in new:
+            seen[b] = None
+        if not new:
+            dry += 1
+            if dry >= stop_after_dry:
+                break
+        else:
+            dry = 0
+        time.sleep(0.05)
+    return list(seen)
+
+
+_AZ_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+                  "(KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/json,*/*",
+    "Accept-Language": "en-GB,en;q=0.9",
+}
+
+
+def azure_sync(run_id: str = "azure-sync", batch: int = 30, max_pages: int = 800) -> tuple[dict, int]:
+    recs: list[dict] = []
+    seen: set[str] = set()
+    with httpx.Client(timeout=45, headers=_AZ_HEADERS, follow_redirects=True) as client:
+        bigids = azure_enumerate(client, max_pages=max_pages)
+        for i in range(0, len(bigids), batch):
+            chunk = bigids[i:i + batch]
+            flt = "bigId in (" + ",".join("'%s'" % b for b in chunk) + ")"
+            try:
+                r = client.get(AZ_CATALOG, params={"market": "US", "language": "en",
+                    "api-version": "2018-08-01-beta", "storefront": "any", "$filter": flt})
+                items = r.json().get("items", []) if r.status_code == 200 else []
+            except Exception:
+                items = []
+            for x in items:
+                bid = x.get("bigId")
+                if not bid or bid in seen:
+                    continue
+                seen.add(bid)
+                cats = x.get("categoryIds") or []
+                desc = (x.get("description") or x.get("summary") or "").strip()
+                bits = [desc] if desc else []
+                if cats:
+                    bits.append("Categories: " + ", ".join(cats))
+                recs.append({"service_id": bid, "name": (x.get("displayName") or "").strip(),
+                             "supplier_name": (x.get("publisherDisplayName") or "").strip() or "Microsoft Azure Marketplace",
+                             "description": " — ".join(bits)[:6000],
+                             "url": f"https://azuremarketplace.microsoft.com/en-us/marketplace/apps/{bid}",
+                             "lot": cats[0] if cats else None})
+    return service_bundle(recs, "azure", run_id, instrument_id="azure-marketplace",
+                          source_kind="azure_marketplace", licence="operator_tos"), len(recs)

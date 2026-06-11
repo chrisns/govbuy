@@ -54,11 +54,14 @@ deterministic + re-runnable **token-free** (no LLM in the loop), each row carrie
 - **YPO — 10,000** products (Sitecore Discover API; Discover's deep-pagination cap).
 - **NHS Buying Catalogue — 48** clinical-IT solutions; **NDX — 40** digital-exchange products.
 
-**Deliberately excluded: hyperscaler marketplaces (Azure/AWS/GCP).** Per govbuy's own model these
-are `marketplace_consumption` — explicitly NOT a route (consumption sits *on* a route like G-Cloud).
-They're global commercial catalogues, not UK routes-to-market, and AWS/GCP expose no open token-free
-enumeration. Azure's public catalog API is documented in [marketplaces.md](marketplaces.md) so it can
-be added trivially if that modelling call ever changes. Optional quality follow-up: features/benefits
+- **Azure Marketplace** (SSR gallery bigId enumeration → public catalog API enrichment). Ingested as
+  a capability-searchable catalogue tagged `catalogue="azure"` ONLY — it is **never** treated as a
+  route (govbuy's model classifies hyperscaler marketplaces as `marketplace_consumption`, not a
+  route; `find_routes`/`instrument` are untouched). It just makes "what's on Azure Marketplace that
+  does X" searchable alongside the UK catalogues.
+
+**AWS / GCP marketplaces** remain out — no open token-free enumeration (AWS gallery is client-rendered
+behind bot protection; GCP is console-auth-walled). Optional quality follow-up: features/benefits
 enrichment of G-Cloud descriptions from the detail pages.
 
 ### Structural / upstream limits

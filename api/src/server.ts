@@ -271,7 +271,7 @@ export function buildServer(): McpServer {
         "CAPABILITY search across every public-sector buying catalogue govbuy holds: given a real need (e.g. 'host an open-source app', 'Microsoft 365 mailbox', 'IT service desk', 'a desk', 'classroom furniture'), return the specific catalogue listings that match — each with supplier, the verbatim description, and the citable listing URL to link. Catalogues: g-cloud (43,733 cloud services, the main digital route), espo + ypo (physical goods — furniture, supplies), nhs-buying-catalogue (clinical IT), ndx. This answers 'who can actually DO/SUPPLY this' rather than just naming a framework: surface 3-8 concrete listings and link each. Filter by `catalogue` to scope (e.g. g-cloud for digital, espo/ypo for physical goods).",
       inputSchema: {
         need: z.string().optional(), keyword: z.string().optional(),
-        catalogue: z.enum(["g-cloud", "espo", "ypo", "nhs-buying-catalogue", "ndx"]).optional(),
+        catalogue: z.enum(["g-cloud", "espo", "ypo", "nhs-buying-catalogue", "ndx", "azure"]).optional(),
         lot: z.enum(["cloud-hosting", "cloud-software", "cloud-support"]).optional(),
         supplier: z.string().optional(),
         limit: z.number().int().min(1).max(30).default(8),
