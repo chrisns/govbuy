@@ -9,7 +9,7 @@ export const meta = {
 }
 
 const MCP = '{"mcpServers":{"govbuy":{"type":"http","url":"https://govbuy.run.cns.me/mcp"}}}'
-const TOOLS = "mcp__govbuy__find_routes,mcp__govbuy__find_services,mcp__govbuy__compliant_path,mcp__govbuy__get_instrument,mcp__govbuy__find_instruments_to_list,mcp__govbuy__list_resellers,mcp__govbuy__get_supplier,mcp__govbuy__query_sql,mcp__govbuy__get_schema,mcp__govbuy__get_status"
+const TOOLS = "mcp__govbuy__find_routes,mcp__govbuy__find_services,mcp__govbuy__compliant_path,mcp__govbuy__get_instrument,mcp__govbuy__find_instruments_to_list,mcp__govbuy__list_resellers,mcp__govbuy__get_supplier,mcp__govbuy__query_sql,mcp__govbuy__get_schema,mcp__govbuy__get_status,mcp__govbuy__supplier_pipeline,mcp__govbuy__benchmark_price,mcp__govbuy__due_diligence,mcp__govbuy__spend_xray"
 
 const QLIST = { type:'object', additionalProperties:false, properties: {
   questions: { type:'array', items: { type:'object', additionalProperties:false,

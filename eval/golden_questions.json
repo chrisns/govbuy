@@ -118,5 +118,20 @@
     "q": "My consultancy is appointed to Appvia on G-Cloud. Actually, I meant — how can I contract Appvia to build us a landing zone? And is Appvia on any other frameworks?",
     "persona": "buyer, central government digital/cloud team (programme director)",
     "expects": "identifies Appvia as appointed to G-Cloud 14 (RM1557.14) AND Technology Services 4 (RM6190); returns Appvia's Companies House CRN (10653692) with ch_url link; notes both frameworks permit direct award/call-off without further competition or further competition; may cite a real G-Cloud service listing URL for Appvia's landing zone or cloud services offering; does NOT fabricate framework appointments"
+  },
+  {
+    "q": "I'm a council buying cloud hosting via G-Cloud. What do public bodies actually pay for it, and is Softcat a safe supplier to call off from?",
+    "persona": "buyer, local government",
+    "expects": "uses benchmark_price for real £ figures (median + p25/p75 range) for IT/cloud (CPV 72); uses due_diligence on Softcat (CRN 02174990) reporting call-off £, distinct buyers, customer concentration and competitive-vs-direct mix; cites source URLs; does not invent prices"
+  },
+  {
+    "q": "I sell IT service-desk software and I'm on no framework. What's my route to market — live opportunities, which frameworks actually pay, and who could carry me in?",
+    "persona": "supplier, software vendor",
+    "expects": "uses supplier_pipeline; ranks frameworks by REAL call-off spend (G-Cloud highest for IT); flags an expired framework as dead paper; names thin-prime/VAR resellers as a carry-in route; gives live opportunities or honestly notes their scarcity; links framework/notice URLs"
+  },
+  {
+    "q": "How does public money flow in IT procurement (CPV 72) — framework call-off vs open tender vs direct award — and is the market concentrated?",
+    "persona": "researcher",
+    "expects": "uses spend_xray; gives the channel split with framework call-off dominant (~70%) and open tender small (~5%); reports market concentration via top-5 supplier share and distinct supplier count; reads it correctly (low award-level concentration but framework-gated)"
   }
 ]

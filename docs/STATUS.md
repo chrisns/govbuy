@@ -44,6 +44,22 @@ Extraction workflows run on **Haiku** (gate-protected, cheap); re-discovery on S
 The page and any linked user-guide PDF don't state direct-award vs further-competition. Inferring a
 route would be fabrication (the gate forbids it). PDF user guides were the big unlock (44% → 71%).
 
+### Fused with UK Tenders — route × reality, for buyers + suppliers + researchers
+govbuy is welded to the UK Tenders corpus (681k processes / 470k awards) on **Companies House CRN +
+RM-reference + CPV**, all materialised into `govbuy_public` (boundary preserved — the API SA never
+touches raw tender PII). See [fusion-acceptance.md](fusion-acceptance.md). New persona tools, each
+CRN-joined and source-anchored:
+- **supplier_pipeline** (seller) — live opportunities + frameworks ranked by REAL call-off spend +
+  incumbents with contract-end displacement windows + carry-in resellers.
+- **benchmark_price** (buyer) — the real £ distribution paid (median/p25/p75) overall + by channel.
+- **due_diligence** (buyer) — a supplier's CRN-matched delivery record: call-off £, customer
+  concentration, competitive-vs-direct mix, CPV footprint, contract-end dates.
+- **spend_xray** (researcher) — how money flows (framework vs open vs direct) + market concentration.
+- **find_services** proof-of-delivery is now CRN-precise (joins `supplier_calloff_total`, not name).
+
+Verified AC-DONE-1 with three live `claude -p` runs (buyer/supplier/researcher) answering conclusively
+from one MCP. Fused tables refresh via `bq.materialize_fusion()`.
+
 ### Capability search is now decision-grade (spend + price + expiry + semantic + compliant path)
 `find_services` no longer just lists who *can* do a thing — it shows whether they actually *do*:
 - **Proof of delivery**: joins `supplier_track_record` (materialised from 557k call-off awards) so each
