@@ -69,61 +69,81 @@ framework pages — so you can click straight through.)
 
 ## Ask it anything
 
-A route-to-market catalogue with 3,200 frameworks and 28k CRN-matched suppliers answers stranger
-questions than "which IT framework." Answers are collapsed — click to expand.
+A route-to-market catalogue — 3,200 frameworks, 28k CRN-matched suppliers and **117,829 searchable
+catalogue listings** — answers stranger questions than "which IT framework." Every answer below is the
+genuine output of a live `claude -p` run against the MCP (real URLs the tools returned, not
+hand-picked). Collapsed — click to expand.
 
 <details>
 <summary><b>"How do I get Control Plane (controlplane.io) to run a capture-the-flag exercise for my Kubernetes platform team?"</b></summary>
 
-> [**Control Plane Limited**](https://find-and-update.company-information.service.gov.uk/company/10964729)
-> (CRN **10964729**, Companies House auto-matched, band `auto_accept`) is appointed to
-> [**G-Cloud 14 (`RM1557.14`)**](https://www.gca.gov.uk/agreements/RM1557.14). A hands-on
-> Kubernetes-security / CTF training engagement is a *cloud support / specialist cloud services* buy, so
-> G-Cloud is the clean route: find Control Plane on the Digital Marketplace, then either **direct-award**
-> against their published rate card or run a **further competition** on the lot — G-Cloud 14 permits both.
->
-> If you'd rather a panel competed for it, the adjacent cyber routes are
-> [**GCA Cyber Security Services 3 (`RM3764.3`)**](https://www.gca.gov.uk/agreements/RM3764.3) and
-> [**BlueLight Commercial's Cyber Security Penetration Testing framework**](https://bluelightcommercial.police.uk/helping-police/ict/)
-> — but Control Plane isn't appointed to those, so you'd be buying a *different* supplier there. govbuy
-> hands you the route, the mechanic and the verbatim source line; you place the call-off.
+> ControlPlane is already on **[G-Cloud 14 (`RM1557.14`)](https://www.gca.gov.uk/agreements/RM1557.14)**
+> (Cloud support lot) — no fresh tender needed. The listing to call off for a CTF is
+> **[Kubernetes, Security and Cloud Native Training](https://www.applytosupply.digitalmarketplace.service.gov.uk/g-cloud/services/501782209736003)**
+> — instructor-led hands-on labs, updated per Kubernetes release. Tie it to a wider hardening engagement
+> with their **[Penetration Testing](https://www.applytosupply.digitalmarketplace.service.gov.uk/g-cloud/services/204884495589410)**
+> (EKS/GKE/AKS, OpenShift, Rancher), **[Security Assessment & Threat Modelling](https://www.applytosupply.digitalmarketplace.service.gov.uk/g-cloud/services/472831284488281)**
+> and **[Security Architecture & Engineering](https://www.applytosupply.digitalmarketplace.service.gov.uk/g-cloud/services/729746574668516)**
+> listings. Supplier of record **[CONTROL PLANE LIMITED](https://find-and-update.company-information.service.gov.uk/company/10964729)**
+> (CRN 10964729, `auto_accept`). Because you can identify the single service that meets your need, you can
+> **direct-award** off G-Cloud (record why this service best fits) rather than run a further competition.
 </details>
 
 <details>
 <summary><b>"I've built an AI triage tool but I'm on no framework. How do I get it in front of the NHS this quarter?"</b></summary>
 
-> Two parallel routes. `find_instruments_to_list` returns the **open frameworks and dynamic markets you
-> can apply to join now** (AI/digital DPS, G-Cloud's scheduled re-opens) with the how-to-apply. In the
-> meantime `list_resellers` surfaces the **thin-primes and VARs** —
-> [Bramble Hub](https://find-and-update.company-information.service.gov.uk/company/04136381) and its
-> peers — whose `inbound_scope` already carries third-party software onto NHS frameworks, so you sell
-> *through* them while your own appointment is in flight.
+> "No framework" + "this quarter" points at one answer: get admitted to an **AI dynamic market**, which
+> accepts new suppliers continuously — **[Artificial Intelligence DPS (`RM6200`)](https://www.gca.gov.uk/agreements/RM6200)**
+> (CCS, NHS bodies buy through it) and **[HealthTrust Europe's AI Solutions DPS](https://www.healthtrusteurope.com/public-sector/artificial-intelligence-solutions-dynamic-purchasing-system-dps-agreement/)**.
+> A DPS bars direct award — the buyer runs a short mini-competition — but you're admitted in weeks, not at
+> an annual window. In parallel, get listed where NHS commissioners actually shop: the NHS Buying
+> Catalogue triage category, alongside your competitors
+> **[accuRx Patient Triage](https://buyingcatalogue.digital.nhs.uk/catalogue-solutions/10030-003)** and
+> **[myGP Triage](https://buyingcatalogue.digital.nhs.uk/catalogue-solutions/10073-012)**; comparable AI
+> tools also sit on **G-Cloud** (e.g. **[Remcare waiting-list prioritisation](https://www.applytosupply.digitalmarketplace.service.gov.uk/g-cloud/services/623915792517803)**).
+> Fastest live deployment of all: a warm trust buys a below-threshold paid pilot with no framework at all.
 </details>
 
 <details>
 <summary><b>"My council is scrapping 200 end-of-life EVs. Who's appointed to take them and can I just direct-award?"</b></summary>
 
-> `find_routes("vehicle disposal")` returns the fleet-disposal routes —
-> [**BlueLight Commercial's Auction & Disposal of End-of-Life Vehicles**](https://bluelightcommercial.police.uk/helping-police/fleet/disposal/)
-> agreement among them — each with the per-lot appointed suppliers and whether **direct award** is
-> allowed or a mini-competition is required. govbuy tells you the route and the mechanic; it does not
-> run the auction or write your spec.
+> Route: **[Managed Remarketing of Vehicles & Plant (NEPO202)](https://www.nepo.org/solutions/fleet-and-building-materials/managed-remarketing-of-vehicles-plant)**,
+> council-accessible and live — the page states suppliers *"can be accessed via direct award or further
+> competition,"* so **a compliant direct award is permitted**. Appointed suppliers you can direct-award to
+> include **[Aston Barclay](https://find-and-update.company-information.service.gov.uk/company/01644813)**,
+> **[BPI Auctions](https://find-and-update.company-information.service.gov.uk/company/07279488)**,
+> **[John Pye](https://find-and-update.company-information.service.gov.uk/company/10499070)** and
+> **[Wilsons Auctions](https://find-and-update.company-information.service.gov.uk/company/NI011967)**. Two
+> EV-specific checks it flags: route genuine scrap through a licensed **ATF** that can handle lithium-ion
+> traction batteries, and the exact-match
+> **[BlueLight ELV Auction & Disposal framework](https://bluelightcommercial.police.uk/helping-police/fleet/disposal/)**
+> is emergency-services-scoped — confirm your council is an eligible buyer first.
 </details>
 
 <details>
 <summary><b>"Fire service here — I need drone thermal-imaging kit fast and compliantly."</b></summary>
 
-> `find_routes("drone thermal imaging")` surfaces the
-> [**YPO Drones and Associated Services DPS (1148)**](https://www.ypo.co.uk/frameworks-home/900632),
-> **BlueLight Commercial's operational-equipment frameworks**, and local-government
-> security-and-surveillance routes (ESPO and friends), with appointed suppliers and the call-off method
-> on each — so you can pick the fastest compliant lot rather than running a fresh tender.
+> Primary vehicle: **[YPO Drones and Associated Services DPS (1148)](https://www.ypo.co.uk/frameworks-home/900632)**
+> — live, drone-specific, covers thermal payloads + pilot training; **award mechanic: further competition
+> only** (you spec the radiometric payload + CAA operating category, invite the appointed suppliers, award
+> on your criteria). For standalone handheld thermal-imaging cameras,
+> **[YPO Emergency Response Equipment DPS (900616)](https://www.ypo.co.uk/frameworks-home/900616)**
+> (fire-specific). Software/data layer on G-Cloud (direct award or further competition):
+> **[CAPE Drone Software](https://www.applytosupply.digitalmarketplace.service.gov.uk/g-cloud/services/559827627897624)**
+> (Motorola Solutions). Rather buy aerial-data-as-a-service than own airframes?
+> **[Space-Enabled & Geospatial Services (`RM6235`)](https://www.gca.gov.uk/agreements/RM6235)**. (A
+> purchasing card is a payment *mechanism*, not a route — it doesn't let you skip the further competition.)
 </details>
 
 <details>
 <summary><b>"As a vendor, which live frameworks expire in the next six months, so I know what to prepare to re-bid?"</b></summary>
 
-> A one-liner via `query_sql`:
+> A one-liner via `query_sql` returned 119 rows; deduped, the national headliners are
+> **[Digital Outcomes 6 (`RM1043.8`)](https://www.gca.gov.uk/agreements/RM1043.8)** (27 Jun),
+> **[Big Data and Analytics (`RM6195`)](https://www.gca.gov.uk/agreements/RM6195)** (8 Aug),
+> **[G-Cloud 14 (`RM1557.14`)](https://www.gca.gov.uk/agreements/RM1557.14)** (28 Oct) and
+> **[Cloud Compute 2 (`RM6292`)](https://www.gca.gov.uk/agreements/RM6292)** (27 Nov), plus ~30
+> university-consortium tech frameworks (NWUPC B2B CRM, Desktop & Notebook…).
 >
 > ```sql
 > SELECT rm_reference, operator_id, name, expires_on
@@ -139,72 +159,82 @@ questions than "which IT framework." Answers are collapsed — click to expand.
 <details>
 <summary><b>"Map me the resellers that exist mainly to prime others in — across cloud and cyber."</b></summary>
 
-> `list_resellers` filtered to `channel_type = thin_prime` returns **Bramble Hub** and its peers with the
-> `inbound_scope` each one publishes — i.e. *what categories of third-party product they'll carry onto a
-> framework*. That's the difference between a value-added reseller and a genuine thin-prime, made
-> queryable.
+> The graph holds **exactly one pure thin-prime** —
+> **[Bramble Hub Limited](https://find-and-update.company-information.service.gov.uk/company/04136381)**:
+> it sits on the framework and signs the contract; a named partner delivers. It can prime you onto
+> **[Technology Services 4 (`RM6190`)](https://www.gca.gov.uk/agreements/RM6190)** and **G-Cloud 14 Lots
+> 1–3**, with ~18 specialists behind it (Arcus Global, Hitachi, Advania, Version 1, Faculty (AI),
+> BearingPoint…). Honest about its own gaps: govbuy also flags
+> **[NTT DATA UK](https://find-and-update.company-information.service.gov.uk/company/03085018)** as a
+> *hybrid* (0.6 confidence) and three plain VARs — so this is a near-empty corner of the map, not a full
+> census of prime-as-a-service players. The reseller graph tells you what it knows *and what it doesn't*.
 </details>
 
 <details>
 <summary><b>"Prove it — don't trust the AI. Show me the verbatim source that says G-Cloud 14 allows direct award."</b></summary>
 
-> Every asserted fact ships an **evidence block**: the verbatim excerpt, the source URL, the licence and
-> a confidence score — and that excerpt passed a deterministic substring check against the archived page
-> before it was ever published. `get_instrument` returns it inline next to the claim. Nothing the source
-> doesn't literally say survives the gate.
+> Verbatim from the official Crown Commercial page: *"You can direct award on G-Cloud 14 after completing
+> the buying process set out in the buyer guide."* —
+> **[RM1557.14, gca.gov.uk](https://www.gca.gov.uk/agreements/RM1557.14)**. So direct award (call-off
+> *without* further competition) is allowed on Lots 1–3 *after* you document the buyer-guide steps; Lot 4
+> is further-competition. Framework is `live_for_call_off`, 29 Oct 2024 → 28 Oct 2026. That excerpt passed
+> a deterministic substring check against the archived page before it was ever published — nothing the
+> source doesn't literally say survives the gate.
 </details>
 
 <details>
 <summary><b>"What's the most niche thing I can actually buy on a framework?"</b></summary>
 
-> It is not all IT. The lot titles include crematoria solutions, swimming-pool chemicals, body-worn video
-> cameras, de-icing salt, period-dignity products, stairlifts and grounds-maintenance machinery.
-> `find_routes` (or a `query_sql` over `lot.title`) will find the route for surprisingly specific needs —
-> the catalogue spans the whole of public-sector spend, not just the digital slice.
+> All live lot titles it returned: **"User Research Participants"** — buy *actual humans* to test your
+> service on, by the lot — on **[Digital Outcomes and Specialists 7 (`RM1043.9`)](https://www.gca.gov.uk/agreements/RM1043.9)**;
+> **"Transportation and Disposal of Firearms, Weapons and Explosives"** (Lot 17,
+> **[RM6354](https://www.gca.gov.uk/agreements/RM6354)**); **"Specialist Cleanroom Laundry Services"**
+> (**[Healthcare Soft FM RM6331](https://www.gca.gov.uk/agreements/RM6331)**); roadside drug-testing kit;
+> a **"Party Wall Surveyor"** lot; and the **"Traditional Uniform Cap"** — the classic police cap, its own
+> framework lot. Its pick for most niche: User Research Participants, the only deliverable that is literally
+> other people's attention. The catalogue spans the whole of public-sector spend, not just the digital slice.
 </details>
 
 <details>
 <summary><b>"I rent out a herd of goats that clear invasive scrub and bramble — no mowers, no herbicide. How do I sell conservation grazing to the public sector?"</b></summary>
 
-> Strange product, ordinary route. To a buyer it's a **green-space / grounds-maintenance service**, and
-> those frameworks are live and named:
-> [**ESPO Grounds Maintenance Services (`245_25`)**](https://www.espo.org/grounds-maintenance-services-245-25.html),
-> [**Grounds Maintenance & Associated Services (`Y23022`)**](https://www.procurementservices.co.uk/our-solutions/frameworks/property-management/grounds-maintenance-associated-services),
-> and the housing/construction consortia
-> ([CHIC](https://www.chicltd.co.uk/services/dynamic-purchasing-system-solutions/grounds-maintenance/),
-> CPC, [Fusion21](https://www.fusion21.co.uk/frameworks-grounds-maintenance)) all run one.
-> `find_instruments_to_list("grounds maintenance")` returns the ones **open to new
-> applicants** (and any DPS, which you can join at any time) with the how-to-apply. If your model is too
-> bespoke to fit a lot, govbuy tells you that too — you're then into below-threshold direct award or a
-> one-off tender. And `list_resellers` flags any grounds-maintenance managed-service prime who could
-> carry your goats onto a framework you're not yet on. The animal is novel; the route to market isn't.
+> Strange product, ordinary route — to a buyer it's a **grounds-maintenance / habitat service** (CPV 77),
+> and public buyers already procure exactly this (habitat/scrub work on
+> **[Contracts Finder](https://www.contractsfinder.service.gov.uk/Search?keywords=conservation+grazing)**
+> is routinely won by Wildlife Trusts and CICs, not just landscapers). Best fit for a small single-service
+> supplier are **DPS you can join at any time**:
+> **[NH Consortium Grounds Maintenance DM](https://nhcprocurement.org.uk/solutions/dynamic-solutions/grounds-maintenance/)**,
+> **[CHIC Grounds Maintenance DPS](https://www.chicltd.co.uk/services/dynamic-purchasing-system-solutions/grounds-maintenance/)**,
+> **[HealthTrust Europe Minor Works DPS](https://www.healthtrusteurope.com/public-sector/minor-dps-external-works-grounds-maintenance/)**;
+> standing frameworks at renewal include
+> **[ESPO 245_25](https://www.espo.org/grounds-maintenance-services-245-25.html)** and
+> **[Fusion21](https://www.fusion21.co.uk/frameworks-grounds-maintenance)**. Plus below-threshold direct
+> off **[Contracts Finder](https://www.contractsfinder.service.gov.uk/)** (set CPV-77 alerts). The animal
+> is novel; the route to market isn't.
 </details>
 
 <details>
 <summary><b>"I'm a council. I want to commission someone to host & run a government-built open-source AI tool (i.AI's Minute) for me — who can actually do this?"</b></summary>
 
-> *(Condensed from an actual `claude -p` run against the live MCP — every listing URL below is one it
-> genuinely returned via `find_services`, not hand-picked.)*
+> *(The genuine `claude -p` output — every listing URL is one `find_services` returned, not hand-picked.)*
 >
-> **Framing govbuy gets right:** Minute is government-built, open-source software, so you're not "buying
-> Minute" — you're commissioning a supplier to **deploy, host and operate** a containerised app. The
-> route is [**G-Cloud 14**](https://www.applytosupply.digitalmarketplace.service.gov.uk/g-cloud) (cloud
-> hosting + cloud support, direct award or further competition). Then `find_services` hands you **real,
-> citable listings** that can do it:
+> Minute is government-built open-source software, so you're not "buying Minute" — you're commissioning a
+> supplier to **deploy, host and run** it (a Python/AI app). All real G-Cloud 14 listings (route
+> **[G-Cloud / `RM1557.14`](https://www.applytosupply.digitalmarketplace.service.gov.uk/g-cloud)**, direct
+> award or further competition), shaped exactly as "take this open-source app and host/run it for us":
 >
-> *Host it (cloud-hosting lot):*
-> - [Web Application Cloud Hosting](https://www.applytosupply.digitalmarketplace.service.gov.uk/g-cloud/services/313553318918936) — [Just After Midnight Ltd](https://find-and-update.company-information.service.gov.uk/company/10307714): managed app hosting on AWS/Azure, build → ongoing patching, 24h monitoring.
-> - [Container Application Platform as a Service](https://www.applytosupply.digitalmarketplace.service.gov.uk/g-cloud/services/500868769862816) — [Sopra Steria](https://find-and-update.company-information.service.gov.uk/company/04077975): managed OpenShift/Kubernetes with DevSecOps CI/CD.
-> - [Civica Managed Service for AWS](https://www.applytosupply.digitalmarketplace.service.gov.uk/g-cloud/services/499073985225263) — established local-gov supplier.
+> *Host **and** run an open-source app:*
+> - [Open Source Hosting](https://www.applytosupply.digitalmarketplace.service.gov.uk/g-cloud/services/166034022607510) + [Open Source Support](https://www.applytosupply.digitalmarketplace.service.gov.uk/g-cloud/services/865534885438374) — [Axis12](https://find-and-update.company-information.service.gov.uk/company/07215135): ISO 27001 hosting built for open-source; support covers Minute's stack (Python, Django, Linux).
+> - [Open Source Managed Service](https://www.applytosupply.digitalmarketplace.service.gov.uk/g-cloud/services/366728421452886) — [Sirius Open Source](https://find-and-update.company-information.service.gov.uk/company/11014042): a fully managed service for running open-source software.
+> - [Open source cloud hosting, maintenance and support](https://www.applytosupply.digitalmarketplace.service.gov.uk/g-cloud/services/843654222495481) — [Tailwind Digital](https://find-and-update.company-information.service.gov.uk/company/13229454): aimed at **local government** end-to-end.
 >
-> *Deploy, run & support it (cloud-support lot):*
-> - [Microsoft Workloads and Modernisation on Cloud](https://www.applytosupply.digitalmarketplace.service.gov.uk/g-cloud/services/359357479975483) — "architect… deploy… **run, and manage**", incl. containerisation.
-> - [OPS Platform – Planning, Design, Integration & Support](https://www.applytosupply.digitalmarketplace.service.gov.uk/g-cloud/services/408809349652068) — Deloitte's listing for hosting & supporting *the GLA's open-sourced platform* — proof G-Cloud suppliers take on open-sourced gov software.
+> *Build it into a deployment pipeline:*
+> - [DevOps, Engineering & Delivery](https://www.applytosupply.digitalmarketplace.service.gov.uk/g-cloud/services/849776947742547) — [Daemon Solutions](https://find-and-update.company-information.service.gov.uk/company/03442937): CI/CD for "any application deployment or migration."
 >
-> It even flags the bits it can't see: the LLM component (self-hosted vs API), data residency, and the
-> [AI DPS (`RM6200`)](https://www.gca.gov.uk/agreements/RM6200) if you'd rather procure the model
-> separately. **govbuy now searches what suppliers actually sell** — 43,733 G-Cloud service listings —
-> so the answer is concrete services you can open and call off, not just a framework name.
+> It flags the bit it can't see — Minute needs a speech-to-text/LLM backend, so confirm each supplier
+> hosts that AI component and where data sits (UK region). **govbuy now searches what suppliers actually
+> sell — 117,829 listings across 6 catalogues — so the answer is concrete services you can open and call
+> off, not just a framework name.**
 </details>
 
 Every asserted fact carries a **source-anchored evidence block** (a verbatim excerpt that passed a
