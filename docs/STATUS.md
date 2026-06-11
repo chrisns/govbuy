@@ -44,6 +44,25 @@ Extraction workflows run on **Haiku** (gate-protected, cheap); re-discovery on S
 The page and any linked user-guide PDF don't state direct-award vs further-competition. Inferring a
 route would be fabrication (the gate forbids it). PDF user guides were the big unlock (44% → 71%).
 
+### Capability search is now decision-grade (spend + price + expiry + semantic + compliant path)
+`find_services` no longer just lists who *can* do a thing — it shows whether they actually *do*:
+- **Proof of delivery**: joins `supplier_track_record` (materialised from 557k call-off awards) so each
+  listing shows its supplier's real £ won on that framework — e.g. "managed kubernetes" → Computacenter
+  £6.46m/7 call-offs.
+- **Price + expiry**: indicative `price_gbp` (where the catalogue publishes it) and
+  `framework_months_to_expiry` (act-before date).
+- **Semantic search**: every description is embedded (Vertex `text-embedding-005` via a BigQuery remote
+  model + `VECTOR_SEARCH`, brute-force for full recall over 117k); blended with keyword scoring so
+  "automatically transcribe and summarise meetings" surfaces transcription/AI services — incl. i.AI's
+  own **Minute** on NDX — that share no keyword with the query. (`semantic_similarity` per row.)
+- **`compliant_path` tool**: instrument/RM → permitted award mechanics + conditions + buying docs +
+  the "a card/marketplace is NOT a route" payment caveats — the actual next steps.
+- **Reseller graph**: expanded 1 → 17 (thin-prime/VAR/hybrid) + 64 vendor `inbound_scope` links, via a
+  parallel thin-prime extraction workflow, all source-anchored.
+- **Eval harness** (`eval/golden_questions.json` + `scripts/workflows/eval-harness.js`): 24 golden
+  buyer/seller questions → live MCP → parallel LLM-judges. **Baseline: 71% pass, 0.75 avg** — failures
+  cluster on Procurement-Act-2023 regime nuance (standstill, payment-blind, DPS sunset) — the next gap.
+
 ### Capability search — service-level descriptions (DONE across all UK buying catalogues)
 govbuy indexes **65,442 per-listing descriptions** across every public UK public-sector buying
 catalogue, so "find who can host open-source LLM apps / supply a desk / run a service desk" resolves

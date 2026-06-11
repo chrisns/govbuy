@@ -292,8 +292,24 @@ export function buildServer(): McpServer {
       const norm = (c: string) =>
         `TRIM(REGEXP_REPLACE(REGEXP_REPLACE(REGEXP_REPLACE(LOWER(TRIM(${c})), r'\\b(ltd\\.?|limited|plc\\.?|llp\\.?|inc\\.?|corp\\.?|llc\\.?|gmbh|bv|b\\.v\\.|s\\.a\\.|s\\.l\\.)$', ''), r'[^a-z0-9\\s]', ' '), r'\\s+', ' '))`;
       const priceExpr = `SAFE_CAST(REPLACE(REGEXP_EXTRACT(sv.description, r'Price(?:\\s*\\(ex VAT\\))?\\s*:\\s*£([\\d,]+(?:\\.\\d+)?)'), ',', '') AS FLOAT64)`;
+      // Semantic layer: when there's a free-text need, embed it (Vertex via BQ remote model) and
+      // VECTOR_SEARCH the precomputed service embeddings — so "take meeting minutes with AI" finds
+      // transcription services that share no keyword. Blended with keyword score; keyword still wins
+      // exact matches. Skipped for supplier-only lookups (no need text) to keep them cheap.
+      const needText = (args.need || args.keyword || "").trim();
+      const useSem = needText.length > 0;
+      const semCte = useSem
+        ? `qemb AS (SELECT ml_generate_embedding_result AS embedding
+                    FROM ML.GENERATE_EMBEDDING(MODEL ${tableRef("embed")}, (SELECT @needtext AS content),
+                                               STRUCT(TRUE AS flatten_json_output))),
+           vec AS (SELECT base.service_id AS service_id, (1 - distance) AS sem_sim
+                    FROM VECTOR_SEARCH(TABLE ${tableRef("service_embedding")}, 'embedding',
+                                       (SELECT embedding FROM qemb), top_k => 80, distance_type => 'COSINE',
+                                       options => '{"use_brute_force":true}')),`
+        : "";
       const sql = `
-        WITH s AS (
+        WITH ${semCte}
+        s AS (
           SELECT sv.service_id, sv.catalogue, sv.name, sv.supplier_name, sv.lot, sv.description, sv.features, sv.benefits,
                  sv.url, sv.instrument_id, sup.company_number, sup.ch_url, sup.match_band,
                  inst.rm_reference, inst.expires_on, ${priceExpr} AS price_gbp,
@@ -306,21 +322,24 @@ export function buildServer(): McpServer {
           WHERE (@sup IS NULL OR LOWER(sv.supplier_name) LIKE @sup)
             AND (@cat IS NULL OR sv.catalogue = @cat)
             AND (@lot IS NULL OR sv.lot = @lot))
-        SELECT s.* EXCEPT(hay, nm, rm_reference), ${score} AS match_score,
+        SELECT s.* EXCEPT(hay, nm, rm_reference),
+               (${score}${useSem ? " + CAST(COALESCE(v.sem_sim, 0) * 700 AS INT64)" : ""}) AS match_score,
+               ${useSem ? "ROUND(v.sem_sim, 3)" : "CAST(NULL AS FLOAT64)"} AS semantic_similarity,
                tr.total_award_gbp AS supplier_framework_award_gbp,
                tr.call_off_count  AS supplier_framework_call_offs,
                CASE WHEN s.expires_on IS NOT NULL
                     THEN DATE_DIFF(s.expires_on, CURRENT_DATE(), MONTH) END AS framework_months_to_expiry
         FROM s
+        ${useSem ? `LEFT JOIN vec v ON v.service_id = s.service_id` : ""}
         LEFT JOIN ${tableRef("supplier_track_record")} tr
           ON tr.rm_stem = REGEXP_EXTRACT(UPPER(s.rm_reference), r'RM[0-9]+')
          AND tr.norm_name = ${norm("s.supplier_name")}
-        WHERE (ARRAY_LENGTH(@toks) = 0 OR ${anyHits} > 0)
+        WHERE (ARRAY_LENGTH(@toks) = 0 OR ${anyHits} > 0${useSem ? " OR v.sem_sim IS NOT NULL" : ""})
         ORDER BY match_score DESC, supplier_framework_award_gbp DESC NULLS LAST, name
         LIMIT @lim`;
       const rows = await runQuery(sql, {
-        params: { toks, cat: args.catalogue ?? null, lot: args.lot ?? null, sup: args.supplier ? `%${args.supplier.toLowerCase()}%` : null, lim: args.limit },
-        types: { toks: ["STRING"], cat: "STRING", lot: "STRING", sup: "STRING" },
+        params: { toks, needtext: useSem ? needText : null, cat: args.catalogue ?? null, lot: args.lot ?? null, sup: args.supplier ? `%${args.supplier.toLowerCase()}%` : null, lim: args.limit },
+        types: { toks: ["STRING"], needtext: "STRING", cat: "STRING", lot: "STRING", sup: "STRING" },
       });
       const services = rows.map((r) => {
         const d = deep(r) as Record<string, unknown>;
@@ -329,7 +348,7 @@ export function buildServer(): McpServer {
       });
       return ok(withFreshness({
         count: services.length,
-        note: "Catalogue listings across UK public-sector buying catalogues (each row's `catalogue` shows which). g-cloud = cloud services on RM1557.14; espo/ypo = physical goods; nhs-buying-catalogue = clinical IT; ndx = digital exchange. Each row also carries: `supplier_framework_award_gbp`/`supplier_framework_call_offs` = the supplier's REAL call-off track record on that framework (from published award data — proof of delivery, not a guarantee); `price_gbp` = indicative price where the catalogue publishes one; `framework_months_to_expiry` = act-before date for framework-based listings. " + NOT_ADVICE,
+        note: "Catalogue listings across UK public-sector buying catalogues (each row's `catalogue` shows which). g-cloud = cloud services on RM1557.14; espo/ypo = physical goods; nhs-buying-catalogue = clinical IT; ndx = digital exchange. Each row also carries: `supplier_framework_award_gbp`/`supplier_framework_call_offs` = the supplier's REAL call-off track record on that framework (from published award data — proof of delivery, not a guarantee); `price_gbp` = indicative price where the catalogue publishes one; `framework_months_to_expiry` = act-before date for framework-based listings; `semantic_similarity` = how closely the listing matches the meaning of the need (vector search), so results surface even when they share no keyword with the query. " + NOT_ADVICE,
         display_guidance: "Present each listing as a clickable link (its url) with the name as link text, and link the supplier's ch_url (Companies House) when present. When `supplier_framework_award_gbp` is set, mention it as evidence the supplier actually delivers on this route (e.g. 'has won £Xm across N call-offs') — and note that a NULL is absence of matched awards, not absence of capability. Surface `price_gbp` and flag `framework_months_to_expiry` when low (<6). Group by `catalogue` when results span several. " + DISPLAY_GUIDANCE,
         services,
       }, await freshness()));

@@ -48,7 +48,8 @@ purchase or give legal advice, and it is not the authority of record. See [VISIO
 |------|--------------|
 | `find_routes` | **Buyer:** instruments/lots that fit a need + permitted award mechanics + required docs + GPC/marketplace caveats. Doesn't rank or assemble the buy. |
 | `get_instrument` | One framework/dynamic market: lots, lifecycle status, mechanics, buying docs, appointed suppliers (each with a membership qualifier + evidence). RM lookups return the canonical GCA agreement, not a reseller's listing of it. |
-| `find_services` | **Capability search:** given a need ('host an open-source app', 'M365 mailbox', 'service desk'), the specific catalogue **services** that do it — supplier, lot, full description, and the citable `applytosupply.../g-cloud/services/<id>` listing URL. Answers "who can actually do this", not just "which framework". |
+| `find_services` | **Capability search (semantic + proof):** given a need ('host an open-source app', 'transcribe meetings', 'a desk'), the specific catalogue **listings** that do it — by meaning (vector search, so it matches with no shared keyword) and keyword. Each carries the citable listing URL, the supplier's **real call-off track record** (£ won on that framework), an indicative price, and months-to-expiry. Answers "who can actually do this *and delivers it*", not just "which framework". |
+| `compliant_path` | **How to actually buy it:** instrument/RM → the permitted award mechanic (direct award vs further competition) + conditions + buying documents + the "a GPC card / marketplace is **not** a route" caveats. The next steps. |
 | `find_instruments_to_list` | **Seller:** instruments a vendor can be appointed to (open frameworks / dynamic markets) + how-to-apply. |
 | `list_resellers` | "Who's like Bramble" — thin-primes & VARs by channel/category/vendor, with their inbound scope. |
 | `get_supplier` | One supplier: Companies House match snapshot, frameworks/lots, channel, inbound scope. |
