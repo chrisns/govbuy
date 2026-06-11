@@ -84,6 +84,7 @@ export function buildServer(): McpServer {
         "Responses are source-anchored and carry URLs: framework official_url, operator_url, supplier ch_url (Companies House), buying-document urls, and an evidence.source_url on every asserted claim. " +
         "ALWAYS surface these to the user as clickable markdown links with the thing's name as the link text — naming a framework, supplier, or source without linking its URL is not useful. " +
         "When a buyer describes a concrete capability (e.g. 'host this app', 'an M365 mailbox', 'a service desk', 'a desk', 'classroom furniture'), find_routes gives the framework/route, then find_services surfaces the specific catalogue listings that do it — each with a citable listing URL, and where known the supplier's real call-off track record (£ won on that framework), an indicative price, and months-to-framework-expiry. Then compliant_path turns the chosen framework into the actual next steps (permitted award mechanic + conditions + documents + the 'a card/marketplace is not a route' caveat). Prefer naming concrete listings, citing the proof-of-delivery, and giving the call-off mechanic over only naming a framework. " +
+        "govbuy is fused with the UK Tenders corpus (658k real awards), so it serves three personas: BUYERS — benchmark_price (what was actually paid) + due_diligence (is this supplier safe: concentration, competitive-vs-direct, footprint); SUPPLIERS — supplier_pipeline (live opportunities + frameworks that really pay + incumbents to displace with contract-end windows + resellers); RESEARCHERS — spend_xray (how money flows by channel + competition health). All joined on Companies House CRN; cite the source URLs. " +
         "Anchor each fact to its evidence.source_url so the user can verify it. govbuy documents routes; it does not assemble the purchase or give legal advice — tell the user to confirm on the official source.",
     },
   );
@@ -462,6 +463,105 @@ export function buildServer(): McpServer {
         note: "A supplier's full route to market, fusing govbuy's frameworks/resellers with real tender awards. `frameworks_with_real_calloff_spend` ranks routes by money that actually flowed (call-off channels only, ceiling-award outliers removed). `incumbents_to_displace.latest_contract_end` is when to pounce. Live opportunities are real open notices — verify each on its official_url. " + NOT_ADVICE,
         display_guidance: "Lead with live opportunities (link each official_url) and the 2-3 frameworks with the most real call-off spend in their space (link official_url, flag lifecycle_status + expiry). Then name the incumbents with their £ won and contract-end dates as the displacement window, and the thin-primes/VARs (with ch_url) as a faster way in. " + DISPLAY_GUIDANCE,
       }, await freshness()));
+    }),
+  );
+
+  server.registerTool(
+    "benchmark_price",
+    {
+      title: "Benchmark real prices paid",
+      description:
+        "FOR A BUYER — what did the public sector ACTUALLY pay for this, vs list price? Given a CPV division (+ optional keyword on buyer/supplier name), returns the real award £ distribution (count, p25, median, p75, mean) overall and by channel (framework call-off vs open vs direct), from 658k real tender awards. CPV divisions: 72=IT services, 48=software, 30=computing equipment, 32=comms, 35=security equipment, 45=construction, 71=engineering, 79=business services, 85=health, 80=education, 90=environmental, 50=repair/maintenance.",
+      inputSchema: { cpv: z.string(), keyword: z.string().optional() },
+    },
+    guard(async (args) => {
+      const kw = args.keyword ? `%${args.keyword.toLowerCase()}%` : null;
+      const sql = `
+        WITH f AS (SELECT award_amount, channel FROM ${tableRef("tender_award")}
+          WHERE cpv_division = @cpv AND award_amount BETWEEN 0 AND 100000000
+            AND (@kw IS NULL OR LOWER(buyer_name) LIKE @kw OR LOWER(supplier_name) LIKE @kw))
+        SELECT IFNULL(channel,'ALL') AS channel, COUNT(*) AS award_count,
+               ROUND(APPROX_QUANTILES(award_amount,100)[OFFSET(25)]) AS p25_gbp,
+               ROUND(APPROX_QUANTILES(award_amount,100)[OFFSET(50)]) AS median_gbp,
+               ROUND(APPROX_QUANTILES(award_amount,100)[OFFSET(75)]) AS p75_gbp,
+               ROUND(AVG(award_amount)) AS mean_gbp
+        FROM f GROUP BY ROLLUP(channel) HAVING COUNT(*) > 0
+        ORDER BY channel IS NULL DESC, award_count DESC`;
+      const rows = await runQuery(sql, { params: { cpv: args.cpv, kw }, types: { cpv: "STRING", kw: "STRING" } });
+      if (!rows.length) return toolError("UNKNOWN", `No GBP awards found for CPV '${args.cpv}'.`);
+      return ok(withFreshness({ cpv: args.cpv, distribution: rows.map((r) => deep(r)),
+        note: "Real award amounts the public sector paid (GBP; framework-ceiling outliers >£100m removed), overall ('ALL') and by channel. Median = typical price; p25–p75 = usual range. Keyword matches buyer/supplier name only (no scope-of-work field), so treat it as a sector hint. " + NOT_ADVICE,
+        display_guidance: "Quote the median and p25–p75 range as 'what you'd typically pay', and contrast framework call-off vs open/direct. " + DISPLAY_GUIDANCE }, await freshness()));
+    }),
+  );
+
+  server.registerTool(
+    "due_diligence",
+    {
+      title: "Supplier due diligence",
+      description:
+        "FOR A BUYER — before you pick a supplier, is it safe? Given a Companies House CRN or a supplier name, returns its REAL delivery record from tender awards: total public-sector call-off £ and count, distinct buyers, customer concentration (top buyer's share — a one-customer risk flag), channel mix (% won competitively via framework/open vs direct award), CPV footprint, and last-activity / latest-contract-end dates. CRN-keyed, source-anchored.",
+      inputSchema: { crn: z.string().optional(), supplier: z.string().optional() },
+    },
+    guard(async (args) => {
+      if (!args.crn && !args.supplier) return toolError("INVALID_QUERY", "Provide a crn (e.g. '02174990') or a supplier name.");
+      const sup = args.supplier ? `%${args.supplier.toLowerCase()}%` : null;
+      const sql = `
+        WITH base AS (
+          SELECT UPPER(buyer_name) AS buyer, channel, cpv_division, award_amount, contract_end_date, award_date,
+                 (channel IN ('framework_call_off','dps_call_off') AND award_amount BETWEEN 0 AND 100000000) AS is_co
+          FROM ${tableRef("tender_award")}
+          WHERE supplier_crn = COALESCE(@crn, (SELECT company_number FROM ${tableRef("supplier")}
+                 WHERE @sup IS NOT NULL AND LOWER(display_name) LIKE @sup AND company_number IS NOT NULL LIMIT 1)))
+        SELECT
+          (SELECT ROUND(SUM(award_amount)) FROM base WHERE is_co) AS calloff_gbp,
+          (SELECT COUNT(*) FROM base WHERE is_co) AS calloffs,
+          (SELECT COUNT(DISTINCT buyer) FROM base WHERE is_co) AS distinct_buyers,
+          (SELECT buyer FROM base WHERE is_co GROUP BY buyer ORDER BY SUM(award_amount) DESC LIMIT 1) AS top_buyer,
+          (SELECT ROUND(100*MAX(bs)/NULLIF(SUM(bs),0),1) FROM (SELECT SUM(award_amount) bs FROM base WHERE is_co GROUP BY buyer)) AS top_buyer_pct_of_calloff,
+          ROUND(100*COUNTIF(channel IN ('framework_call_off','dps_call_off'))/NULLIF(COUNT(*),0),1) AS pct_won_via_framework,
+          ROUND(100*COUNTIF(channel='open')/NULLIF(COUNT(*),0),1) AS pct_won_open_competition,
+          ROUND(100*COUNTIF(channel='direct')/NULLIF(COUNT(*),0),1) AS pct_direct_award,
+          (SELECT STRING_AGG(CONCAT(cpv_division,': £',CAST(ROUND(s/1e6,1) AS STRING),'m'),' | ' ORDER BY s DESC LIMIT 6)
+             FROM (SELECT cpv_division, SUM(award_amount) s FROM base WHERE is_co GROUP BY cpv_division)) AS cpv_footprint,
+          CAST(MAX(award_date) AS STRING) AS last_award_date,
+          CAST(MAX(contract_end_date) AS STRING) AS latest_contract_end
+        FROM base`;
+      const rows = await runQuery(sql, { params: { crn: args.crn ?? null, sup }, types: { crn: "STRING", sup: "STRING" } });
+      const r = rows.length ? deep(rows[0]) as Record<string, unknown> : {};
+      if (!r || r.calloffs == null || Number(r.calloffs) === 0) return toolError("UNKNOWN", `No CRN-matched public-sector awards for '${args.crn ?? args.supplier}'. Absence of evidence, not of capability — they may trade under a different entity or win below threshold.`);
+      return ok(withFreshness({ supplier: { crn: args.crn ?? null, query: args.supplier ?? null }, profile: r,
+        note: "CRN-matched delivery record from real tender awards (call-off channels, £ ceiling outliers removed). top_buyer_pct_of_calloff high (>50%) = single-customer risk; pct_direct_award high = wins by direct award not competition. NULL/absent = no matched awards, not proof of incapacity. " + NOT_ADVICE,
+        display_guidance: "State £ won + call-offs + distinct buyers as the delivery record, flag concentration (top buyer share) and how much is competitive vs direct award, and give the CPV footprint. " + DISPLAY_GUIDANCE }, await freshness()));
+    }),
+  );
+
+  server.registerTool(
+    "spend_xray",
+    {
+      title: "Spend & competition x-ray",
+      description:
+        "FOR A RESEARCHER — how does public money flow in a category, and is competition healthy? Given an optional CPV division and a lookback in years, returns spend + award counts split by CHANNEL (framework call-off vs DPS vs open tender vs direct award, with % of spend), the distinct-supplier count, and the top-5 suppliers' share of spend (market concentration). Over 658k real awards.",
+      inputSchema: { cpv: z.string().optional(), years: z.number().int().min(1).max(10).default(3) },
+    },
+    guard(async (args) => {
+      const sql = `
+        WITH base AS (SELECT channel, supplier_name, award_amount FROM ${tableRef("tender_award")}
+          WHERE award_amount BETWEEN 0 AND 100000000 AND (@cpv IS NULL OR cpv_division = @cpv)
+            AND published_date >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL @years * 365 DAY)),
+          tot AS (SELECT COUNT(*) n, SUM(award_amount) s, COUNT(DISTINCT supplier_name) sup FROM base),
+          ch AS (SELECT channel, COUNT(*) awards, SUM(award_amount) spend FROM base GROUP BY channel),
+          top5 AS (SELECT SUM(st) t5 FROM (SELECT SUM(award_amount) st FROM base GROUP BY supplier_name ORDER BY st DESC LIMIT 5))
+        SELECT ch.channel, ch.awards, ROUND(ch.spend) AS spend_gbp,
+               ROUND(100*ch.spend/NULLIF(tot.s,0),1) AS pct_of_spend,
+               tot.n AS total_awards, ROUND(tot.s) AS total_spend_gbp, tot.sup AS distinct_suppliers,
+               ROUND(100*top5.t5/NULLIF(tot.s,0),1) AS top5_supplier_share_pct
+        FROM ch CROSS JOIN tot CROSS JOIN top5 ORDER BY ch.spend DESC`;
+      const rows = await runQuery(sql, { params: { cpv: args.cpv ?? null, years: args.years }, types: { cpv: "STRING" } });
+      if (!rows.length) return toolError("UNKNOWN", `No awards for CPV '${args.cpv ?? "(all)"}' in the window.`);
+      return ok(withFreshness({ cpv: args.cpv ?? "all", years: args.years, channels: rows.map((r) => deep(r)),
+        note: "Real spend split by procurement channel over the window (£ ceiling outliers >£100m removed). High framework/DPS % = spend flows through frameworks; high direct % = less competition. top5_supplier_share_pct is market concentration (low = competitive, high = concentrated). " + NOT_ADVICE,
+        display_guidance: "Lead with the channel split (how much via framework vs open vs direct), then competition health from top5_supplier_share_pct and distinct_suppliers. " + DISPLAY_GUIDANCE }, await freshness()));
     }),
   );
 
