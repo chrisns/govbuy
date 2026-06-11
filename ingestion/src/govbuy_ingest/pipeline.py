@@ -68,6 +68,7 @@ def refresh(operator: str | None = None, max_docs: int | None = None) -> int:
     bq.rebuild_public()
     bq.materialize_sibling()
     bq.materialize_track_record()
+    bq.materialize_fusion()
     bq.ch_match_suppliers()
     cov = bq.coverage()
     bq.write_status(run_id, "refresh", stats, cov, est_gbp=meter.gbp(), tier_breakdown=meter.breakdown(), by_operator=meter.by_operator())

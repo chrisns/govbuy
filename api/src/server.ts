@@ -287,10 +287,7 @@ export function buildServer(): McpServer {
       const anyHits = `(SELECT COUNT(1) FROM UNNEST(@toks) tok WHERE REGEXP_CONTAINS(hay, CONCAT(r'\\b', tok, r'\\b')))`;
       const allTok = `(${anyHits} = ARRAY_LENGTH(@toks))`;
       const score = `(IF(${allTok}, 1000, 0) + 5 * ${nameHits} + ${anyHits})`;
-      // Normalise a supplier name the same way supplier_track_record was built, so a service's supplier
-      // links to its real call-off spend; pull a £ price out of catalogues that embed it in the text.
-      const norm = (c: string) =>
-        `TRIM(REGEXP_REPLACE(REGEXP_REPLACE(REGEXP_REPLACE(LOWER(TRIM(${c})), r'\\b(ltd\\.?|limited|plc\\.?|llp\\.?|inc\\.?|corp\\.?|llc\\.?|gmbh|bv|b\\.v\\.|s\\.a\\.|s\\.l\\.)$', ''), r'[^a-z0-9\\s]', ' '), r'\\s+', ' '))`;
+      // Pull a £ price out of catalogues that embed it in the text.
       const priceExpr = `SAFE_CAST(REPLACE(REGEXP_EXTRACT(sv.description, r'Price(?:\\s*\\(ex VAT\\))?\\s*:\\s*£([\\d,]+(?:\\.\\d+)?)'), ',', '') AS FLOAT64)`;
       // Semantic layer: when there's a free-text need, embed it (Vertex via BQ remote model) and
       // VECTOR_SEARCH the precomputed service embeddings — so "take meeting minutes with AI" finds
@@ -325,17 +322,15 @@ export function buildServer(): McpServer {
         SELECT s.* EXCEPT(hay, nm, rm_reference),
                (${score}${useSem ? " + CAST(COALESCE(v.sem_sim, 0) * 700 AS INT64)" : ""}) AS match_score,
                ${useSem ? "ROUND(v.sem_sim, 3)" : "CAST(NULL AS FLOAT64)"} AS semantic_similarity,
-               tr.total_award_gbp AS supplier_framework_award_gbp,
-               tr.call_off_count  AS supplier_framework_call_offs,
+               tr.calloff_gbp     AS supplier_public_calloff_gbp,
+               tr.calloff_count   AS supplier_public_calloffs,
                CASE WHEN s.expires_on IS NOT NULL
                     THEN DATE_DIFF(s.expires_on, CURRENT_DATE(), MONTH) END AS framework_months_to_expiry
         FROM s
         ${useSem ? `LEFT JOIN vec v ON v.service_id = s.service_id` : ""}
-        LEFT JOIN ${tableRef("supplier_track_record")} tr
-          ON tr.rm_stem = REGEXP_EXTRACT(UPPER(s.rm_reference), r'RM[0-9]+')
-         AND tr.norm_name = ${norm("s.supplier_name")}
+        LEFT JOIN ${tableRef("supplier_calloff_total")} tr ON tr.supplier_crn = s.company_number
         WHERE (ARRAY_LENGTH(@toks) = 0 OR ${anyHits} > 0${useSem ? " OR v.sem_sim IS NOT NULL" : ""})
-        ORDER BY match_score DESC, supplier_framework_award_gbp DESC NULLS LAST, name
+        ORDER BY match_score DESC, supplier_public_calloff_gbp DESC NULLS LAST, name
         LIMIT @lim`;
       const rows = await runQuery(sql, {
         params: { toks, needtext: useSem ? needText : null, cat: args.catalogue ?? null, lot: args.lot ?? null, sup: args.supplier ? `%${args.supplier.toLowerCase()}%` : null, lim: args.limit },
@@ -348,8 +343,8 @@ export function buildServer(): McpServer {
       });
       return ok(withFreshness({
         count: services.length,
-        note: "Catalogue listings across UK public-sector buying catalogues (each row's `catalogue` shows which). g-cloud = cloud services on RM1557.14; espo/ypo = physical goods; nhs-buying-catalogue = clinical IT; ndx = digital exchange. Each row also carries: `supplier_framework_award_gbp`/`supplier_framework_call_offs` = the supplier's REAL call-off track record on that framework (from published award data — proof of delivery, not a guarantee); `price_gbp` = indicative price where the catalogue publishes one; `framework_months_to_expiry` = act-before date for framework-based listings; `semantic_similarity` = how closely the listing matches the meaning of the need (vector search), so results surface even when they share no keyword with the query. " + NOT_ADVICE,
-        display_guidance: "Present each listing as a clickable link (its url) with the name as link text, and link the supplier's ch_url (Companies House) when present. When `supplier_framework_award_gbp` is set, mention it as evidence the supplier actually delivers on this route (e.g. 'has won £Xm across N call-offs') — and note that a NULL is absence of matched awards, not absence of capability. Surface `price_gbp` and flag `framework_months_to_expiry` when low (<6). Group by `catalogue` when results span several. " + DISPLAY_GUIDANCE,
+        note: "Catalogue listings across UK public-sector buying catalogues (each row's `catalogue` shows which). g-cloud = cloud services on RM1557.14; espo/ypo = physical goods; nhs-buying-catalogue = clinical IT; ndx = digital exchange. Each row also carries: `supplier_public_calloff_gbp`/`supplier_public_calloffs` = the supplier's REAL public-sector call-off track record across all frameworks, joined by **Companies House CRN** (not name) from 658k tender awards — proof of delivery, not a guarantee; NULL = no CRN-matched call-offs found, which is absence of evidence, not of capability; `price_gbp` = indicative price where the catalogue publishes one; `framework_months_to_expiry` = act-before date for framework-based listings; `semantic_similarity` = how closely the listing matches the meaning of the need (vector search), so results surface even when they share no keyword with the query. " + NOT_ADVICE,
+        display_guidance: "Present each listing as a clickable link (its url) with the name as link text, and link the supplier's ch_url (Companies House) when present. When `supplier_public_calloff_gbp` is set, mention it as CRN-matched evidence the supplier actually delivers (e.g. 'has won £Xm across N public-sector call-offs') — and note that a NULL is absence of matched awards, not absence of capability. Surface `price_gbp` and flag `framework_months_to_expiry` when low (<6). Group by `catalogue` when results span several. " + DISPLAY_GUIDANCE,
         services,
       }, await freshness()));
     }),
@@ -405,6 +400,68 @@ export function buildServer(): McpServer {
           "Lead with the permitted direct-award mechanic if present (call_off_no_further_competition) — that's the fastest compliant route — else further_competition. State the conditions verbatim. Link official_url and any buying-document urls. Flag expiry if near. Remind the buyer a GPC card / marketplace consumption is NOT a route. " + DISPLAY_GUIDANCE,
       };
       return ok(withFreshness(payload, await freshness()));
+    }),
+  );
+
+  server.registerTool(
+    "supplier_pipeline",
+    {
+      title: "Supplier go-to-market pipeline",
+      description:
+        "FOR A SUPPLIER — given what you sell (a CPV division + a keyword), return your whole route to market in one call, fusing the catalogue/framework world with 658k real tender awards: (1) LIVE opportunities open to bid now; (2) frameworks ranked by REAL call-off spend in your space (join the ones that actually pay, not dead paper); (3) the incumbents holding that spend + when their contracts END (your displacement window); (4) resellers/thin-primes who could carry you onto a framework. CPV divisions (2-digit): 72=IT services, 48=software, 30=office & computing equipment, 32=comms equipment, 35=security/safety/defence equipment, 34=transport equipment, 38=lab & precision instruments, 50=repair & maintenance, 71=architecture/engineering, 45=construction, 79=business/professional services, 90=environmental, 85=health/social, 80=education, 60=transport services, 55=catering/hotel. Pass the best-fit `cpv` AND a `need` keyword.",
+      inputSchema: { cpv: z.string().optional(), need: z.string().optional(), limit: z.number().int().min(1).max(20).default(8) },
+    },
+    guard(async (args) => {
+      if (!args.cpv && !args.need) return toolError("INVALID_QUERY", "Provide a cpv division (e.g. '72' for IT) and/or a need keyword (e.g. 'drone thermal imaging').");
+      const cpv = args.cpv ?? null;
+      const kw = args.need ? `%${args.need.toLowerCase()}%` : null;
+      const lim = args.limit;
+      const callOff = `t.channel IN ('framework_call_off','dps_call_off') AND t.award_amount BETWEEN 0 AND 100000000`;
+      const liveSql = `
+        SELECT ocid, buyer_name, title, cpv_division, ROUND(estimated_value) AS estimated_value,
+               CAST(deadline AS STRING) AS deadline, source, official_url
+        FROM ${tableRef("live_opportunity")}
+        WHERE (@cpv IS NULL OR cpv_division = @cpv) AND (@kw IS NULL OR hay LIKE @kw)
+        ORDER BY deadline LIMIT @lim`;
+      const fwSql = `
+        WITH fw AS (
+          SELECT REGEXP_EXTRACT(UPPER(t.rm_reference), r'RM[0-9]+') AS rm_stem,
+                 ROUND(SUM(t.award_amount)) AS calloff_gbp, COUNT(*) AS calloffs
+          FROM ${tableRef("tender_award")} t
+          WHERE ${callOff} AND t.rm_reference IS NOT NULL AND (@cpv IS NULL OR t.cpv_division = @cpv)
+          GROUP BY rm_stem)
+        SELECT i.rm_reference, i.name AS framework, i.lifecycle_status,
+               CAST(i.expires_on AS STRING) AS expires_on, i.official_url, fw.calloff_gbp, fw.calloffs
+        FROM fw JOIN ${tableRef("instrument")} i ON REGEXP_EXTRACT(UPPER(i.rm_reference), r'RM[0-9]+') = fw.rm_stem
+        QUALIFY ROW_NUMBER() OVER (PARTITION BY fw.rm_stem ORDER BY i.lifecycle_status) = 1
+        ORDER BY fw.calloff_gbp DESC LIMIT @lim`;
+      const incSql = `
+        SELECT ANY_VALUE(t.supplier_name) AS supplier, t.supplier_crn, ANY_VALUE(sup.ch_url) AS ch_url,
+               ROUND(SUM(t.award_amount)) AS calloff_gbp, COUNT(*) AS calloffs,
+               COUNT(DISTINCT t.buyer_name) AS buyers, CAST(MAX(t.contract_end_date) AS STRING) AS latest_contract_end
+        FROM ${tableRef("tender_award")} t
+        LEFT JOIN ${tableRef("supplier")} sup ON sup.company_number = t.supplier_crn
+        WHERE ${callOff} AND t.supplier_crn IS NOT NULL AND (@cpv IS NULL OR t.cpv_division = @cpv)
+        GROUP BY t.supplier_crn ORDER BY calloff_gbp DESC LIMIT @lim`;
+      const rslSql = `
+        SELECT s.display_name AS reseller, rc.channel_type, s.ch_url
+        FROM ${tableRef("reseller_channel")} rc JOIN ${tableRef("supplier")} s ON s.supplier_id = rc.supplier_id
+        WHERE rc.channel_type IN ('thin_prime','var','hybrid')
+        ORDER BY CASE rc.channel_type WHEN 'thin_prime' THEN 1 WHEN 'hybrid' THEN 2 ELSE 3 END, s.display_name LIMIT @lim`;
+      const wide = { params: { cpv, kw, lim }, types: { cpv: "STRING" as const, kw: "STRING" as const } };
+      const [live, frameworks, incumbents, resellers] = await Promise.all([
+        runQuery(liveSql, wide), runQuery(fwSql, { params: { cpv, lim }, types: { cpv: "STRING" } }),
+        runQuery(incSql, { params: { cpv, lim }, types: { cpv: "STRING" } }), runQuery(rslSql, { params: { lim } }),
+      ]);
+      const m = (rs: Record<string, unknown>[]) => rs.map((r) => deep(r));
+      return ok(withFreshness({
+        live_opportunities: m(live),
+        frameworks_with_real_calloff_spend: m(frameworks),
+        incumbents_to_displace: m(incumbents),
+        resellers_who_could_carry_you: m(resellers),
+        note: "A supplier's full route to market, fusing govbuy's frameworks/resellers with real tender awards. `frameworks_with_real_calloff_spend` ranks routes by money that actually flowed (call-off channels only, ceiling-award outliers removed). `incumbents_to_displace.latest_contract_end` is when to pounce. Live opportunities are real open notices — verify each on its official_url. " + NOT_ADVICE,
+        display_guidance: "Lead with live opportunities (link each official_url) and the 2-3 frameworks with the most real call-off spend in their space (link official_url, flag lifecycle_status + expiry). Then name the incumbents with their £ won and contract-end dates as the displacement window, and the thin-primes/VARs (with ch_url) as a faster way in. " + DISPLAY_GUIDANCE,
+      }, await freshness()));
     }),
   );
 

@@ -463,6 +463,72 @@ def materialize_track_record() -> dict:
     return {"supplier_track_record_rows": n}
 
 
+# ----------------------------------------------------------------- fusion with UK Tenders (route×reality)
+def materialize_fusion() -> dict:
+    """Weld govbuy to the UK Tenders corpus on CRN + RM-ref + CPV. Builds curated tables IN
+    govbuy_public (so the read-only API SA stays inside its boundary — no raw tender PII):
+      tender_award          — 1 row per (award, supplier) with supplier CRN, buyer, channel, CPV, £, dates.
+      supplier_track_record_crn / supplier_calloff_total — real call-off spend by CRN (call-off channels
+                              only, ceiling outliers >£100m dropped) — proof of delivery for find_services.
+      live_opportunity      — open tenders (active, future deadline) for supplier_pipeline.
+    """
+    sib = config.SIBLING_DATASET
+    pub = config.PUBLIC_DATASET
+    c = client()
+    c.query(f"""
+      CREATE OR REPLACE TABLE `{config.pub('tender_award')}` CLUSTER BY cpv_division, supplier_crn AS
+      SELECT ocid, source, buyer_name,
+             JSON_VALUE(sup,'$.name') AS supplier_name,
+             REGEXP_EXTRACT(JSON_VALUE(sup,'$.id'), r'^GB-COH-(.+)') AS supplier_crn,
+             cpv_division,
+             IF(JSON_VALUE(a,'$.value.currency')='GBP', SAFE_CAST(JSON_VALUE(a,'$.value.amount') AS FLOAT64), NULL) AS award_amount,
+             SAFE.PARSE_DATE('%Y-%m-%d', SUBSTR(JSON_VALUE(a,'$.date'),1,10)) AS award_date,
+             SAFE.PARSE_DATE('%Y-%m-%d', SUBSTR(JSON_VALUE(a,'$.contractPeriod.endDate'),1,10)) AS contract_end_date,
+             JSON_VALUE(compiled_json,'$.tender.procurementMethod') AS procurement_method,
+             JSON_VALUE(compiled_json,'$.tender.procurementMethodDetails') AS procurement_method_details,
+             CASE
+               WHEN LOWER(JSON_VALUE(compiled_json,'$.tender.procurementMethodDetails')) LIKE '%framework%' THEN 'framework_call_off'
+               WHEN LOWER(JSON_VALUE(compiled_json,'$.tender.procurementMethodDetails')) LIKE '%dynamic%' THEN 'dps_call_off'
+               WHEN JSON_VALUE(compiled_json,'$.tender.procurementMethod')='open' THEN 'open'
+               WHEN JSON_VALUE(compiled_json,'$.tender.procurementMethod') IN ('direct','limited') THEN 'direct'
+               ELSE 'other' END AS channel,
+             REGEXP_EXTRACT(UPPER(CONCAT(IFNULL(JSON_VALUE(compiled_json,'$.tender.title'),''),' ',
+               IFNULL(JSON_VALUE(compiled_json,'$.tender.description'),''),' ',
+               IFNULL(JSON_VALUE(compiled_json,'$.tender.procurementMethodDetails'),''))), r'(RM[0-9]{{3,5}}(?:\\.[0-9]+)?)') AS rm_reference,
+             official_url, published_date
+      FROM `{config.PROJECT}.{sib}.compiled_process`,
+           UNNEST(JSON_QUERY_ARRAY(compiled_json,'$.awards')) a, UNNEST(JSON_QUERY_ARRAY(a,'$.suppliers')) sup
+      WHERE ARRAY_LENGTH(JSON_QUERY_ARRAY(compiled_json,'$.awards')) > 0
+    """).result()
+    c.query(f"""
+      CREATE OR REPLACE TABLE `{config.pub('supplier_track_record_crn')}` AS
+      SELECT supplier_crn, cpv_division, ROUND(SUM(award_amount),2) AS total_award_gbp,
+             COUNT(*) AS call_off_count, COUNT(DISTINCT buyer_name) AS distinct_buyers, MAX(award_date) AS last_award_date
+      FROM `{config.pub('tender_award')}`
+      WHERE supplier_crn IS NOT NULL AND award_amount > 0 AND channel IN ('framework_call_off','dps_call_off') AND award_amount < 100000000
+      GROUP BY supplier_crn, cpv_division
+    """).result()
+    c.query(f"""
+      CREATE OR REPLACE TABLE `{config.pub('supplier_calloff_total')}` CLUSTER BY supplier_crn AS
+      SELECT supplier_crn, ROUND(SUM(total_award_gbp),0) AS calloff_gbp, SUM(call_off_count) AS calloff_count,
+             SUM(distinct_buyers) AS buyer_rows, MAX(last_award_date) AS last_award_date
+      FROM `{config.pub('supplier_track_record_crn')}` GROUP BY supplier_crn
+    """).result()
+    c.query(f"""
+      CREATE OR REPLACE TABLE `{config.pub('live_opportunity')}` CLUSTER BY cpv_division AS
+      SELECT ocid, source, buyer_name, JSON_VALUE(compiled_json,'$.tender.title') AS title, cpv_division,
+             COALESCE(SAFE_CAST(JSON_VALUE(compiled_json,'$.tender.value.amount') AS FLOAT64), awarded_amount) AS estimated_value,
+             SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', JSON_VALUE(compiled_json,'$.tender.tenderPeriod.endDate')) AS deadline,
+             official_url,
+             LOWER(CONCAT(IFNULL(JSON_VALUE(compiled_json,'$.tender.title'),''),' ',IFNULL(JSON_VALUE(compiled_json,'$.tender.description'),''))) AS hay
+      FROM `{config.PROJECT}.{sib}.compiled_process`
+      WHERE JSON_VALUE(compiled_json,'$.tender.status')='active'
+        AND SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', JSON_VALUE(compiled_json,'$.tender.tenderPeriod.endDate')) > CURRENT_TIMESTAMP()
+    """).result()
+    return {"tender_award_rows": query(f"SELECT COUNT(*) n FROM `{config.pub('tender_award')}`")[0]["n"],
+            "live_opportunity_rows": query(f"SELECT COUNT(*) n FROM `{config.pub('live_opportunity')}`")[0]["n"]}
+
+
 # ----------------------------------------------------------------- status + run ledger
 def _health(last_run_status: str, last_success_iso: str | None) -> str:
     """green/amber/red (PRD §11/N6): red if last run failed/paused or no success within the
