@@ -199,43 +199,93 @@ hand-picked). Collapsed — click to expand.
 <details>
 <summary><b>"I rent out a herd of goats that clear invasive scrub and bramble — no mowers, no herbicide. How do I sell conservation grazing to the public sector?"</b></summary>
 
-> Strange product, ordinary route — to a buyer it's a **grounds-maintenance / habitat service** (CPV 77),
-> and public buyers already procure exactly this (habitat/scrub work on
-> **[Contracts Finder](https://www.contractsfinder.service.gov.uk/Search?keywords=conservation+grazing)**
-> is routinely won by Wildlife Trusts and CICs, not just landscapers). Best fit for a small single-service
-> supplier are **DPS you can join at any time**:
-> **[NH Consortium Grounds Maintenance DM](https://nhcprocurement.org.uk/solutions/dynamic-solutions/grounds-maintenance/)**,
-> **[CHIC Grounds Maintenance DPS](https://www.chicltd.co.uk/services/dynamic-purchasing-system-solutions/grounds-maintenance/)**,
-> **[HealthTrust Europe Minor Works DPS](https://www.healthtrusteurope.com/public-sector/minor-dps-external-works-grounds-maintenance/)**;
-> standing frameworks at renewal include
-> **[ESPO 245_25](https://www.espo.org/grounds-maintenance-services-245-25.html)** and
-> **[Fusion21](https://www.fusion21.co.uk/frameworks-grounds-maintenance)**. Plus below-threshold direct
-> off **[Contracts Finder](https://www.contractsfinder.service.gov.uk/)** (set CPV-77 alerts). The animal
-> is novel; the route to market isn't.
+> Strange product, **honest** answer — and the honesty is the point. Searching 658k real awards for
+> grazing/goats returns **18 rows, almost all false positives** (Mountain Goat = a Cumbria tour operator,
+> Dancing Goat = coffee); the one genuine conservation-grazing award is **Precision Grazing → Rothamsted,
+> ~£9,940 — a below-threshold quote**. There's **no grazing framework** and no live grazing tender, because
+> the work is sub-£30k, let locally, or sits in agri-environment *grants* (ELM / Countryside Stewardship)
+> outside procurement. The tendered money flows through grounds-maintenance (CPV 77) primes — **idverde
+> ~£189m, Glendale ~£200m, Tivoli ~£97m, Ground Control ~£46m**. So the route is: set
+> **[Contracts Finder](https://www.contractsfinder.service.gov.uk/)** alerts for sub-threshold local
+> notices, **subcontract** to those primes, and go direct to Wildlife Trusts / National Parks / MoD. The
+> animal's absurd; the answer is rigorous — including telling you where the money *isn't*.
 </details>
 
 <details>
 <summary><b>"I'm a council. I want to commission someone to host & run a government-built open-source AI tool (i.AI's Minute) for me — who can actually do this?"</b></summary>
 
-> *(The genuine `claude -p` output — every listing URL is one `find_services` returned, not hand-picked.)*
+> *(The genuine `claude -p` output — fused across catalogue, 658k real awards and Companies House.)*
 >
-> Minute is government-built open-source software, so you're not "buying Minute" — you're commissioning a
-> supplier to **deploy, host and run** it (a Python/AI app). All real G-Cloud 14 listings (route
-> **[G-Cloud / `RM1557.14`](https://www.applytosupply.digitalmarketplace.service.gov.uk/g-cloud)**, direct
-> award or further competition), shaped exactly as "take this open-source app and host/run it for us":
->
-> *Host **and** run an open-source app:*
-> - [Open Source Hosting](https://www.applytosupply.digitalmarketplace.service.gov.uk/g-cloud/services/166034022607510) + [Open Source Support](https://www.applytosupply.digitalmarketplace.service.gov.uk/g-cloud/services/865534885438374) — [Axis12](https://find-and-update.company-information.service.gov.uk/company/07215135): ISO 27001 hosting built for open-source; support covers Minute's stack (Python, Django, Linux).
-> - [Open Source Managed Service](https://www.applytosupply.digitalmarketplace.service.gov.uk/g-cloud/services/366728421452886) — [Sirius Open Source](https://find-and-update.company-information.service.gov.uk/company/11014042): a fully managed service for running open-source software.
-> - [Open source cloud hosting, maintenance and support](https://www.applytosupply.digitalmarketplace.service.gov.uk/g-cloud/services/843654222495481) — [Tailwind Digital](https://find-and-update.company-information.service.gov.uk/company/13229454): aimed at **local government** end-to-end.
->
-> *Build it into a deployment pipeline:*
-> - [DevOps, Engineering & Delivery](https://www.applytosupply.digitalmarketplace.service.gov.uk/g-cloud/services/849776947742547) — [Daemon Solutions](https://find-and-update.company-information.service.gov.uk/company/03442937): CI/CD for "any application deployment or migration."
->
-> It flags the bit it can't see — Minute needs a speech-to-text/LLM backend, so confirm each supplier
-> hosts that AI component and where data sits (UK region). **govbuy now searches what suppliers actually
-> sell — 117,829 listings across 6 catalogues — so the answer is concrete services you can open and call
-> off, not just a framework name.**
+> One call returns the whole decision. The precise-fit listing is
+> **[Python/Django Hosting & Application Support](https://www.applytosupply.digitalmarketplace.service.gov.uk/g-cloud/services/780052264537990)**
+> from **[Torchbox Ltd](https://find-and-update.company-information.service.gov.uk/company/03983354)** (the
+> Wagtail/Django shop — Minute is a Django app). Its **CRN-matched delivery record**: £3.46m across **18
+> public-sector call-offs, 100% won competitively (0% direct award)**, 6 buyers, top buyer ONS at 41.7%
+> (no single-customer risk), active to Apr 2027. **What comparable hosting costs:** the seven-figure
+> medians are multi-year programmes — hosting one Django app for a council sits at the low end
+> (low-five-figures/yr). **How to buy it compliantly** (`compliant_path`): G-Cloud 14 (`RM1557.14`) permits
+> **call-off with no further competition** — but record the most-economically-advantageous assessment, sign
+> the call-off contract (that *is* the procurement) **before it expires 28 Oct 2026**, and a GPC card is not
+> a route. Service → real cost → proven, competitively-won delivery → compliant next step, end to end.
+</details>
+
+## Route × reality — the questions that need every source
+
+Fused with the UK Tenders corpus (**658k real awards**) on Companies House CRN, govbuy answers what
+neither a framework directory nor a tender database could alone. All real `claude -p` output.
+
+<details>
+<summary><b>"Is the public sector overpaying by buying IT through framework call-offs instead of open competition?"</b></summary>
+
+> For the *typical* buy, yes: in IT services the median **framework call-off is £174,740 vs £107,800 for
+> open tender** — a ~62% "convenience premium" — and **70.8% of the £22.9bn flows through call-offs, just
+> 5.4% through open tender**. But it inverts at the top: open-tender *means* are higher (£3.3m vs £1.6m)
+> because the genuinely huge programmes go to open competition. So frameworks aren't overpaying for the
+> mega-deals — the leakage is the **routine £60k–£700k middle** that dominates the flow, where the lever is
+> forcing a real further-competition at call-off rather than a direct award. Concentration is low (top-5 ≈
+> 8% of spend), so it's broad competition — just happening *inside* the frameworks, not in the open market.
+</details>
+
+<details>
+<summary><b>"Map the 'thin-prime' economy — who fronts other companies onto public frameworks, and how much money flows to that layer?"</b></summary>
+
+> govbuy traces **~£4.0bn of call-off spend to 17 resellers** selling other firms' products:
+> **[Softcat](https://find-and-update.company-information.service.gov.uk/company/02174990) £972m**,
+> [Phoenix Software](https://find-and-update.company-information.service.gov.uk/company/02548628) £775m,
+> [CDW](https://find-and-update.company-information.service.gov.uk/company/02465350) £556m,
+> [Computacenter](https://find-and-update.company-information.service.gov.uk/company/01584718) £410m,
+> [boxxe](https://find-and-update.company-information.service.gov.uk/company/02109168) £260m,
+> [Bramble Hub](https://find-and-update.company-information.service.gov.uk/company/04136381) £109m… Two
+> models: the big VARs (Softcat/Phoenix/CDW) are Microsoft/Dell/Cisco licence-and-hardware conduits; the
+> pure thin-primes — [Bramble Hub carries **18 vendors**](https://www.bramblehub.co.uk/partners/) incl.
+> Faculty (AI), Version 1, NEC — are contracting vehicles for SMEs that can't hold framework compliance
+> alone. The public buyer often never contracts the firm that actually does the work.
+</details>
+
+<details>
+<summary><b>"I'm a challenger cloud SME — find me an incumbent on a big contract that's expiring, and tell me how to compete."</b></summary>
+
+> **AWS** holds the biggest G-Cloud 14 cloud-hosting call-off: **£18.1m from ICS (for DSIT/DESNZ), ending
+> 30 Sep 2027** — your displacement window (re-competes start ~12 months out). It's won ~£28m across these
+> buyers, and a tell: AWS bills via a foreign branch
+> (**[CH FC034225](https://find-and-update.company-information.service.gov.uk/company/FC034225)**) as
+> **direct call-offs, no further competition** — spend awarded without a competition you could bid into.
+> Your way in: get on **G-Cloud 15** (G-Cloud 14 closes 28 Oct 2026 and is shut to new entrants), or ride
+> in *now* via thin-prime
+> **[Bramble Hub](https://find-and-update.company-information.service.gov.uk/company/04136381)** — then push
+> those buyers to run a *further competition* at renewal instead of re-awarding by default.
+</details>
+
+<details>
+<summary><b>"Which 'live' tech frameworks are dead paper — appointed suppliers but no real spend — so I don't waste a bid?"</b></summary>
+
+> **[Transport Technology (`RM6347`)](https://www.gca.gov.uk/agreements/RM6347)** — 191 appointed
+> suppliers, **not one traceable call-off**, live to 2027. **[Cloud Compute 2 (`RM6292`)](https://www.gca.gov.uk/agreements/RM6292)**
+> — 91 suppliers, £81k, while cloud demand pours through G-Cloud 14 (~£835m). And the intellectually-honest
+> part govbuy volunteers unprompted: this is "no call-off we can *attribute*" — most awards carry no
+> framework reference, so a flagship like **[TS4 (`RM6190`)](https://www.gca.gov.uk/agreements/RM6190)**
+> showing only £332k is an attribution gap, **not** dead paper. It tells you what it can prove *and what it
+> can't*.
 </details>
 
 Every asserted fact carries a **source-anchored evidence block** (a verbatim excerpt that passed a
