@@ -438,6 +438,31 @@ def materialize_sibling() -> dict:
     return {"sibling_call_off_awards_rows": n}
 
 
+# ----------------------------------------------------------------- supplier call-off track record
+def materialize_track_record() -> dict:
+    """Small materialised table: a supplier's REAL call-off spend per framework, from the sibling
+    award data. find_services joins it (on a normalised supplier name + RM stem) to show proof of
+    delivery next to each catalogue listing — 'who actually wins money on this route', not just who
+    is listed. One paid scan here; cheap join at query time."""
+    full = config.pub("supplier_track_record")
+    client().query(f"""
+      CREATE TEMP FUNCTION NORM(s STRING) AS (
+        TRIM(REGEXP_REPLACE(REGEXP_REPLACE(REGEXP_REPLACE(
+          LOWER(TRIM(s)),
+          r'\\b(ltd\\.?|limited|plc\\.?|llp\\.?|inc\\.?|corp\\.?|llc\\.?|gmbh|bv|b\\.v\\.|s\\.a\\.|s\\.l\\.)$', ''),
+          r'[^a-z0-9\\s]', ' '), r'\\s+', ' ')));
+      CREATE OR REPLACE TABLE `{full}` CLUSTER BY norm_name AS
+      SELECT NORM(supplier_name) AS norm_name,
+             REGEXP_EXTRACT(UPPER(rm_reference), r'RM[0-9]+') AS rm_stem,
+             SUM(award_amount) AS total_award_gbp, COUNT(*) AS call_off_count
+      FROM `{config.pub('sibling_call_off_awards')}`
+      WHERE award_currency='GBP' AND award_amount IS NOT NULL AND rm_reference IS NOT NULL AND supplier_name IS NOT NULL
+      GROUP BY 1,2 HAVING norm_name != '' AND rm_stem IS NOT NULL
+    """).result()
+    n = query(f"SELECT COUNT(*) AS n FROM `{full}`")[0]["n"]
+    return {"supplier_track_record_rows": n}
+
+
 # ----------------------------------------------------------------- status + run ledger
 def _health(last_run_status: str, last_success_iso: str | None) -> str:
     """green/amber/red (PRD §11/N6): red if last run failed/paused or no success within the

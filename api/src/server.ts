@@ -83,7 +83,7 @@ export function buildServer(): McpServer {
         "govbuy maps UK public-sector routes to market (how to buy, how to sell, who resells). " +
         "Responses are source-anchored and carry URLs: framework official_url, operator_url, supplier ch_url (Companies House), buying-document urls, and an evidence.source_url on every asserted claim. " +
         "ALWAYS surface these to the user as clickable markdown links with the thing's name as the link text — naming a framework, supplier, or source without linking its URL is not useful. " +
-        "When a buyer describes a concrete capability they want delivered (e.g. 'host this app', 'an M365 mailbox', 'a service desk'), find_routes gives the framework/route, then call find_services to surface the specific G-Cloud catalogue services that do it — each with a citable applytosupply.../g-cloud/services/<id> listing URL to link. Prefer naming concrete services over only naming a framework. " +
+        "When a buyer describes a concrete capability (e.g. 'host this app', 'an M365 mailbox', 'a service desk', 'a desk', 'classroom furniture'), find_routes gives the framework/route, then find_services surfaces the specific catalogue listings that do it — each with a citable listing URL, and where known the supplier's real call-off track record (£ won on that framework), an indicative price, and months-to-framework-expiry. Then compliant_path turns the chosen framework into the actual next steps (permitted award mechanic + conditions + documents + the 'a card/marketplace is not a route' caveat). Prefer naming concrete listings, citing the proof-of-delivery, and giving the call-off mechanic over only naming a framework. " +
         "Anchor each fact to its evidence.source_url so the user can verify it. govbuy documents routes; it does not assemble the purchase or give legal advice — tell the user to confirm on the official source.",
     },
   );
@@ -287,21 +287,36 @@ export function buildServer(): McpServer {
       const anyHits = `(SELECT COUNT(1) FROM UNNEST(@toks) tok WHERE REGEXP_CONTAINS(hay, CONCAT(r'\\b', tok, r'\\b')))`;
       const allTok = `(${anyHits} = ARRAY_LENGTH(@toks))`;
       const score = `(IF(${allTok}, 1000, 0) + 5 * ${nameHits} + ${anyHits})`;
+      // Normalise a supplier name the same way supplier_track_record was built, so a service's supplier
+      // links to its real call-off spend; pull a £ price out of catalogues that embed it in the text.
+      const norm = (c: string) =>
+        `TRIM(REGEXP_REPLACE(REGEXP_REPLACE(REGEXP_REPLACE(LOWER(TRIM(${c})), r'\\b(ltd\\.?|limited|plc\\.?|llp\\.?|inc\\.?|corp\\.?|llc\\.?|gmbh|bv|b\\.v\\.|s\\.a\\.|s\\.l\\.)$', ''), r'[^a-z0-9\\s]', ' '), r'\\s+', ' '))`;
+      const priceExpr = `SAFE_CAST(REPLACE(REGEXP_EXTRACT(sv.description, r'Price(?:\\s*\\(ex VAT\\))?\\s*:\\s*£([\\d,]+(?:\\.\\d+)?)'), ',', '') AS FLOAT64)`;
       const sql = `
         WITH s AS (
           SELECT sv.service_id, sv.catalogue, sv.name, sv.supplier_name, sv.lot, sv.description, sv.features, sv.benefits,
                  sv.url, sv.instrument_id, sup.company_number, sup.ch_url, sup.match_band,
+                 inst.rm_reference, inst.expires_on, ${priceExpr} AS price_gbp,
                  LOWER(sv.name) AS nm,
                  LOWER(CONCAT(sv.name, ' ', IFNULL(sv.description, ''), ' ',
                               ARRAY_TO_STRING(sv.features, ' '), ' ', ARRAY_TO_STRING(sv.benefits, ' '))) AS hay
           FROM ${tableRef("service")} sv
           LEFT JOIN ${tableRef("supplier")} sup ON sup.supplier_id = sv.supplier_id
+          LEFT JOIN ${tableRef("instrument")} inst ON inst.instrument_id = sv.instrument_id
           WHERE (@sup IS NULL OR LOWER(sv.supplier_name) LIKE @sup)
             AND (@cat IS NULL OR sv.catalogue = @cat)
             AND (@lot IS NULL OR sv.lot = @lot))
-        SELECT * EXCEPT(hay, nm), ${score} AS match_score FROM s
+        SELECT s.* EXCEPT(hay, nm, rm_reference), ${score} AS match_score,
+               tr.total_award_gbp AS supplier_framework_award_gbp,
+               tr.call_off_count  AS supplier_framework_call_offs,
+               CASE WHEN s.expires_on IS NOT NULL
+                    THEN DATE_DIFF(s.expires_on, CURRENT_DATE(), MONTH) END AS framework_months_to_expiry
+        FROM s
+        LEFT JOIN ${tableRef("supplier_track_record")} tr
+          ON tr.rm_stem = REGEXP_EXTRACT(UPPER(s.rm_reference), r'RM[0-9]+')
+         AND tr.norm_name = ${norm("s.supplier_name")}
         WHERE (ARRAY_LENGTH(@toks) = 0 OR ${anyHits} > 0)
-        ORDER BY match_score DESC, name
+        ORDER BY match_score DESC, supplier_framework_award_gbp DESC NULLS LAST, name
         LIMIT @lim`;
       const rows = await runQuery(sql, {
         params: { toks, cat: args.catalogue ?? null, lot: args.lot ?? null, sup: args.supplier ? `%${args.supplier.toLowerCase()}%` : null, lim: args.limit },
@@ -314,10 +329,63 @@ export function buildServer(): McpServer {
       });
       return ok(withFreshness({
         count: services.length,
-        note: "Catalogue listings across UK public-sector buying catalogues (each row's `catalogue` shows which). g-cloud = cloud services on RM1557.14 (call off by direct award or further competition); espo/ypo = physical-goods catalogues; nhs-buying-catalogue = clinical IT; ndx = digital exchange. Each is a real, citable listing. " + NOT_ADVICE,
-        display_guidance: "Present each listing as a clickable link (its url) with the service/product name as the link text, and link the supplier's ch_url (Companies House) when present. Cite the listing URL so the buyer can open the exact item. Group or label by `catalogue` when results span several. " + DISPLAY_GUIDANCE,
+        note: "Catalogue listings across UK public-sector buying catalogues (each row's `catalogue` shows which). g-cloud = cloud services on RM1557.14; espo/ypo = physical goods; nhs-buying-catalogue = clinical IT; ndx = digital exchange. Each row also carries: `supplier_framework_award_gbp`/`supplier_framework_call_offs` = the supplier's REAL call-off track record on that framework (from published award data — proof of delivery, not a guarantee); `price_gbp` = indicative price where the catalogue publishes one; `framework_months_to_expiry` = act-before date for framework-based listings. " + NOT_ADVICE,
+        display_guidance: "Present each listing as a clickable link (its url) with the name as link text, and link the supplier's ch_url (Companies House) when present. When `supplier_framework_award_gbp` is set, mention it as evidence the supplier actually delivers on this route (e.g. 'has won £Xm across N call-offs') — and note that a NULL is absence of matched awards, not absence of capability. Surface `price_gbp` and flag `framework_months_to_expiry` when low (<6). Group by `catalogue` when results span several. " + DISPLAY_GUIDANCE,
         services,
       }, await freshness()));
+    }),
+  );
+
+  server.registerTool(
+    "compliant_path",
+    {
+      title: "Compliant call-off path",
+      description:
+        "Turn 'which framework' into 'how to actually buy it': given an instrument_id or rm_reference, return the permitted award mechanics (direct award vs further competition) with their conditions, the buying documents, the framework's lifecycle + expiry, the official URL, and the payment-mechanism caveats (a GPC card or marketplace consumption is a settlement mechanism, NEVER a procurement route). Use after find_routes/find_services to give the buyer the actual next steps.",
+      inputSchema: { instrument_id: z.string().optional(), rm_reference: z.string().optional() },
+    },
+    guard(async (args) => {
+      if (!args.instrument_id && !args.rm_reference) return toolError("INVALID_QUERY", "Provide instrument_id or rm_reference (e.g. 'g-cloud-14' or 'RM1557.14').");
+      const sql = `
+        WITH iid AS (
+          SELECT instrument_id, name, rm_reference, lifecycle_status,
+                 CAST(expires_on AS STRING) AS expires_on, official_url
+          FROM ${tableRef("instrument")} inst
+          WHERE (@iid IS NOT NULL AND instrument_id = @iid)
+             OR (@rm IS NOT NULL AND REGEXP_EXTRACT(UPPER(rm_reference), r'RM[0-9.]+') = REGEXP_EXTRACT(UPPER(@rm), r'RM[0-9.]+'))
+          ORDER BY (SELECT COUNT(*) FROM ${tableRef("award_mechanic")} m WHERE m.instrument_id = inst.instrument_id) DESC
+          LIMIT 1)
+        SELECT 'instrument' AS section, i.name AS title, i.rm_reference AS ref, i.lifecycle_status AS status,
+               i.expires_on, i.official_url AS url, CAST(NULL AS BOOL) AS permitted, CAST(NULL AS STRING) AS conditions, 0 AS sort
+        FROM iid i
+        UNION ALL
+        SELECT 'mechanic', am.mechanic, am.lot_id, NULL, NULL, NULL, am.permitted, am.conditions,
+               CASE WHEN am.permitted AND am.mechanic = 'call_off_no_further_competition' THEN 1 WHEN am.permitted THEN 2 ELSE 3 END
+        FROM ${tableRef("award_mechanic")} am JOIN iid i USING (instrument_id)
+        UNION ALL
+        SELECT 'document', bd.title, bd.doc_type, NULL, NULL, bd.url, NULL, bd.summary, 4
+        FROM ${tableRef("buying_doc")} bd JOIN iid i USING (instrument_id)
+        UNION ALL
+        SELECT 'payment_caveat', pm.mechanism, pm.governing_source, pm.permitted_for_procurement, NULL, NULL, NULL, pm.notes, 5
+        FROM ${tableRef("payment_mechanism")} pm
+        WHERE pm.is_route = FALSE AND pm.permitted_for_procurement IN ('no', 'narrow')
+        ORDER BY sort, title`;
+      const rows = (await runQuery(sql, {
+        params: { iid: args.instrument_id ?? null, rm: args.rm_reference ?? null },
+        types: { iid: "STRING", rm: "STRING" },
+      })).map((r) => deep(r) as Record<string, unknown>);
+      if (!rows.length) return toolError("UNKNOWN", `No instrument matched '${args.instrument_id ?? args.rm_reference}'.`);
+      const sect = (s: string) => rows.filter((r) => r.section === s);
+      const head = sect("instrument")[0] ?? {};
+      const payload = {
+        instrument: { name: head.title, rm_reference: head.ref, lifecycle_status: head.status, expires_on: head.expires_on, official_url: head.url },
+        award_mechanics: sect("mechanic").map((r) => ({ mechanic: r.title, lot_id: r.ref, permitted: r.permitted, conditions: r.conditions })),
+        buying_documents: sect("document").map((r) => ({ title: r.title, doc_type: r.ref, url: r.url, summary: r.conditions })),
+        payment_caveats: sect("payment_caveat").map((r) => ({ mechanism: r.title, permitted_for_procurement: r.status, note: r.conditions })),
+        display_guidance:
+          "Lead with the permitted direct-award mechanic if present (call_off_no_further_competition) — that's the fastest compliant route — else further_competition. State the conditions verbatim. Link official_url and any buying-document urls. Flag expiry if near. Remind the buyer a GPC card / marketplace consumption is NOT a route. " + DISPLAY_GUIDANCE,
+      };
+      return ok(withFreshness(payload, await freshness()));
     }),
   );
 

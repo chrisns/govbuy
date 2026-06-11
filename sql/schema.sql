@@ -286,6 +286,18 @@ CREATE TABLE IF NOT EXISTS `govbuy_public.service` (
 )
 CLUSTER BY supplier_id, lot;
 
+-- Supplier call-off track record (materialised from the sibling award data, like sibling_call_off_awards).
+-- A supplier's REAL published call-off spend per framework, keyed on a NORMALISED supplier name + RM
+-- stem, so find_services can show proof-of-delivery ("won £X across N call-offs on this framework")
+-- next to each catalogue listing. Built by bq.materialize_track_record(); one paid scan, cheap join.
+CREATE TABLE IF NOT EXISTS `govbuy_public.supplier_track_record` (
+  norm_name        STRING,                        -- normalised supplier name (lower, legal-suffix-stripped)
+  rm_stem          STRING,                        -- RM reference stem, e.g. RM1557
+  total_award_gbp  NUMERIC,
+  call_off_count   INT64
+)
+CLUSTER BY norm_name;
+
 -- Reference: payment/settlement mechanisms — is_route is ALWAYS FALSE (CONTEXT.md; payment-mechanisms.md).
 CREATE TABLE IF NOT EXISTS `govbuy_public.payment_mechanism` (
   mechanism                STRING NOT NULL,        -- purchase_order_invoice | gpc | expenses | petty_cash | direct_debit | marketplace_consumption | inter_entity_recharge

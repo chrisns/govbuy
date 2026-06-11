@@ -1,0 +1,122 @@
+[
+  {
+    "q": "I need to host a small containerised Python web application for my local council. Which framework(s) let me buy that as a managed service, and can I direct-award or do I need a mini-competition?",
+    "persona": "buyer, local government (council commercial officer)",
+    "expects": "names G-Cloud 14 (RM1557.14) Cloud Hosting or Cloud Software lot; states call-off without further competition is permitted on Lots 1–3 (not just 'direct award' unqualified); cites a real applytosupply.digitalmarketplace.service.gov.uk/g-cloud/services/<id> URL or the official GCA framework page URL; does NOT name Azure Marketplace as a procurement route"
+  },
+  {
+    "q": "My NHS trust wants to provision Microsoft 365 mailboxes for 2,000 staff. What's the compliant route, and who are the appointed suppliers we can call off from?",
+    "persona": "buyer, NHS trust IT/commercial",
+    "expects": "names a GCA technology products/services framework (e.g. Technology Products & Associated Services RM6098 or a successor, or G-Cloud 14 Lot 2 Cloud Software); identifies Microsoft and/or approved resellers (e.g. Softcat, Bytes, Phoenix) as appointed suppliers; clarifies whether call-off without further competition or further competition applies; does NOT treat Azure Marketplace alone as the route"
+  },
+  {
+    "q": "I need to buy office desks for 50 staff in a school. Which framework should I use?",
+    "persona": "buyer, school (academy trust bursar)",
+    "expects": "returns ESPO or YPO furniture/office furniture category (not G-Cloud, not stationery); names a real ESPO or YPO furniture framework (e.g. ESPO Furniture or YPO Furniture framework); does NOT conflate 'desk' with IT service desk; confirms the buyer type (school/education) is eligible"
+  },
+  {
+    "q": "We need to procure an IT service desk — helpdesk software and the managed service to run it — for a central government department. What routes are available?",
+    "persona": "buyer, central government department (digital/commercial)",
+    "expects": "routes to G-Cloud 14 (Cloud Software/Cloud Support lots) for the software layer; may also cite Technology Services 4 (RM6190) or G-Cloud for the managed service; returns real find_services results or G-Cloud lot descriptions distinguishing software from managed service; does NOT conflate IT service desk with physical office desks"
+  },
+  {
+    "q": "A fire service needs drone thermal-imaging equipment urgently. What framework can we use, and is a direct award allowed?",
+    "persona": "buyer, fire and rescue service (fleet/procurement manager)",
+    "expects": "names YPO Drones and Associated Services DPS (1148) and/or YPO Emergency Response Equipment DPS (900616); flags that DPS requires further competition (mini-competition) — direct award is NOT permitted on a DPS; may also mention G-Cloud for the software/data layer (CAPE Drone Software); does NOT claim direct award is allowed on the DPS"
+  },
+  {
+    "q": "Our university consortium framework for laboratory gases expires in 3 months. What should we do to ensure continuity of supply?",
+    "persona": "buyer, higher education institution (procurement manager)",
+    "expects": "advises checking successor instrument or re-tender before expiry; may cite ESPO, YPO, or HE-consortium frameworks for gases/consumables; recommends query_sql or find_instruments_to_list to identify live alternatives; notes that existing call-offs can run their term but no new ones can be placed on an expired instrument; does not fabricate a specific RM reference without evidence"
+  },
+  {
+    "q": "Which frameworks let me buy conservation grazing services — a contractor who brings in a herd of goats to clear scrub on council-owned land?",
+    "persona": "buyer, local government (parks/estates officer)",
+    "expects": "identifies grounds maintenance / habitat management frameworks (e.g. NH Consortium Grounds Maintenance DM, CHIC Grounds Maintenance DPS, ESPO 245_25, Fusion21 Grounds Maintenance); acknowledges this is a CPV-77 grounds/habitat service, not a niche edge-case; mentions DPS/dynamic market open-at-any-time onboarding; does NOT claim no route exists"
+  },
+  {
+    "q": "I want to run a short transcription and AI meeting-notes pilot for my council. What services can I find on G-Cloud and is a direct award appropriate?",
+    "persona": "buyer, local government (digital transformation lead)",
+    "expects": "returns ≥1 real G-Cloud 14 applytosupply.../g-cloud/services/<id> URL for a transcription or AI meeting-notes service; confirms call-off without further competition is available on G-Cloud 14 Lot 2 (Cloud Software) if a single service meets the need and the buyer documents why; cautions that 'direct award' in the statutory sense is different from G-Cloud's call-off-without-further-competition mechanic"
+  },
+  {
+    "q": "Our police force wants to dispose of 50 end-of-life vehicles including two electric vans. Can we direct-award a disposal contract, and who are the appointed suppliers?",
+    "persona": "buyer, police force (fleet manager)",
+    "expects": "names NEPO Managed Remarketing of Vehicles & Plant (NEPO202) or BlueLight Commercial fleet disposal; states direct award or further competition is permitted (per NEPO202 page); names ≥1 appointed supplier (e.g. Aston Barclay, BPI Auctions, Wilsons Auctions, John Pye); flags EV/lithium-ion battery handling and ATF licensing requirement; checks eligibility of police as buyer on any BlueLight-scoped instrument"
+  },
+  {
+    "q": "I'm a small AI ISV with no framework appointments. How can I sell my AI triage tool to NHS trusts this quarter without waiting for the next G-Cloud window?",
+    "persona": "seller, SME AI vendor (founder/CEO)",
+    "expects": "identifies AI DPS (RM6200) and/or HealthTrust Europe AI Solutions DPS as continuously-open instruments; notes DPS requires further competition — buyer runs mini-competition; may mention NHS Buying Catalogue triage category (accuRx, myGP comparators); mentions thin-prime route (e.g. Bramble Hub) as an alternative to direct appointment; flags that below-threshold pilots are possible but still need a compliant route above threshold"
+  },
+  {
+    "q": "My SaaS company is already on G-Cloud 14. Which other live frameworks are about to expire in the next six months, so I know what to re-bid for?",
+    "persona": "seller, SaaS vendor (commercial/bid manager)",
+    "expects": "demonstrates a query_sql approach with lifecycle_status = 'live_for_call_off' AND expires_on BETWEEN CURRENT_DATE AND DATE_ADD(CURRENT_DATE, INTERVAL 6 MONTH); OR names specific frameworks expiring imminently (e.g. Digital Outcomes 6 RM1043.8, G-Cloud 14 RM1557.14 Oct 2026, Cloud Compute 2 RM6292); does NOT fabricate expiry dates without evidence"
+  },
+  {
+    "q": "We're a cloud security vendor not on any framework. Which thin-primes or VARs could route us to market on G-Cloud or Technology Services 4?",
+    "persona": "seller, cloud security vendor (channel/partnerships director)",
+    "expects": "names Bramble Hub (CRN 04136381) as a confirmed thin-prime on G-Cloud 14 Lots 1–3 and Technology Services 4 (RM6190); may name NTT DATA UK as a hybrid prime; describes the thin-prime / subcontractor model (the vendor becomes a subcontractor under the prime's call-off); uses list_resellers tool path; does NOT claim thin-primes are approved on frameworks they are not appointed to"
+  },
+  {
+    "q": "Can I use my Government Procurement Card to buy a SaaS AI subscription directly without going through a framework?",
+    "persona": "buyer, central government civil servant (policy/programme manager)",
+    "expects": "explicitly states that GPC is a payment mechanism, NOT a procurement route; cites the March 2025 crackdown — GPC banned where a procurement route exists; PA2023 is payment-method-blind (triggers on contract value, not payment method); directs buyer to use G-Cloud 14 or equivalent framework and then pay via GPC/PO; does NOT say GPC is a legitimate route to bypass procurement rules"
+  },
+  {
+    "q": "I have a product on Azure Marketplace. Does that count as being on a government framework? Can an NHS trust buy from me there compliantly?",
+    "persona": "seller, ISV (UK public sector sales lead)",
+    "expects": "clearly states Azure Marketplace is NOT a procurement route / framework appointment; govbuy classifies it as marketplace_consumption (a settlement mechanism, not a route); the trust still needs a compliant instrument (e.g. G-Cloud 14 or a technology framework) for the procurement; Azure Marketplace listing may make the product findable but does not confer framework status"
+  },
+  {
+    "q": "What classroom furniture frameworks are available to a multi-academy trust in England?",
+    "persona": "buyer, multi-academy trust (business manager/CFO)",
+    "expects": "returns education-sector furniture frameworks — ESPO, YPO, or DfE frameworks (e.g. ESPO Furniture, YPO Furniture, or Crown Commercial/GCA education furniture); confirms academy trust buyer eligibility; does NOT return IT/digital frameworks; distinguishes furniture lots from stationery or ICT lots"
+  },
+  {
+    "q": "Our council wants to commission a supplier to host and run the government open-source AI meeting transcription tool Minute. Who can actually do this on G-Cloud?",
+    "persona": "buyer, local government council (digital/IT lead)",
+    "expects": "returns ≥1 real G-Cloud 14 listing URL (applytosupply.../g-cloud/services/<id>) for open-source hosting or managed service (e.g. Axis12 Open Source Hosting, Sirius Open Source Managed Service, Tailwind Digital open source hosting); notes this is procuring hosting/managed service not the software itself; flags that the AI/speech-to-text backend must be confirmed for data residency (UK region); route is G-Cloud 14 RM1557.14 call-off without further competition"
+  },
+  {
+    "q": "What's the difference between a DPS and a dynamic market, and does it affect whether I can direct-award?",
+    "persona": "buyer, public sector commercial adviser (any sector)",
+    "expects": "explains DPS is legacy PCR2015 (abolished prospectively, deemed to end Feb 2029); dynamic market is new PA2023 (ss34–40), permanently open, awards via competitive flexible procedure only; BOTH bar direct award / call-off without further competition — awards require a competition; does NOT conflate these with framework call-offs; correctly uses 'competitive flexible procedure' for dynamic markets and 'further competition / mini-competition' for DPS"
+  },
+  {
+    "q": "We sell specialist laboratory gases including hydrogen and oxygen. Which frameworks can we apply to be appointed on, and are any still open for new suppliers?",
+    "persona": "seller, specialist industrial gases supplier (SME)",
+    "expects": "uses find_instruments_to_list path; identifies open frameworks or DPS/dynamic markets in the scientific/laboratory supplies or gases category (e.g. ESPO, YPO, university consortia); flags that open frameworks (PA2023 s49) and DPS/dynamic markets accept new suppliers continuously; notes closed frameworks have a fixed supplier list and cannot be joined mid-term; does not fabricate a specific RM reference without evidence"
+  },
+  {
+    "q": "How can I find out which suppliers are actually appointed to G-Cloud 14 Lot 2 (Cloud Software) and what did they call off last year?",
+    "persona": "buyer, central government (commercial analyst / spend analyst)",
+    "expects": "describes get_instrument('RM1557.14') for the appointed supplier list with membership qualifiers; describes query_sql joining govbuy_public.appointed_supplier with sibling_call_off_awards for call-off values; notes supplier list may be partial (lot-level membership is partial per STATUS.md); evidence blocks carry source URL and excerpt; does NOT fabricate call-off figures"
+  },
+  {
+    "q": "I want to buy a body-worn video camera system for a council enforcement team. Are there any frameworks covering this, and can I use one that was set up for police?",
+    "persona": "buyer, local government (enforcement/licensing manager)",
+    "expects": "identifies a relevant framework (e.g. BlueLight Commercial BWV framework, or YPO/ESPO ICT/security equipment); explicitly checks buyer eligibility — BlueLight Commercial instruments are typically scoped to police/emergency services, so council buyers must confirm eligibility; if eligible flags direct award or further competition mechanic; if not eligible suggests alternative (open framework or YPO/ESPO route)"
+  },
+  {
+    "q": "What's the compliant route to buy Kubernetes training and penetration testing for my central government platform team, and can I direct-award?",
+    "persona": "buyer, central government digital team (head of platform engineering)",
+    "expects": "identifies G-Cloud 14 (RM1557.14) Cloud Support lot; returns ≥1 real applytosupply.../g-cloud/services/<id> URL for Kubernetes training and/or pen testing (e.g. ControlPlane listings); confirms call-off without further competition is permitted if buyer documents why this service best meets the need; cites the GCA G-Cloud buyer guide as the process to follow"
+  },
+  {
+    "q": "We're an analytics software company. Which GCA frameworks are currently live for call-off that cover data and analytics, and which ones are expiring soon?",
+    "persona": "seller, analytics software company (public sector sales director)",
+    "expects": "names ≥1 live GCA data/analytics framework (e.g. Big Data and Analytics RM6195, G-Cloud 14 RM1557.14, or Technology Services 4 RM6190); notes if any are expiring within 6 months (e.g. Big Data and Analytics RM6195 expired Aug 2026 per demo); uses get_instrument or query_sql path; does NOT fabricate lifecycle status"
+  },
+  {
+    "q": "A statutory direct award under PA2023 — when is that actually allowed, and is it the same as buying directly from a G-Cloud supplier?",
+    "persona": "buyer, public sector in-house legal / commercial counsel",
+    "expects": "clearly distinguishes statutory direct award (PA2023 ss41–43, Schedule 5 grounds — whole public contract with no competition, requires transparency notice and 8-working-day standstill) from call-off without further competition (placing a framework call-off via the framework's own objective mechanism — e.g. G-Cloud catalogue pick); states these are NOT the same thing; notes statutory direct award CANNOT be used to place a framework call-off"
+  },
+  {
+    "q": "My consultancy is appointed to Appvia on G-Cloud. Actually, I meant — how can I contract Appvia to build us a landing zone? And is Appvia on any other frameworks?",
+    "persona": "buyer, central government digital/cloud team (programme director)",
+    "expects": "identifies Appvia as appointed to G-Cloud 14 (RM1557.14) AND Technology Services 4 (RM6190); returns Appvia's Companies House CRN (10653692) with ch_url link; notes both frameworks permit direct award/call-off without further competition or further competition; may cite a real G-Cloud service listing URL for Appvia's landing zone or cloud services offering; does NOT fabricate framework appointments"
+  }
+]
