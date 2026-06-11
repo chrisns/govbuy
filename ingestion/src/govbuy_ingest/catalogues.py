@@ -230,13 +230,21 @@ def _ypo_auth() -> str:
 
 def _ypo_query(client: httpx.Client, taxonomy: str | None, offset: int, limit: int) -> dict:
     filters = [{"type": "not", "filter": {"type": "eq", "name": "indexing_failed", "value": True}}]
-    if taxonomy:
-        filters.append({"type": "eq", "name": "top_level_taxonomy", "value": taxonomy})
+    if taxonomy:  # shard on the fine-grained product_taxonomy node (each bucket < the 10k page cap)
+        filters.append({"type": "eq", "name": "product_taxonomy", "value": taxonomy})
     body = {"context": {"page": {"uri": "/products"}},
             "widget": {"items": [{"rfk_id": "rfkid_7", "entity": "ypocontent",
                 "search": {"content": {}, "offset": offset, "limit": limit, "query": {"operator": "and"},
                            "facet": {"all": True}, "filter": {"type": "and", "filters": filters}}}]}}
     return (client.post(YPO_DISCOVER, json=body).json().get("widgets") or [{}])[0]
+
+
+def _ypo_taxonomy_buckets(w: dict) -> list[str]:
+    for f in (w.get("facet") or w.get("facets") or []):
+        if (f.get("name") or f.get("identifier")) == "product_taxonomy":
+            return [v.get("text") or v.get("value") or v.get("id")
+                    for v in (f.get("value") or f.get("values") or []) if (v.get("text") or v.get("value") or v.get("id"))]
+    return []
 
 
 def _ypo_rec(x: dict) -> dict | None:
@@ -284,16 +292,10 @@ def ypo_sync(run_id: str = "ypo-sync", page: int = 100) -> tuple[dict, int]:
                     break
             return total
         total = crawl(None)
-        if total >= 10000:  # capped — shard by top-level taxonomy to get the rest
-            w = _ypo_query(client, None, 0, 1)
-            facets = w.get("facet") or w.get("facets") or []
-            taxes: list[str] = []
-            for f in facets:
-                if (f.get("name") or f.get("identifier")) == "top_level_taxonomy":
-                    taxes = [v.get("text") or v.get("value") for v in (f.get("value") or f.get("values") or [])]
-            for t in taxes:
-                if t:
-                    crawl(t)
+        if total >= 10000:  # Discover caps a single query at 10k — shard by product_taxonomy node
+            buckets = _ypo_taxonomy_buckets(_ypo_query(client, None, 0, 1))
+            for t in buckets:
+                crawl(t)
     return service_bundle(recs, "ypo", run_id, instrument_id="ypo", source_kind="ypo_catalogue",
                           licence="operator_tos"), len(recs)
 

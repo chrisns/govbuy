@@ -50,8 +50,9 @@ catalogue, so "find who can host open-source LLM apps / supply a desk / run a se
 to concrete, citable listings via `find_services` (filterable by `catalogue`). All crawlers are
 deterministic + re-runnable **token-free** (no LLM in the loop), each row carries its source URL:
 - **G-Cloud 14 — 43,733** services (Digital Marketplace search), 99.9% CRN-resolved.
+- **Azure Marketplace — 38,928** offers (SSR gallery → catalog API; capability-search only, never a route).
+- **YPO — 23,459** products (Sitecore Discover API, sharded by `product_taxonomy` to beat the 10k cap).
 - **ESPO — 11,621** products (Klevu search API).
-- **YPO — 10,000** products (Sitecore Discover API; Discover's deep-pagination cap).
 - **NHS Buying Catalogue — 48** clinical-IT solutions; **NDX — 40** digital-exchange products.
 
 - **Azure Marketplace** (SSR gallery bigId enumeration → public catalog API enrichment). Ingested as
