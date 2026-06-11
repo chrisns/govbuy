@@ -1,10 +1,13 @@
 # govbuy — UK route-to-market MCP
 
-Ask your AI assistant **how to buy** a thing across the UK public sector — or, as a vendor, **where
-to list it and who can prime you in** — and get a complete, current, **source-anchored** answer:
-the frameworks and dynamic markets that fit, their lots, the permitted award mechanics, the
-documentation a purchase needs, the appointed suppliers, and the resellers/primes (like Bramble Hub)
-whose inbound scope can carry an off-framework product to market.
+Ask your AI assistant **how to buy** a thing across the UK public sector, **where to list it and who
+can prime you in** as a vendor, or **how public money actually flows** as a researcher — and get a
+complete, current, **source-anchored** answer. govbuy maps the **route** (the frameworks and dynamic
+markets that fit, their lots, permitted award mechanics, the documents a purchase needs, the appointed
+suppliers, and the resellers/primes like Bramble Hub that can carry an off-framework product to market)
+and **fuses it with the reality** — 658k real tender awards joined on Companies House CRN — so every
+answer also knows **who actually wins the work, what buyers really pay, and what's open to bid right
+now**. Route × reality, for buyers, suppliers and researchers alike.
 
 **Live now:**
 
@@ -27,9 +30,10 @@ claude mcp add --transport http govbuy https://govbuy.run.cns.me/mcp
 |---|---|
 | Framework operators | **147** — GCA/CCS, G-Cloud, every HE consortium, local-gov POs, NHS national + regional + pharma hubs, BlueLight Commercial, Defence Digital, Scotland / Wales / NI CPD, combined authorities, the housing / construction / highways / education consortia layers |
 | Frameworks, DPS & dynamic markets | **3,207** (3,108 live for call-off) |
-| Suppliers | **28,247** — 99.2% resolved to a Companies House CRN |
+| Suppliers | **28,272** — 99.2% resolved to a Companies House CRN |
 | Appointed-supplier edges | **57,055** (77% of frameworks carry a supplier list) |
 | Catalogue **listings** (what suppliers actually sell) | **117,829** across 6 buying catalogues — G-Cloud 14 (43,733), Azure Marketplace (38,928), YPO (23,459), ESPO (11,621), NHS Buying Catalogue (48), NDX (40) — each a citable listing URL with a full description, searchable by capability via `find_services`. All crawlers are deterministic + token-free re-runnable. |
+| Real awards **fused in** (route × reality) | **658k** award lines across **461k** awarded processes and **11.9k** buyers, from the UK Tenders corpus, welded on Companies House CRN — powering proof-of-delivery, price benchmarks, live pipelines and spend x-rays ([fusion ACs](docs/fusion-acceptance.md)) |
 | How-to-call-off mechanics | direct award vs further competition on **71%** of frameworks |
 | Spend coverage | **91.4%** of framework-attributable UK public spend |
 
@@ -37,10 +41,13 @@ GCA and G-Cloud are ingested **deterministically** from their APIs/directories; 
 agentic with a hard anti-fabrication gate. [docs/STATUS.md](docs/STATUS.md) is the honest gap map;
 [docs/access-barriers.md](docs/access-barriers.md) inventories the login-walled supplier lists.
 
-Sibling to [`find-tender-mcp`](../cddo/find-tender-mcp) (the demand side — tenders & awards). govbuy
-is the **supply / route-to-market** side. It **documents** routes; it does **not** assemble the
-purchase or give legal advice, and it is not the authority of record. See [VISION.md](VISION.md),
-[docs/PRD.md](docs/PRD.md), the [ADRs](docs/adr/) and the glossary in [CONTEXT.md](CONTEXT.md).
+Built on, and now **fused with**, [`find-tender-mcp`](../cddo/find-tender-mcp) (the UK Tenders corpus —
+every tender & award): govbuy holds the **route** and welds it to that **reality** on Companies House
+CRN, so it serves buyers, suppliers *and* researchers from one place. It **documents** routes; it does
+**not** assemble the purchase or give legal advice, and it is not the authority of record. See
+[VISION.md](VISION.md), [docs/PRD.md](docs/PRD.md), the [ADRs](docs/adr/), the glossary in
+[CONTEXT.md](CONTEXT.md), the [fusion acceptance criteria](docs/fusion-acceptance.md) and the
+[marketplace inventory](docs/marketplaces.md).
 
 ## Tools
 
@@ -50,7 +57,11 @@ purchase or give legal advice, and it is not the authority of record. See [VISIO
 | `get_instrument` | One framework/dynamic market: lots, lifecycle status, mechanics, buying docs, appointed suppliers (each with a membership qualifier + evidence). RM lookups return the canonical GCA agreement, not a reseller's listing of it. |
 | `find_services` | **Capability search (semantic + proof):** given a need ('host an open-source app', 'transcribe meetings', 'a desk'), the specific catalogue **listings** that do it — by meaning (vector search, so it matches with no shared keyword) and keyword. Each carries the citable listing URL, the supplier's **real call-off track record** (£ won on that framework), an indicative price, and months-to-expiry. Answers "who can actually do this *and delivers it*", not just "which framework". |
 | `compliant_path` | **How to actually buy it:** instrument/RM → the permitted award mechanic (direct award vs further competition) + conditions + buying documents + the "a GPC card / marketplace is **not** a route" caveats. The next steps. |
+| `benchmark_price` | **Buyer:** the real £ distribution the public sector actually paid for a category (median, p25–p75, overall + by channel) from 658k awards — list price → market price. |
+| `due_diligence` | **Buyer:** is this supplier safe? CRN-matched delivery record — call-off £, customer concentration, competitive-vs-direct mix, CPV footprint, contract-end dates. |
 | `find_instruments_to_list` | **Seller:** instruments a vendor can be appointed to (open frameworks / dynamic markets) + how-to-apply. |
+| `supplier_pipeline` | **Seller:** the whole go-to-market in one call — live opportunities to bid, frameworks ranked by *real* call-off spend, incumbents to displace + contract-end windows, and resellers who could carry you in. |
+| `spend_xray` | **Researcher:** how public money flows in a category (framework call-off vs open tender vs direct award) + market concentration (top-5 share). |
 | `list_resellers` | "Who's like Bramble" — thin-primes & VARs by channel/category/vendor, with their inbound scope. |
 | `get_supplier` | One supplier: Companies House match snapshot, frameworks/lots, channel, inbound scope. |
 | `query_sql` | Read-only BigQuery over `govbuy_public` (+ the `sibling_call_off_awards` snapshot to join real call-offs). Byte-capped. |
