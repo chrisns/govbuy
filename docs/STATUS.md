@@ -75,9 +75,12 @@ from one MCP. Fused tables refresh via `bq.materialize_fusion()`.
   the "a card/marketplace is NOT a route" payment caveats — the actual next steps.
 - **Reseller graph**: expanded 1 → 17 (thin-prime/VAR/hybrid) + 64 vendor `inbound_scope` links, via a
   parallel thin-prime extraction workflow, all source-anchored.
-- **Eval harness** (`eval/golden_questions.json` + `scripts/workflows/eval-harness.js`): 24 golden
-  buyer/seller questions → live MCP → parallel LLM-judges. **Baseline: 71% pass, 0.75 avg** — failures
-  cluster on Procurement-Act-2023 regime nuance (standstill, payment-blind, DPS sunset) — the next gap.
+- **Eval harness** (`eval/golden_questions.json` + `scripts/workflows/eval-harness.js`): golden
+  buyer/seller questions → live MCP → parallel LLM-judges. **27 questions (incl. 3 fused-persona):
+  74% pass / 0.73 avg — up from the 71% baseline; all three persona questions pass.** Remaining failures
+  cluster on **Procurement-Act-2023 statutory nuance** (the 8-day standstill, the term "competitive
+  flexible procedure", the DPS→dynamic-market sunset deemed-end Feb 2029, statutory-direct-award vs a
+  framework call-off) — encoding that regime knowledge is the clear next gap.
 
 ### Capability search — service-level descriptions (DONE across all UK buying catalogues)
 govbuy indexes **65,442 per-listing descriptions** across every public UK public-sector buying
