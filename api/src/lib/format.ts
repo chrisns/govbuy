@@ -102,7 +102,15 @@ export async function freshness(): Promise<unknown> {
               (SELECT COUNT(*) FROM ${tableRef("instrument")}) AS instruments,
               (SELECT COUNTIF(lifecycle_status='live_for_call_off') FROM ${tableRef("instrument")}) AS live_instruments,
               (SELECT COUNT(*) FROM ${tableRef("supplier")}) AS suppliers,
-              (SELECT COUNT(*) FROM ${tableRef("appointed_supplier")}) AS appointed_supplier_edges`,
+              (SELECT COUNT(*) FROM ${tableRef("appointed_supplier")}) AS appointed_supplier_edges,
+              (SELECT COUNT(*) FROM ${tableRef("supplier_crn_canonical")}) AS canonical_crns,
+              (SELECT COUNTIF(member_count>1) FROM ${tableRef("supplier_crn_canonical")}) AS split_identities_reconciled,
+              (SELECT COUNT(*) FROM ${tableRef("tender_award")}) AS fused_awards,
+              (SELECT COUNT(*) FROM ${tableRef("observed_membership")}) AS observed_membership_edges,
+              (SELECT COUNT(DISTINCT rm_reference) FROM ${tableRef("observed_membership")}) AS frameworks_with_observed_members,
+              (SELECT COUNT(*) FROM ${tableRef("observed_mechanic")}) AS frameworks_with_observed_mechanics,
+              (SELECT COUNT(*) FROM ${tableRef("pipeline_notice")}) AS forward_pipeline_notices,
+              (SELECT COUNT(*) FROM ${tableRef("debarment_list")}) AS debarment_list_entries`,
     );
     indexSize = s[0] ? Object.fromEntries(Object.entries(s[0]).map(([k, v]) => [k, p(v)])) : null;
   } catch { indexSize = null; }

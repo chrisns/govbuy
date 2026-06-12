@@ -543,6 +543,59 @@ def materialize_fusion() -> dict:
             "pipeline_notice_rows": query(f"SELECT COUNT(*) n FROM `{config.pub('pipeline_notice')}`")[0]["n"]}
 
 
+def materialize_observed() -> dict:
+    """Backfill membership + call-off mechanics from the 658k real awards (the 'awesome #2' enhancement).
+    Many frameworks publish no supplier list (752) or no award mechanic (918); a real award that cites an
+    RM reference + a supplier CRN is verbatim evidence of BOTH. These are 'observed from award notices'
+    (inferred, not official membership) — surfaced as such by the API. Also builds the canonical-CRN map
+    that collapses split supplier identities (the GCA spine vs the Digital Marketplace directory)."""
+    c = client()
+    c.query(f"""
+      CREATE OR REPLACE TABLE `{config.pub('observed_membership')}` CLUSTER BY rm_reference AS
+      SELECT rm_reference, supplier_crn, ANY_VALUE(supplier_name) AS supplier_name,
+             COUNT(*) AS award_count, ROUND(SUM(award_amount),0) AS total_gbp, MAX(award_date) AS last_award_date
+      FROM `{config.pub('tender_award')}`
+      WHERE rm_reference IS NOT NULL AND supplier_crn IS NOT NULL AND award_amount BETWEEN 0 AND 100000000
+      GROUP BY rm_reference, supplier_crn
+    """).result()
+    c.query(f"""
+      CREATE OR REPLACE TABLE `{config.pub('observed_mechanic')}` AS
+      SELECT rm_reference,
+             COUNTIF(channel='framework_call_off') AS framework_call_off, COUNTIF(channel='dps_call_off') AS dps_call_off,
+             COUNTIF(channel='direct') AS direct_award, COUNTIF(channel='open') AS open_competition, COUNT(*) AS total_awards
+      FROM `{config.pub('tender_award')}` WHERE rm_reference IS NOT NULL GROUP BY rm_reference
+    """).result()
+    # Canonical supplier identity per Companies House number: the GCA spine ingests a firm as `<slug>-ltd`,
+    # the Digital Marketplace directory as `dm-<id>`, so one CRN can hold >1 supplier_id. Pick the
+    # highest-confidence record as canonical and keep the full member set so the API unions appointments.
+    c.query(f"""
+      CREATE OR REPLACE TABLE `{config.pub('supplier_crn_canonical')}` AS
+      SELECT company_number,
+             ARRAY_AGG(supplier_id ORDER BY match_confidence DESC NULLS LAST, supplier_id LIMIT 1)[OFFSET(0)] AS canonical_supplier_id,
+             ARRAY_AGG(supplier_id ORDER BY supplier_id) AS member_supplier_ids, COUNT(*) AS member_count
+      FROM `{config.pub('supplier')}` WHERE company_number IS NOT NULL GROUP BY company_number
+    """).result()
+    return {"observed_membership_rows": query(f"SELECT COUNT(*) n FROM `{config.pub('observed_membership')}`")[0]["n"],
+            "observed_mechanic_rows": query(f"SELECT COUNT(*) n FROM `{config.pub('observed_mechanic')}`")[0]["n"],
+            "supplier_crn_canonical_rows": query(f"SELECT COUNT(*) n FROM `{config.pub('supplier_crn_canonical')}`")[0]["n"]}
+
+
+def materialize_debarment(rows: list[dict]) -> int:
+    """The PA2023 s.62 central debarment list (gov.uk). The register is published as a PDF and is currently
+    BLANK (no ministerial debarment decisions yet), so this normally creates an empty, correctly-typed table
+    — which still lets the exclusion gate state 'checked the register, not debarred' with a source. Any future
+    entries flow through token-free via reference-data/debarment_list.jsonl."""
+    c = client()
+    c.query(f"""
+      CREATE OR REPLACE TABLE `{config.pub('debarment_list')}` (
+        company_number STRING, ppon STRING, supplier_name STRING, grounds STRING,
+        mandatory_or_discretionary STRING, decision_date DATE, review_date DATE, source_url STRING)
+    """).result()
+    if rows:
+        c.insert_rows_json(config.pub('debarment_list'), rows)
+    return len(rows)
+
+
 # ----------------------------------------------------------------- status + run ledger
 def _health(last_run_status: str, last_success_iso: str | None) -> str:
     """green/amber/red (PRD §11/N6): red if last run failed/paused or no success within the

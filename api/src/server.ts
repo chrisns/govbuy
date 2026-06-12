@@ -78,6 +78,66 @@ async function paymentCaveats(): Promise<unknown[]> {
   ];
 }
 
+// --- Exclusion gate: PA2023 has TWO limbs — insolvency (Sch 6/7) and the s.62 debarment register.
+const DEBARMENT_SRC = "https://www.gov.uk/government/publications/debarment-list";
+const DISTRESS = new Set(["dissolved", "liquidation", "administration", "closed", "receivership",
+  "insolvency-proceedings", "voluntary-arrangement", "converted-closed", "in-administration"]);
+
+// Live Companies House status for one CRN (the supplier you're about to award). Returns null when the
+// service has no CH key, or on any error/timeout — callers fall back to the ingest-time snapshot.
+async function liveChStatus(crn: string | null | undefined): Promise<{ status: string; checked_at: string } | null> {
+  const key = process.env.COMPANIES_HOUSE_API;
+  if (!key || !crn) return null;
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 3500);
+    const res = await fetch(`https://api.company-information.service.gov.uk/company/${encodeURIComponent(crn)}`,
+      { headers: { Authorization: `Basic ${Buffer.from(key + ":").toString("base64")}` }, signal: ctrl.signal });
+    clearTimeout(t);
+    if (!res.ok) return null;
+    const j = (await res.json()) as { company_status?: string };
+    if (!j.company_status) return null;
+    return { status: j.company_status, checked_at: new Date().toISOString() };
+  } catch { return null; }
+}
+
+// Is this CRN on the s.62 debarment register? (Register is currently blank; this still lets us state
+// 'checked, not debarred' with a source — and surfaces a real entry the moment one is published.)
+async function debarmentEntry(crn: string | null | undefined): Promise<Record<string, unknown> | null> {
+  if (!crn) return null;
+  try {
+    const rows = await runQuery(`SELECT supplier_name, grounds, mandatory_or_discretionary, decision_date, review_date, source_url
+      FROM ${tableRef("debarment_list")} WHERE company_number = @crn LIMIT 1`, { params: { crn }, types: { crn: "STRING" } });
+    return rows.length ? (deep(rows[0]) as Record<string, unknown>) : null;
+  } catch { return null; }
+}
+
+// Assemble the full exclusion verdict for a CRN: live-or-snapshot insolvency status + debarment, naming
+// both PA2023 limbs. `snapshot` is the ingest-time status_at_match (used when live is unavailable).
+async function exclusionFor(crn: string | null | undefined, snapshot: string | null | undefined) {
+  const [live, deb] = await Promise.all([liveChStatus(crn), debarmentEntry(crn)]);
+  const effective = (live?.status ?? snapshot ?? "").toString();
+  const insolvent = DISTRESS.has(effective);
+  const debarred = !!deb;
+  return {
+    flagged: insolvent || debarred,
+    insolvency: {
+      flagged: insolvent, status: effective || null,
+      source: live ? "live_companies_house" : "ingest_snapshot",
+      checked_at: live?.checked_at ?? null,
+      note: insolvent
+        ? `⚠ PA2023 Schedule 6/7 exclusion ground: Companies House status is '${effective}' (${live ? "LIVE check" : "snapshot at match time"}). A contracting authority must consider insolvency/dissolution before award.`
+        : `No Companies-House distress flag (${live ? "LIVE status '" + effective + "'" : "snapshot — re-check live before award"}).`,
+    },
+    debarment: {
+      checked: true, listed: debarred, register_url: DEBARMENT_SRC, entry: deb ?? null,
+      note: debarred
+        ? `⚠ PA2023 s.62 DEBARMENT: this supplier is on the central debarment list (${String(deb?.mandatory_or_discretionary ?? "")} ground). Exclusion may be mandatory — verify on the register before any procurement.`
+        : "Checked the s.62 central debarment register — not listed (the register is published by gov.uk and is currently blank).",
+    },
+  };
+}
+
 // Batch-resolve evidence_id -> evidence block in JS (avoids cross-table correlated subqueries in
 // deeply-nested array contexts). Walks the result tree, collects ids, one claim_evidence query, attaches.
 function collectIds(node: unknown, acc: Set<string>): void {
@@ -117,7 +177,9 @@ export function buildServer(): McpServer {
         "Responses are source-anchored and carry URLs: framework official_url, operator_url, supplier ch_url (Companies House), buying-document urls, and an evidence.source_url on every asserted claim. " +
         "ALWAYS surface these to the user as clickable markdown links with the thing's name as the link text — naming a framework, supplier, or source without linking its URL is not useful. " +
         "When a buyer describes a concrete capability (e.g. 'host this app', 'an M365 mailbox', 'a service desk', 'a desk', 'classroom furniture'), find_routes gives the framework/route, then find_services surfaces the specific catalogue listings that do it — each with a citable listing URL, and where known the supplier's real call-off track record (£ won on that framework), an indicative price, and months-to-framework-expiry. Then compliant_path turns the chosen framework into the actual next steps (permitted award mechanic + conditions + documents + the 'a card/marketplace is not a route' caveat). Prefer naming concrete listings, citing the proof-of-delivery, and giving the call-off mechanic over only naming a framework. " +
-        "govbuy is fused with the UK Tenders corpus (658k real awards), so it serves three personas: BUYERS — benchmark_price (what was actually paid), due_diligence (is this supplier safe), and plan_buy (one opinionated end-to-end brief: route + shortlist + price + exclusion check + compliance checklist); SUPPLIERS — supplier_pipeline (live + FORWARD-pipeline opportunities + frameworks that really pay + incumbents to displace + resellers); RESEARCHERS — spend_xray (how money flows by channel + competition health). All joined on Companies House CRN; cite the source URLs. " +
+        "govbuy is fused with the UK Tenders corpus (658k real awards), so it serves three personas: BUYERS — benchmark_price (what was actually paid), due_diligence (is this supplier safe), plan_buy (one opinionated end-to-end brief), compare_routes (a head-to-head decision matrix of the viable routes on speed/competition/price/supplier-depth/runway), and contract_expiry_radar (re-procurement deadlines); SUPPLIERS — supplier_pipeline (live + FORWARD-pipeline opportunities + frameworks that really pay + incumbents to displace + resellers) and contract_expiry_radar (incumbents whose contracts are running out = displacement windows); RESEARCHERS — spend_xray (how money flows by channel + competition health). All joined on Companies House CRN; cite the source URLs. " +
+        "Coverage gaps are backfilled from reality: get_instrument returns `observed_from_awards` (suppliers/mechanics inferred from real award notices citing an RM) where the official supplier list or award mechanic is absent — label it as inferred, not official membership. find_routes/get_instrument carry a `coverage` struct so you can tell the user how complete the record is. " +
+        "The exclusion gate has TWO PA2023 limbs and get_supplier/due_diligence check BOTH: insolvency (Sch 6/7) via a LIVE Companies House status lookup where available (exclusion.insolvency.source = live_companies_house vs ingest_snapshot), and the s.62 debarment register. If exclusion.flagged, LEAD with the ⚠ and name the limb. " +
         "compliant_path is Procurement-Act-2023-precise (competitive flexible procedure, 8-working-day standstill, lawful direct-award grounds, the DPS→dynamic-market sunset, the >£5m KPI duty, payment-method-blind) — and a framework call-off is NOT a statutory direct award. ALWAYS surface an exclusion ⚠ when a supplier is dissolved / in liquidation / administration (a PA2023 exclusion ground), and treat a NULL track record as absence of evidence, not of capability. " +
         "GROUNDING (critical): every specific £ figure, framework/RM reference, supplier name and URL you give MUST come verbatim from a tool result — never invent, estimate, or infer one. If govbuy doesn't return it, say so or call the right tool; a fabricated RM number or £ figure is worse than admitting the gap. " +
         "DATA RESIDENCY: when the need involves processing data — especially AI/ML, speech-to-text/transcription, hosting, or anything handling personal or sensitive content (e.g. meeting audio, case records) — remind the buyer to confirm where the data and any AI inference are processed (UK/EEA region, UK-GDPR) as a due-diligence point, since a catalogue listing does not by itself guarantee data residency. " +
@@ -145,6 +207,13 @@ export function buildServer(): McpServer {
                o.name AS operator, o.kind AS operator_kind, o.home_url AS operator_url,
                ${LOTS("i")} AS lots, ${MECHANICS("i")} AS award_mechanics, ${DOCS("i")} AS buying_docs,
                iev.ev AS evidence,
+               -- coverage: how complete govbuy's record is for this route (a FALSE = unpublished/login-walled,
+               -- not necessarily non-existent; observed-from-awards can still backfill it via get_instrument).
+               STRUCT(
+                 EXISTS(SELECT 1 FROM ${tableRef("appointed_supplier")} a WHERE a.instrument_id = i.instrument_id) AS has_official_supplier_list,
+                 EXISTS(SELECT 1 FROM ${tableRef("award_mechanic")} am WHERE am.instrument_id = i.instrument_id) AS has_award_mechanic,
+                 EXISTS(SELECT 1 FROM ${tableRef("observed_membership")} om WHERE om.rm_reference = i.rm_reference) AS has_observed_awards
+               ) AS coverage,
                -- relevance: a query token hitting the NAME is worth most, then a category tag, then a lot.
                -- Without this, ORDER BY name alphabetically buries a specific match (e.g. "Drones DPS") under
                -- generic ones (every "…Equipment" framework) when a broad token like "equipment" is present.
@@ -199,7 +268,33 @@ export function buildServer(): McpServer {
       if (!rows.length) return toolError("UNKNOWN_ID", `No instrument for '${args.id ?? args.rm_reference}'.`, "Try the RM reference (e.g. RM1557.14) or call find_routes.");
       const r = deep(rows[0]) as Record<string, unknown>;
       const suppliers = (r.appointed_suppliers as Record<string, unknown>[]).map((s) => ({ ...s, membership: membership(s) }));
-      return ok(withFreshness({ instrument: { ...r, appointed_suppliers: suppliers }, note: NOT_ADVICE, display_guidance: DISPLAY_GUIDANCE }, await freshness()));
+      const mechanics = (r.award_mechanics as unknown[]) ?? [];
+      const rm = r.rm_reference as string | null;
+      // Backfill from real awards: who has actually been awarded call-offs citing this RM, and the observed
+      // mechanic mix — fills the gap where the official supplier list / award mechanic is absent.
+      const [obsSup, obsMech] = await Promise.all([
+        rm ? runQuery(`SELECT supplier_crn, supplier_name, award_count, total_gbp, CAST(last_award_date AS STRING) AS last_award_date
+                       FROM ${tableRef("observed_membership")} WHERE rm_reference = @rm ORDER BY total_gbp DESC LIMIT 30`, { params: { rm }, types: { rm: "STRING" } }) : Promise.resolve([]),
+        rm ? runQuery(`SELECT framework_call_off, dps_call_off, direct_award, open_competition, total_awards
+                       FROM ${tableRef("observed_mechanic")} WHERE rm_reference = @rm LIMIT 1`, { params: { rm }, types: { rm: "STRING" } }) : Promise.resolve([]),
+      ]);
+      const observedSuppliers = (obsSup as Record<string, unknown>[]).map(deep);
+      const coverage = {
+        has_official_supplier_list: suppliers.length > 0,
+        has_award_mechanic: mechanics.length > 0,
+        has_observed_awards: observedSuppliers.length > 0,
+        crn_matched: suppliers.some((s) => (s as Record<string, unknown>).company_number),
+        note: "Completeness of govbuy's record for this instrument. A FALSE on the official list/mechanic doesn't mean none exists — it may be login-walled or unpublished; `observed_from_awards` backfills it from real spend.",
+      };
+      return ok(withFreshness({
+        instrument: { ...r, appointed_suppliers: suppliers },
+        observed_from_awards: {
+          note: "INFERRED from real award notices (658k awards) citing this RM reference — evidence a supplier has actually transacted on it, NOT official appointed-membership. Useful where the official list/mechanic is absent.",
+          suppliers: observedSuppliers,
+          mechanic_mix: (obsMech as Record<string, unknown>[]).map(deep)[0] ?? null,
+        },
+        coverage,
+        note: NOT_ADVICE, display_guidance: "Show appointed_suppliers as the official list. When it's empty or `coverage.has_observed_awards` is true, present `observed_from_awards.suppliers` as 'suppliers seen winning call-offs on this RM in real awards (inferred, not official membership)'. If `coverage.has_award_mechanic` is false, use `observed_from_awards.mechanic_mix` to describe how call-offs have actually been made (direct vs competed). " + DISPLAY_GUIDANCE }, await freshness()));
     }),
   );
 
@@ -289,7 +384,7 @@ export function buildServer(): McpServer {
     "get_supplier",
     {
       title: "Get supplier",
-      description: "BUYER/RESEARCHER. Full profile of one supplier by name or Companies House CRN: the CRN match snapshot (band, status-at-match), an **exclusion alert** (⚠ if dissolved/in liquidation/administration — a PA2023 exclusion ground), channel type (thin-prime/VAR/vendor), instruments/lots appointed to (with membership qualifier + dates) — **reconciled across ingestion sources** so the framework footprint is the firm's full set even when the GCA spine and the Digital Marketplace directory hold it under different supplier_ids — and inbound scope if it resells. Use when you know which supplier you're investigating. Anti-patterns: status_at_match is a snapshot at match time, NOT live Companies House status — always link ch_url for the live record. Chain to due_diligence (delivery track record) or get_instrument (the specific framework).",
+      description: "BUYER/RESEARCHER. Full profile of one supplier by name or Companies House CRN: a TWO-LIMB PA2023 **exclusion check** — (a) insolvency Sch 6/7, using a **LIVE Companies House status** lookup where available (else the ingest snapshot, labelled), and (b) the **s.62 debarment register** (checked even when blank) — plus channel type (thin-prime/VAR/vendor), instruments/lots appointed to (membership qualifier + dates) **reconciled across ingestion sources via the canonical-CRN map** (the firm's full footprint even when the GCA spine and Digital Marketplace hold it under different ids), `frameworks_evidenced_by_awards` (RMs it has actually won call-offs under, from 658k awards), and inbound scope if it resells. Use when you know which supplier you're investigating. Anti-patterns: if exclusion.flagged, LEAD with the ⚠; a NULL track record is absence of evidence, not incapacity. Chain to due_diligence (delivery record) or get_instrument (the framework).",
       inputSchema: { name: z.string().optional(), crn: z.string().optional(), resultMode: RESULT_MODE },
     },
     guard(async (args) => {
@@ -307,8 +402,12 @@ export function buildServer(): McpServer {
           ORDER BY (s.company_number IS NOT NULL) DESC, s.match_confidence DESC NULLS LAST
           LIMIT 1),
         ids AS (
-          SELECT DISTINCT s.supplier_id FROM ${tableRef("supplier")} s, matched m
-          WHERE (m.company_number IS NOT NULL AND s.company_number = m.company_number) OR s.supplier_id = m.supplier_id)
+          -- Membership set from the canonical-CRN map (one canonical id per company_number, full member set);
+          -- falls back to the matched id alone when the firm has no CRN.
+          SELECT id AS supplier_id
+          FROM matched m
+          LEFT JOIN ${tableRef("supplier_crn_canonical")} cc ON cc.company_number = m.company_number
+          CROSS JOIN UNNEST(COALESCE(cc.member_supplier_ids, [m.supplier_id])) AS id)
         SELECT m.supplier_id, m.display_name, m.company_number, m.registered_name, m.match_confidence,
                m.match_band, m.status_at_match, m.matched_on, m.ch_url, m.publisher_ids,
                ARRAY(SELECT AS STRUCT rc.channel_type, rc.confidence, rc.evidence_id FROM ${tableRef("reseller_channel")} rc WHERE rc.supplier_id IN (SELECT supplier_id FROM ids)) AS channels,
@@ -322,14 +421,22 @@ export function buildServer(): McpServer {
       const r = deep(rows[0]) as Record<string, unknown>;
       const appointments = (r.appointments as Record<string, unknown>[]).map((a) => ({ ...a, membership: membership(a) }));
       const reconciledIds = (r.reconciled_supplier_ids as string[]) ?? [];
-      const excluded = ["dissolved", "liquidation", "administration", "closed"].includes(String(r.status_at_match));
-      const exclusion = { flagged: excluded, status: excluded ? r.status_at_match : null,
-        note: excluded ? `⚠ Exclusion risk: Companies House status was '${r.status_at_match}' at match time — a PA2023 Schedule 6/7 (insolvency/dissolution) ground a contracting authority must consider. Snapshot only; re-check live at ch_url before any award.` : "No Companies-House distress flag on record (snapshot — re-check live before award)." };
+      const crn = r.company_number as string | null;
+      // Two-limb PA2023 exclusion (live CH where possible + debarment) and award-evidenced frameworks.
+      const [exclusion, observed] = await Promise.all([
+        exclusionFor(crn, r.status_at_match as string | null),
+        crn ? runQuery(`SELECT rm_reference, award_count, total_gbp, CAST(last_award_date AS STRING) AS last_award_date
+                        FROM ${tableRef("observed_membership")} WHERE supplier_crn = @crn ORDER BY total_gbp DESC LIMIT 25`,
+                       { params: { crn }, types: { crn: "STRING" } }) : Promise.resolve([]),
+      ]);
       const reconciledNote = reconciledIds.length > 1
         ? `Framework footprint reconciled across ${reconciledIds.length} supplier records sharing this Companies House number (ids: ${reconciledIds.join(", ")}) — the GCA spine and the Digital Marketplace directory ingest the same firm under different ids.`
         : undefined;
-      const payload = await withEvidence({ supplier: { ...r, appointments, ...(reconciledNote ? { reconciliation: reconciledNote } : {}) }, exclusion,
-        display_guidance: "If exclusion.flagged is true, LEAD with the ⚠ warning. Always link ch_url for live status. " + DISPLAY_GUIDANCE });
+      const payload = await withEvidence({
+        supplier: { ...r, appointments, ...(reconciledNote ? { reconciliation: reconciledNote } : {}) },
+        exclusion,
+        frameworks_evidenced_by_awards: (observed as Record<string, unknown>[]).map(deep),
+        display_guidance: "If exclusion.flagged is true, LEAD with the ⚠ (state which limb: insolvency Sch 6/7 or s.62 debarment). exclusion.insolvency.source tells you if the status is a LIVE Companies House check or an ingest snapshot. `frameworks_evidenced_by_awards` are RMs this firm has really won call-offs under (real-award evidence of membership), which can include frameworks beyond its official appointments. Always link ch_url. " + DISPLAY_GUIDANCE });
       return ok(withFreshness(payload, await freshness()));
     }),
   );
@@ -381,12 +488,14 @@ export function buildServer(): McpServer {
           SELECT sv.service_id, sv.catalogue, sv.name, sv.supplier_name, sv.lot, sv.description, sv.features, sv.benefits,
                  sv.url, sv.instrument_id, sup.company_number, sup.ch_url, sup.match_band,
                  IF(sup.status_at_match IN ('dissolved','liquidation','administration','closed'), sup.status_at_match, NULL) AS exclusion_status,
+                 (deb.company_number IS NOT NULL) AS supplier_debarred,
                  inst.rm_reference, inst.expires_on, ${priceExpr} AS price_gbp,
                  LOWER(sv.name) AS nm,
                  LOWER(CONCAT(sv.name, ' ', IFNULL(sv.description, ''), ' ',
                               ARRAY_TO_STRING(sv.features, ' '), ' ', ARRAY_TO_STRING(sv.benefits, ' '))) AS hay
           FROM ${tableRef("service")} sv
           LEFT JOIN ${tableRef("supplier")} sup ON sup.supplier_id = sv.supplier_id
+          LEFT JOIN ${tableRef("debarment_list")} deb ON deb.company_number = sup.company_number
           LEFT JOIN ${tableRef("instrument")} inst ON inst.instrument_id = sv.instrument_id
           WHERE (@sup IS NULL OR LOWER(sv.supplier_name) LIKE @sup)
             AND (@cat IS NULL OR sv.catalogue = @cat)
@@ -619,16 +728,15 @@ export function buildServer(): McpServer {
           FROM ${tableRef("supplier")} WHERE company_number = COALESCE(@crn,
             (SELECT company_number FROM ${tableRef("supplier")} WHERE @sup IS NOT NULL AND LOWER(display_name) LIKE @sup AND company_number IS NOT NULL LIMIT 1)) LIMIT 1`,
         { params: { crn: args.crn ?? null, sup }, types: { crn: "STRING", sup: "STRING" } })).map((x) => deep(x) as Record<string, unknown>)[0] ?? {};
-      const distress = ["dissolved", "liquidation", "administration", "closed"];
-      const excluded = distress.includes(String(sinfo.status_at_match));
+      const crn = (sinfo.company_number ?? args.crn ?? null) as string | null;
+      const exclusion = await exclusionFor(crn, sinfo.status_at_match as string | null);
       if ((!r || r.calloffs == null || Number(r.calloffs) === 0) && !sinfo.company_number) return toolError("UNKNOWN", `No CRN-matched public-sector awards for '${args.crn ?? args.supplier}'. Absence of evidence, not of capability — they may trade under a different entity or win below threshold.`);
       return ok(withFreshness({
-        supplier: { crn: sinfo.company_number ?? args.crn ?? null, display_name: sinfo.display_name ?? null, ch_url: sinfo.ch_url ?? null, companies_house_status: sinfo.status_at_match ?? null },
-        exclusion: { flagged: excluded, status: excluded ? sinfo.status_at_match : null,
-          note: excluded ? `⚠ Exclusion risk: Companies House status was '${sinfo.status_at_match}' at award-match time — a PA2023 Schedule 6/7 (insolvency/dissolution) ground a contracting authority must consider. This is a snapshot; re-check live at Companies House before any award.` : "No Companies-House distress flag on record (snapshot — re-check live before award)." },
+        supplier: { crn, display_name: sinfo.display_name ?? null, ch_url: sinfo.ch_url ?? null, companies_house_status: exclusion.insolvency.status },
+        exclusion,
         profile: r,
         note: "CRN-matched delivery record from real tender awards (call-off channels, £ ceiling outliers removed). top_buyer_pct_of_calloff >50% = single-customer risk; high pct_direct_award = wins by direct award not competition. NULL/absent record = no matched awards, not proof of incapacity. " + NOT_ADVICE,
-        display_guidance: "If `exclusion.flagged` is true, LEAD with the ⚠ warning before anything else. Then state £ won + call-offs + distinct buyers as the record, flag concentration and competitive-vs-direct mix, and the CPV footprint. Link the ch_url. " + DISPLAY_GUIDANCE,
+        display_guidance: "If `exclusion.flagged` is true, LEAD with the ⚠ before anything else and say which limb: insolvency (Sch 6/7) or s.62 debarment. exclusion.insolvency.source = 'live_companies_house' means the status was checked live just now; 'ingest_snapshot' means re-check live. Then state £ won + call-offs + distinct buyers, flag concentration and competitive-vs-direct mix, and the CPV footprint. Link the ch_url. " + DISPLAY_GUIDANCE,
       }, await freshness()));
     }),
   );
@@ -651,12 +759,14 @@ export function buildServer(): McpServer {
         WITH s AS (
           SELECT sv.service_id, sv.catalogue, sv.name, sv.supplier_name, sv.url, sv.instrument_id, sup.ch_url, sup.company_number,
                  IF(sup.status_at_match IN ('dissolved','liquidation','administration','closed'), sup.status_at_match, NULL) AS exclusion_status,
+                 (deb.company_number IS NOT NULL) AS supplier_debarred,
                  tr.calloff_gbp, tr.calloff_count, LOWER(sv.name) AS nm,
                  LOWER(CONCAT(sv.name,' ',IFNULL(sv.description,''),' ',ARRAY_TO_STRING(sv.features,' '))) AS hay
           FROM ${tableRef("service")} sv
           LEFT JOIN ${tableRef("supplier")} sup ON sup.supplier_id = sv.supplier_id
+          LEFT JOIN ${tableRef("debarment_list")} deb ON deb.company_number = sup.company_number
           LEFT JOIN ${tableRef("supplier_calloff_total")} tr ON tr.supplier_crn = sup.company_number)
-        SELECT service_id, catalogue, name, supplier_name, url, ch_url, exclusion_status, calloff_gbp, calloff_count, instrument_id
+        SELECT service_id, catalogue, name, supplier_name, url, ch_url, exclusion_status, supplier_debarred, calloff_gbp, calloff_count, instrument_id
         FROM s WHERE ${anyHits} > 0
         ORDER BY (${anyHits} = ARRAY_LENGTH(@toks)) DESC, (5*${nameHits} + ${anyHits}) DESC, calloff_gbp DESC NULLS LAST LIMIT 3`;
       const benchSql = `SELECT ROUND(APPROX_QUANTILES(award_amount,100)[OFFSET(25)]) p25, ROUND(APPROX_QUANTILES(award_amount,100)[OFFSET(50)]) median,
@@ -680,16 +790,16 @@ export function buildServer(): McpServer {
         GROUP BY i.name, i.rm_reference, i.expires_on, i.official_url, i.lifecycle_status LIMIT 1`,
         { params: { iid }, types: { iid: "STRING" } })).map((r) => deep(r) as Record<string, unknown>)[0] ?? {};
       const b = (bench.map((r) => deep(r) as Record<string, unknown>)[0]) ?? {};
-      const anyExcluded = shortlist.some((s) => s.exclusion_status);
+      const anyExcluded = shortlist.some((s) => s.exclusion_status || s.supplier_debarred);
       const residencyNote = dataResidencyNote(args.need);
       return ok(withFreshness({
-        summary: `For "${args.need}": the recommended route is to call off the best-fit listing on ${mech.name ?? iid} (${mech.top_mechanic ?? "per the framework's mechanic"}).${anyExcluded ? " ⚠ One shortlisted supplier carries a Companies-House exclusion flag — see below." : ""}`,
+        summary: `For "${args.need}": the recommended route is to call off the best-fit listing on ${mech.name ?? iid} (${mech.top_mechanic ?? "per the framework's mechanic"}).${anyExcluded ? " ⚠ A shortlisted supplier carries a PA2023 exclusion flag (insolvency or s.62 debarment) — see below." : ""}`,
         ...(residencyNote ? { data_residency_note: residencyNote } : {}),
         recommended_route: { instrument: mech.name ?? null, rm_reference: mech.rm_reference ?? null, mechanic: mech.top_mechanic ?? null, lifecycle_status: mech.lifecycle_status ?? null, expires_on: mech.expires_on ?? null, official_url: mech.official_url ?? null },
         indicative_price: b.n ? { p25_gbp: b.p25, median_gbp: b.median, p75_gbp: b.p75, sample_size: b.n, note: `from ${b.n} comparable CPV-${cpv} call-off awards (real spend; a range, not a quote)` } : { note: "pass a `cpv` division (e.g. '72'=IT) for a real-award price benchmark" },
         shortlisted_services: shortlist.map((s, i) => ({ rank: i + 1, name: s.name, supplier: s.supplier_name, catalogue: s.catalogue, url: s.url, ch_url: s.ch_url,
           track_record: s.calloff_gbp ? `£${s.calloff_gbp} across ${s.calloff_count} public-sector call-offs (CRN-matched)` : "no CRN-matched call-offs on record (absence of evidence, not of capability)",
-          exclusion_flag: !!s.exclusion_status, exclusion_status: s.exclusion_status ?? null })),
+          exclusion_flag: !!(s.exclusion_status || s.supplier_debarred), exclusion_status: s.exclusion_status ?? null, debarred: !!s.supplier_debarred })),
         pipeline_to_watch: pipe.map((r) => deep(r)),
         compliance_checklist: [
           "A framework call-off is NOT a statutory direct award (PA2023 ss.41/43 don't apply to call-offs).",
@@ -701,6 +811,106 @@ export function buildServer(): McpServer {
         ],
         note: "An opinionated, INDICATIVE buying brief composed from the catalogue + 658k real awards + PA2023. It recommends a route but is not legal/commercial advice, not the authority of record — you run the assessment. " + NOT_ADVICE,
         display_guidance: "Present as a brief: the recommended route + mechanic; the 3 shortlisted listings (link each url + ch_url, show the track record, LEAD any exclusion ⚠); the indicative price range; pipeline to watch; then the compliance checklist verbatim. " + DISPLAY_GUIDANCE,
+      }, await freshness()));
+    }),
+  );
+
+  server.registerTool(
+    "compare_routes",
+    {
+      title: "Compare routes (decision matrix)",
+      description:
+        "BUYER. 'Of the routes that fit, which is best for THIS buy?' Given a need (+ optional cpv for real price evidence), returns a head-to-head decision matrix of up to ~6 live routes, each on the axes a buyer actually weighs: **speed** (direct call-off vs further competition), **competition_required**, **supplier_depth** (official appointed + observed-from-awards), **expiry_runway_months** (act-before), and — when cpv is given — the **real median call-off £**. Unlike find_routes (undifferentiated candidates) it ranks and gives a one-line rationale per route. Anti-patterns: indicative only; the buyer runs the assessment; don't drop the expiry/runway caveat. Chain to plan_buy (full brief on the winner) or compliant_path (how to call it off).",
+      inputSchema: { need: z.string(), cpv: z.string().optional(), limit: z.number().int().min(2).max(8).default(6) },
+    },
+    guard(async (args) => {
+      const toks = tokenize(args.need);
+      if (!toks.length) return toolError("INVALID_QUERY", "Describe the need, e.g. 'managed SOC' or 'cloud hosting'.");
+      const candSql = `
+        SELECT i.instrument_id, i.name, i.rm_reference, i.type, i.official_url, i.expires_on, o.name AS operator,
+               DATE_DIFF(i.expires_on, CURRENT_DATE(), MONTH) AS expiry_runway_months,
+               (SELECT COUNT(DISTINCT a.supplier_id) FROM ${tableRef("appointed_supplier")} a WHERE a.instrument_id = i.instrument_id) AS official_suppliers,
+               (SELECT COUNT(DISTINCT om.supplier_crn) FROM ${tableRef("observed_membership")} om WHERE om.rm_reference = i.rm_reference) AS observed_suppliers,
+               EXISTS(SELECT 1 FROM ${tableRef("award_mechanic")} am WHERE am.instrument_id = i.instrument_id AND am.permitted AND am.mechanic='call_off_no_further_competition') AS direct_calloff_available,
+               EXISTS(SELECT 1 FROM ${tableRef("award_mechanic")} am WHERE am.instrument_id = i.instrument_id AND am.permitted AND am.mechanic='further_competition') AS further_competition_available,
+               (4 * (SELECT COUNT(1) FROM UNNEST(@toks) tok WHERE REGEXP_CONTAINS(LOWER(i.name), CONCAT(r'\\b', tok, r'(?:es|s)?\\b')))
+                + 2 * (SELECT COUNT(1) FROM UNNEST(i.category_tags) t, UNNEST(@toks) tok WHERE LOWER(t) = tok OR LOWER(t) LIKE CONCAT(tok, '%'))
+                + (SELECT COUNT(1) FROM ${tableRef("lot")} l, UNNEST(@toks) tok WHERE l.instrument_id = i.instrument_id AND (REGEXP_CONTAINS(LOWER(l.title), CONCAT(r'\\b', tok, r'(?:es|s)?\\b')) OR REGEXP_CONTAINS(LOWER(IFNULL(l.scope,'')), CONCAT(r'\\b', tok, r'(?:es|s)?\\b'))))) AS match_score
+        FROM ${tableRef("instrument")} i JOIN ${tableRef("operator")} o USING (operator_id)
+        WHERE i.lifecycle_status = 'live_for_call_off'
+          AND (EXISTS (SELECT 1 FROM UNNEST(@toks) tok WHERE REGEXP_CONTAINS(LOWER(i.name), CONCAT(r'\\b', tok, r'(?:es|s)?\\b')))
+            OR EXISTS (SELECT 1 FROM UNNEST(i.category_tags) t, UNNEST(@toks) tok WHERE LOWER(t) = tok OR LOWER(t) LIKE CONCAT(tok, '%'))
+            OR EXISTS (SELECT 1 FROM ${tableRef("lot")} l, UNNEST(@toks) tok WHERE l.instrument_id = i.instrument_id AND (REGEXP_CONTAINS(LOWER(l.title), CONCAT(r'\\b', tok, r'(?:es|s)?\\b')) OR REGEXP_CONTAINS(LOWER(IFNULL(l.scope,'')), CONCAT(r'\\b', tok, r'(?:es|s)?\\b')))))
+        ORDER BY match_score DESC, (official_suppliers + observed_suppliers) DESC, i.name LIMIT @lim`;
+      const [cand, bench] = await Promise.all([
+        runQuery(candSql, { params: { toks, lim: args.limit }, types: { toks: ["STRING"] } }),
+        args.cpv ? runQuery(`SELECT ROUND(APPROX_QUANTILES(award_amount,100)[OFFSET(50)]) median, COUNT(*) n
+            FROM ${tableRef("tender_award")} WHERE cpv_division=@cpv AND channel IN ('framework_call_off','dps_call_off') AND award_amount BETWEEN 0 AND 100000000`,
+          { params: { cpv: args.cpv }, types: { cpv: "STRING" } }) : Promise.resolve([]),
+      ]);
+      if (!cand.length) return toolError("UNKNOWN", `No live routes matched '${args.need}'. Try find_routes or rephrase.`);
+      const price = (bench as Record<string, unknown>[])[0];
+      const routes = ((cand as Record<string, unknown>[]).map(deep) as Record<string, unknown>[]).map((r) => {
+        const direct = !!r.direct_calloff_available, fc = !!r.further_competition_available;
+        const depth = Number(r.official_suppliers ?? 0) + Number(r.observed_suppliers ?? 0);
+        const runway = r.expiry_runway_months == null ? null : Number(r.expiry_runway_months);
+        const speed = direct ? "fast — direct call-off permitted (no further competition)" : fc ? "moderate — further competition required" : "unknown — no award mechanic on record";
+        const flags: string[] = [];
+        if (runway != null && runway <= 6) flags.push(`⏳ expires in ~${runway} months — act now or pick a longer-runway route`);
+        if (depth === 0) flags.push("no supplier list on record (official or observed) — verify membership before relying on it");
+        return {
+          instrument: r.name, rm_reference: r.rm_reference, type: r.type, operator: r.operator, official_url: r.official_url,
+          speed, competition_required: !direct && fc, direct_calloff_available: direct,
+          supplier_depth: { official: Number(r.official_suppliers ?? 0), observed_from_awards: Number(r.observed_suppliers ?? 0), total: depth },
+          expiry_runway_months: runway,
+          rationale: `${speed}; ${depth} supplier(s) on record${runway != null ? `; ~${runway} months' runway` : ""}.`,
+          flags,
+        };
+      });
+      return ok(withFreshness({
+        need: args.need, ranked_by: "relevance, then supplier depth",
+        indicative_price: price && price.n ? { median_gbp: price.median, sample_size: price.n, cpv: args.cpv, note: "real median call-off £ for this CPV division (a range, not a quote)" } : { note: "pass a `cpv` division (e.g. '72'=IT) for a real-award price benchmark" },
+        routes,
+        note: "Head-to-head, INDICATIVE comparison of live routes. 'speed' reflects the permitted award mechanic; 'supplier_depth' blends official appointments with suppliers observed winning call-offs in real awards; 'expiry_runway_months' is the act-before window. Not legal advice — confirm on each official source. " + NOT_ADVICE,
+        display_guidance: "Render as a compact comparison table (route | speed | competition? | supplier depth | runway), then a one-line recommendation citing the rationale. LEAD any ⏳ runway flag. Link each official_url. Chain to plan_buy on the chosen route. " + DISPLAY_GUIDANCE,
+      }, await freshness()));
+    }),
+  );
+
+  server.registerTool(
+    "contract_expiry_radar",
+    {
+      title: "Contract expiry / displacement radar",
+      description:
+        "BUYER + SELLER. 'What's coming up for re-procurement / where can I displace an incumbent?' Given a cpv division and/or keyword and/or a supplier (crn or name) + a horizon (months, default 12), returns real contracts ENDING in that window from the 658k-award corpus — buyer, incumbent supplier (+CRN), value, end date, months_to_end, the framework RM if any, and the notice URL — sorted by soonest end. For BUYERS it's a re-procurement deadline list; for SELLERS it's a displacement-window radar (incumbents whose contracts are running out). Anti-patterns: an end date is the contract's stated end, not a guarantee of re-tender; absence isn't proof nothing's expiring (not every award publishes an end date). Chain to find_routes/compare_routes (how to re-buy) or supplier_pipeline (the seller view).",
+      inputSchema: { cpv: z.string().optional(), keyword: z.string().optional(), supplier_crn: z.string().optional(), supplier: z.string().optional(), horizon_months: z.number().int().min(1).max(60).default(12), limit: z.number().int().min(1).max(50).default(20) },
+    },
+    guard(async (args) => {
+      if (!args.cpv && !args.keyword && !args.supplier_crn && !args.supplier) return toolError("INVALID_QUERY", "Provide at least one of: cpv, keyword, supplier_crn, supplier.");
+      const kw = args.keyword ? `%${args.keyword.toLowerCase()}%` : null;
+      const sup = args.supplier ? `%${args.supplier.toLowerCase()}%` : null;
+      const sql = `
+        SELECT buyer_name, supplier_name, supplier_crn, ROUND(award_amount) AS award_gbp,
+               CAST(contract_end_date AS STRING) AS contract_end_date,
+               DATE_DIFF(contract_end_date, CURRENT_DATE(), MONTH) AS months_to_end,
+               rm_reference, channel, official_url
+        FROM ${tableRef("tender_award")}
+        WHERE contract_end_date BETWEEN CURRENT_DATE() AND DATE_ADD(CURRENT_DATE(), INTERVAL @h MONTH)
+          AND award_amount BETWEEN 0 AND 100000000
+          AND (@cpv IS NULL OR cpv_division = @cpv)
+          AND (@crn IS NULL OR supplier_crn = @crn)
+          AND (@sup IS NULL OR LOWER(supplier_name) LIKE @sup)
+          AND (@kw IS NULL OR LOWER(CONCAT(IFNULL(buyer_name,''),' ',IFNULL(supplier_name,''))) LIKE @kw)
+        ORDER BY contract_end_date, award_gbp DESC LIMIT @lim`;
+      const rows = await runQuery(sql, {
+        params: { h: args.horizon_months, cpv: args.cpv ?? null, crn: args.supplier_crn ?? null, sup, kw, lim: args.limit },
+        types: { h: "INT64", cpv: "STRING", crn: "STRING", sup: "STRING", kw: "STRING", lim: "INT64" },
+      });
+      return ok(withFreshness({
+        count: rows.length, horizon_months: args.horizon_months,
+        expiring_contracts: rows.map(deep),
+        note: "Contracts whose stated end date falls within the horizon (real award notices; ceiling outliers >£100m removed). BUYER lens: your/your-sector re-procurement deadlines. SELLER lens: incumbents whose contracts are running out — displacement windows. An end date is the contract's stated end, not a committed re-tender; not every award publishes one, so absence ≠ nothing expiring. " + NOT_ADVICE,
+        display_guidance: "List soonest-ending first; for each show buyer, incumbent supplier (link the notice official_url), £, and months_to_end. Frame for the persona: buyers see deadlines, sellers see displacement targets. Chain to compare_routes/find_routes (how to re-buy) or supplier_pipeline. " + DISPLAY_GUIDANCE,
       }, await freshness()));
     }),
   );

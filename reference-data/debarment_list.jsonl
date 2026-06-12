@@ -1,0 +1,4 @@
+// PA2023 s.62 central debarment list — https://www.gov.uk/government/publications/debarment-list
+// Published as a PDF; BLANK as of 2026-06 (no ministerial debarment decisions since the regime began 24 Feb 2025).
+// Add one JSON object per debarred supplier when entries appear, e.g.:
+// {"company_number":"01234567","ppon":"PXXX-XXXX-XXXX","supplier_name":"Example Ltd","grounds":"Schedule 6 ...","mandatory_or_discretionary":"mandatory","decision_date":"2026-01-01","review_date":"2031-01-01","source_url":"https://www.gov.uk/government/publications/debarment-list"}

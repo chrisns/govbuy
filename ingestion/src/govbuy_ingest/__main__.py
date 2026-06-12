@@ -71,7 +71,7 @@ def main(argv: list[str] | None = None) -> int:
         from .pipeline import discover
         return discover()
     if args.mode == "materialize-sibling":
-        out = bq.materialize_sibling(); out.update(bq.materialize_track_record()); out.update(bq.materialize_fusion())
+        out = bq.materialize_sibling(); out.update(bq.materialize_track_record()); out.update(bq.materialize_fusion()); out.update(bq.materialize_observed())
         print(json.dumps(out, indent=2, default=str)); return 0
     if args.mode == "gca-sync":
         from .gca_api import sync as fw_sync

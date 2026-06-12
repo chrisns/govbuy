@@ -33,4 +33,8 @@ def seed() -> dict:
         rules = [json.loads(line) for line in pa.read_text().splitlines() if line.strip()]
         bq._replace("pa2023_rule", rules)
         out["pa2023_rule"] = len(rules)
+    # PA2023 s.62 debarment register (gov.uk). Currently blank; any future entries live in this JSONL.
+    deb = Path(__file__).resolve().parents[3] / "reference-data" / "debarment_list.jsonl"
+    deb_rows = [json.loads(line) for line in deb.read_text().splitlines() if line.strip() and not line.lstrip().startswith("//")] if deb.exists() else []
+    out["debarment_list"] = bq.materialize_debarment(deb_rows)
     return out

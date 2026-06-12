@@ -44,6 +44,10 @@ bq update --source "${TMP}" "${PROJECT}:${PUBLIC_DATASET}" >/dev/null
 rm -f "${TMP}"
 
 echo ">> deploying Cloud Run service ${SERVICE} (region ${REGION}) from ./api"
+# Optional: pass the Companies House API key through (enables the LIVE exclusion-status check in
+# get_supplier/due_diligence). If unset, those tools fall back to the ingest snapshot. Value never echoed.
+ENV_VARS="GCP_PROJECT=${PROJECT},BQ_PUBLIC_DATASET=${PUBLIC_DATASET},BQ_LOCATION=${BQ_LOCATION},MAX_BYTES_BILLED=${MAX_BYTES}"
+if [ -n "${COMPANIES_HOUSE_API:-}" ]; then ENV_VARS="${ENV_VARS},COMPANIES_HOUSE_API=${COMPANIES_HOUSE_API}"; echo ">> COMPANIES_HOUSE_API present — live exclusion check enabled"; fi
 gcloud run deploy "${SERVICE}" \
   --source ./api \
   --project "${PROJECT}" \
@@ -51,7 +55,7 @@ gcloud run deploy "${SERVICE}" \
   --service-account "${SA_EMAIL}" \
   --allow-unauthenticated \
   --memory 512Mi --cpu 1 --min-instances 0 --max-instances 1 --session-affinity --timeout 60 \
-  --set-env-vars "GCP_PROJECT=${PROJECT},BQ_PUBLIC_DATASET=${PUBLIC_DATASET},BQ_LOCATION=${BQ_LOCATION},MAX_BYTES_BILLED=${MAX_BYTES}" \
+  --set-env-vars "${ENV_VARS}" \
   --quiet
 
 URL=$(gcloud run services describe "${SERVICE}" --project "${PROJECT}" --region "${REGION}" --format='value(status.url)')
