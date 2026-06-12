@@ -96,11 +96,18 @@ are *not* 8 feature gaps:
   match under generic ones; they now rank by a name>tag>lot match score. Verified live: a `drone`/`drones` query
   returns the Drones DPS 1148 top (deduped); `openOnly` surfaces RM6200 as joinable; `get_instrument` returns
   single, non-duplicated mechanics + evidence.
-- **3 residual items:** the **s49 open-framework** complaint was a *judge* error, not ours — a PA2023 open framework
-  admits suppliers at defined re-opening points (s.49), it's a *dynamic market* that's continuously open; the answer
-  was right. The remaining two are answer-quality, not data: one answer **fabricated** a £ figure + an unverifiable
-  URL (free-form synthesis the verbatim gate doesn't cover — anchor answers to tool output), and one omitted a
-  UK-data-residency flag on the Minute question.
+- **3 residual items — addressed.** The **s49 open-framework** complaint was a *judge* error, not ours — a PA2023
+  open framework admits suppliers at defined re-opening points (s.49); continuous joining is a *dynamic market*. The
+  answer was right; nothing to fix. The other two were answer-quality and are now steered:
+  - **Fabrication.** A hard GROUNDING rule now rides in `NOT_ADVICE` (carried in every tool response) and the server
+    `instructions`: every £ figure, RM reference, supplier name and URL MUST come verbatim from a tool result — if
+    govbuy doesn't hold it, say so. Verified: the lab-gases answer no longer invents a "£14.4m/33 call-offs" figure
+    or a CPC URL — it cites real award ranges and *asks* which consortium framework the buyer is on.
+  - **Data residency.** A structured `data_residency_note` field is now emitted by `find_services`/`plan_buy` (and
+    a checklist line in `plan_buy`) whenever the need is data-sensitive (AI/ML, transcription, hosting, personal/
+    sensitive records), plus a DATA-RESIDENCY clause in the server `instructions`. Verified live: the Minute need
+    returns the note prompting confirmation of UK/EEA processing + UK-GDPR. (Structured field, not just prose, so
+    the model reliably surfaces it.)
 
 ### Fused with UK Tenders — route × reality, for buyers + suppliers + researchers
 govbuy is welded to the UK Tenders corpus (681k processes / 470k awards) on **Companies House CRN +

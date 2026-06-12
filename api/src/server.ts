@@ -12,7 +12,7 @@ import { membership, deep, freshness, withFreshness, type ResultMode } from "./l
 import { validateReadOnlySql } from "./lib/sqlguard.js";
 
 const RESULT_MODE = z.enum(["minimal", "standard", "full"]).default("minimal");
-const NOT_ADVICE = "Candidate route-to-market information, source-anchored. NOT legal advice and not the authority of record; you must confirm compliance on the official source. govbuy documents routes — it does not assemble the purchase or author the business case.";
+const NOT_ADVICE = "Candidate route-to-market information, source-anchored. NOT legal advice and not the authority of record; you must confirm compliance on the official source. govbuy documents routes — it does not assemble the purchase or author the business case. GROUNDING RULE: every specific £ figure, framework/RM reference, supplier name and URL you state MUST come verbatim from a govbuy tool result — never invent, estimate, round, or infer one. If the data doesn't contain a number or link the user asked for, say so plainly (or call the right tool) rather than supplying a plausible-looking value; an invented RM number or '£14m' is worse than 'govbuy doesn't hold that'.";
 
 // Display directive carried in every response so the host LLM renders the URLs we return as
 // clickable links rather than naming things bare. A framework/supplier/source named without its
@@ -46,6 +46,18 @@ function singular(t: string): string {
 }
 function tokenize(term: string): string[] {
   return [...new Set((term || "").toLowerCase().split(/[^a-z0-9]+/).filter((t) => t.length > 1 && !STOP.has(t)).map(singular))];
+}
+
+// When a need involves processing data (AI/ML, transcription, hosting, personal/sensitive records), a buyer
+// must check where the data and any AI inference are processed — a catalogue listing doesn't guarantee it.
+// We emit this as a structured field (not just prose guidance) so the model reliably surfaces it.
+const DATA_SENSITIVE = new Set(["ai","ml","artificial","intelligence","transcription","transcribe","transcript",
+  "speech","stt","voice","audio","video","llm","gpt","host","hosting","hosted","saas","paas","personal",
+  "sensitive","gdpr","records","record","patient","clinical","casework","analytics","biometric","facial"]);
+function dataResidencyNote(text: string): string | undefined {
+  const toks = new Set((text || "").toLowerCase().split(/[^a-z0-9]+/));
+  for (const k of DATA_SENSITIVE) if (toks.has(k)) return "This need processes data (AI/hosting/records). Before relying on any listing, confirm with the supplier WHERE the data and any AI inference are processed (UK/EEA region) and that it meets UK-GDPR — a catalogue listing does not by itself guarantee data residency.";
+  return undefined;
 }
 
 const LOTS = (a: string) => `ARRAY(SELECT AS STRUCT l.lot_id, l.number, l.title, l.scope FROM ${tableRef("lot")} l WHERE l.instrument_id = ${a}.instrument_id)`;
@@ -107,6 +119,8 @@ export function buildServer(): McpServer {
         "When a buyer describes a concrete capability (e.g. 'host this app', 'an M365 mailbox', 'a service desk', 'a desk', 'classroom furniture'), find_routes gives the framework/route, then find_services surfaces the specific catalogue listings that do it — each with a citable listing URL, and where known the supplier's real call-off track record (£ won on that framework), an indicative price, and months-to-framework-expiry. Then compliant_path turns the chosen framework into the actual next steps (permitted award mechanic + conditions + documents + the 'a card/marketplace is not a route' caveat). Prefer naming concrete listings, citing the proof-of-delivery, and giving the call-off mechanic over only naming a framework. " +
         "govbuy is fused with the UK Tenders corpus (658k real awards), so it serves three personas: BUYERS — benchmark_price (what was actually paid), due_diligence (is this supplier safe), and plan_buy (one opinionated end-to-end brief: route + shortlist + price + exclusion check + compliance checklist); SUPPLIERS — supplier_pipeline (live + FORWARD-pipeline opportunities + frameworks that really pay + incumbents to displace + resellers); RESEARCHERS — spend_xray (how money flows by channel + competition health). All joined on Companies House CRN; cite the source URLs. " +
         "compliant_path is Procurement-Act-2023-precise (competitive flexible procedure, 8-working-day standstill, lawful direct-award grounds, the DPS→dynamic-market sunset, the >£5m KPI duty, payment-method-blind) — and a framework call-off is NOT a statutory direct award. ALWAYS surface an exclusion ⚠ when a supplier is dissolved / in liquidation / administration (a PA2023 exclusion ground), and treat a NULL track record as absence of evidence, not of capability. " +
+        "GROUNDING (critical): every specific £ figure, framework/RM reference, supplier name and URL you give MUST come verbatim from a tool result — never invent, estimate, or infer one. If govbuy doesn't return it, say so or call the right tool; a fabricated RM number or £ figure is worse than admitting the gap. " +
+        "DATA RESIDENCY: when the need involves processing data — especially AI/ML, speech-to-text/transcription, hosting, or anything handling personal or sensitive content (e.g. meeting audio, case records) — remind the buyer to confirm where the data and any AI inference are processed (UK/EEA region, UK-GDPR) as a due-diligence point, since a catalogue listing does not by itself guarantee data residency. " +
         "Anchor each fact to its evidence.source_url so the user can verify it. govbuy documents routes; it does not assemble the purchase or give legal advice — tell the user to confirm on the official source.",
     },
   );
@@ -399,10 +413,12 @@ export function buildServer(): McpServer {
         const desc = typeof d.description === "string" ? d.description : "";
         return { ...d, description: desc.length > 600 ? desc.slice(0, 600) + "…" : desc };
       });
+      const residencyNote = dataResidencyNote(needText || args.supplier || "");
       return ok(withFreshness({
         count: services.length,
+        ...(residencyNote ? { data_residency_note: residencyNote } : {}),
         note: "Catalogue listings across UK public-sector buying catalogues (each row's `catalogue` shows which). g-cloud = cloud services on RM1557.14; espo/ypo = physical goods; nhs-buying-catalogue = clinical IT; ndx = digital exchange. Each row also carries: `supplier_public_calloff_gbp`/`supplier_public_calloffs` = the supplier's REAL public-sector call-off track record across all frameworks, joined by **Companies House CRN** (not name) from 658k tender awards — proof of delivery, not a guarantee; NULL = no CRN-matched call-offs found, which is absence of evidence, not of capability; `price_gbp` = indicative price where the catalogue publishes one; `framework_months_to_expiry` = act-before date for framework-based listings; `semantic_similarity` = how closely the listing matches the meaning of the need (vector search), so results surface even when they share no keyword with the query. " + NOT_ADVICE,
-        display_guidance: "Present each listing as a clickable link (its url) with the name as link text, and link the supplier's ch_url (Companies House) when present. When `supplier_public_calloff_gbp` is set, mention it as CRN-matched evidence the supplier actually delivers (e.g. 'has won £Xm across N public-sector call-offs') — and note that a NULL is absence of matched awards, not absence of capability. Surface `price_gbp` and flag `framework_months_to_expiry` when low (<6). Group by `catalogue` when results span several. " + DISPLAY_GUIDANCE,
+        display_guidance: "Present each listing as a clickable link (its url) with the name as link text, and link the supplier's ch_url (Companies House) when present. When `supplier_public_calloff_gbp` is set, mention it as CRN-matched evidence the supplier actually delivers (e.g. 'has won £Xm across N public-sector call-offs') — and note that a NULL is absence of matched awards, not absence of capability. Surface `price_gbp` and flag `framework_months_to_expiry` when low (<6). Group by `catalogue` when results span several. If the need involves AI/ML, transcription/speech-to-text, hosting, or processing personal/sensitive data, add a one-line due-diligence prompt to confirm UK/EEA data residency and where any AI inference runs (a listing doesn't guarantee it). Never quote a £ figure or URL that isn't in these results. " + DISPLAY_GUIDANCE,
         services,
       }, await freshness()));
     }),
@@ -665,8 +681,10 @@ export function buildServer(): McpServer {
         { params: { iid }, types: { iid: "STRING" } })).map((r) => deep(r) as Record<string, unknown>)[0] ?? {};
       const b = (bench.map((r) => deep(r) as Record<string, unknown>)[0]) ?? {};
       const anyExcluded = shortlist.some((s) => s.exclusion_status);
+      const residencyNote = dataResidencyNote(args.need);
       return ok(withFreshness({
         summary: `For "${args.need}": the recommended route is to call off the best-fit listing on ${mech.name ?? iid} (${mech.top_mechanic ?? "per the framework's mechanic"}).${anyExcluded ? " ⚠ One shortlisted supplier carries a Companies-House exclusion flag — see below." : ""}`,
+        ...(residencyNote ? { data_residency_note: residencyNote } : {}),
         recommended_route: { instrument: mech.name ?? null, rm_reference: mech.rm_reference ?? null, mechanic: mech.top_mechanic ?? null, lifecycle_status: mech.lifecycle_status ?? null, expires_on: mech.expires_on ?? null, official_url: mech.official_url ?? null },
         indicative_price: b.n ? { p25_gbp: b.p25, median_gbp: b.median, p75_gbp: b.p75, sample_size: b.n, note: `from ${b.n} comparable CPV-${cpv} call-off awards (real spend; a range, not a quote)` } : { note: "pass a `cpv` division (e.g. '72'=IT) for a real-award price benchmark" },
         shortlisted_services: shortlist.map((s, i) => ({ rank: i + 1, name: s.name, supplier: s.supplier_name, catalogue: s.catalogue, url: s.url, ch_url: s.ch_url,
@@ -679,6 +697,7 @@ export function buildServer(): McpServer {
           "Check the s.62 debarment register and exclusion grounds (Sch 6/7) before award; re-check each supplier's LIVE Companies House status.",
           "A GPC card / marketplace billing is a settlement mechanism, NEVER the procurement route, and confers no PA2023 exemption.",
           "Confirm the instrument's live expiry, lot scope and supplier eligibility on the operator's own documentation.",
+          ...(residencyNote ? ["Confirm UK/EEA data residency and where any AI inference runs (UK-GDPR) — the listing alone doesn't guarantee it."] : []),
         ],
         note: "An opinionated, INDICATIVE buying brief composed from the catalogue + 658k real awards + PA2023. It recommends a route but is not legal/commercial advice, not the authority of record — you run the assessment. " + NOT_ADVICE,
         display_guidance: "Present as a brief: the recommended route + mechanic; the 3 shortlisted listings (link each url + ch_url, show the track record, LEAD any exclusion ⚠); the indicative price range; pipeline to watch; then the compliance checklist verbatim. " + DISPLAY_GUIDANCE,
