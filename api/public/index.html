@@ -1,0 +1,765 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>govbuy — the UK public-procurement co-pilot</title>
+<meta name="description" content="Ask your AI assistant how to buy across the UK public sector, where to sell, or how public money flows — source-anchored across 3,200 frameworks, 117k catalogue listings and 658k real awards. An MCP server by cns.me." />
+<meta name="theme-color" content="#F4EFE7" />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://govbuy.run.cns.me/" />
+<meta property="og:title" content="govbuy — the UK public-procurement co-pilot" />
+<meta property="og:description" content="Route × reality × statute for UK public procurement — for buyers, suppliers and researchers. An MCP server by cns.me." />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;0,9..144,800;0,9..144,900;1,9..144,400;1,9..144,500;1,9..144,600&family=Hanken+Grotesk:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --font-display:"Fraunces","Times New Roman",ui-serif,serif;
+  --font-body:"Hanken Grotesk",ui-sans-serif,system-ui,sans-serif;
+  --font-mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,monospace;
+  --pink:#E5197F;--pink-hot:#FF2D8A;--pink-deep:#B30E61;--pink-ink:#5A0830;
+  --ink:#14110F;--ink-2:#2A2622;--ink-3:#5C544C;--ink-4:#8A8077;--rule:#1F1B17;
+  --paper:#F4EFE7;--paper-2:#EBE4D8;--paper-3:#DDD3C2;--bone:#FBF8F2;
+  --ease:cubic-bezier(.2,.7,.2,1);--maxw:1320px;
+}
+*{box-sizing:border-box}html,body{margin:0;padding:0}
+body{background:var(--paper);color:var(--ink);font-family:var(--font-body);font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+::selection{background:var(--pink);color:var(--bone)}
+a{color:var(--pink-deep);text-decoration:underline;text-underline-offset:3px;transition:color .2s var(--ease)}
+a:hover{color:var(--pink-hot)}
+code{font-family:var(--font-mono);font-size:.92em}
+.page{max-width:var(--maxw);margin:0 auto;padding:28px 48px 0}
+.rule{border-top:1px solid var(--rule)}.rule.strong{border-top:2px solid var(--ink)}.rule.top{border-top:4px solid var(--ink)}
+.numeral{font-family:var(--font-mono);font-feature-settings:"tnum" 1;letter-spacing:.01em}
+.eyebrow{font-family:var(--font-mono);font-size:11px;font-weight:500;letter-spacing:.18em;text-transform:uppercase;color:var(--pink-deep);display:block}
+.eyebrow.on-paper{color:var(--pink)}
+
+/* masthead */
+.masthead{padding-top:6px}
+.masthead-row{display:grid;grid-template-columns:1fr auto;align-items:baseline;gap:24px;padding:14px 0}
+.brand{display:inline-flex;align-items:baseline;gap:5px;text-decoration:none;color:var(--ink)}
+.brand-cns,.brand-me{font-family:var(--font-display);font-weight:900;font-size:26px;letter-spacing:-.03em;line-height:1}
+.brand-me{font-style:italic}
+.brand-dot{width:8px;height:8px;border-radius:50%;background:var(--pink);transform:translateY(-2px)}
+.brand-blog{font-family:var(--font-mono);font-size:13px;font-weight:400;letter-spacing:.04em;color:var(--ink-3);margin-left:5px}
+.masthead-meta{font-size:13px;color:var(--ink-2)}
+.masthead-meta em{font-family:var(--font-display);font-style:italic;font-weight:500;color:var(--ink)}
+.masthead-nav{display:flex;justify-content:space-between;align-items:center;padding:11px 0;flex-wrap:wrap;gap:8px}
+.nav-left,.nav-right{display:flex;gap:20px;flex-wrap:wrap}
+.masthead-nav a{text-decoration:none;color:var(--ink);font-size:14px;padding-bottom:2px;border-bottom:1px dotted transparent}
+.masthead-nav a:hover{color:var(--pink)}
+.nav-right a{color:var(--ink-2);font-size:13px}
+
+/* hero */
+.hero{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:56px;align-items:end;padding:60px 0 64px;border-top:1px solid var(--rule)}
+.hero-body{display:flex;flex-direction:column;gap:22px}
+.hero-headline{font-family:var(--font-display);font-weight:900;font-size:clamp(52px,7vw,104px);line-height:.92;letter-spacing:-.035em;margin:0;font-variation-settings:"opsz" 144;text-wrap:balance}
+.hero-headline em{color:var(--pink);font-style:italic;font-weight:700}
+.hero-lede{font-family:var(--font-display);font-style:italic;font-weight:400;font-size:clamp(18px,1.7vw,23px);line-height:1.5;color:var(--ink-2);max-width:60ch;margin:0;text-wrap:pretty}
+.hero-lede em{color:var(--pink-deep);font-style:italic}
+.install{display:flex;align-items:stretch;gap:0;border:1px solid var(--ink);background:var(--bone);max-width:640px;margin-top:4px}
+.install code{padding:14px 16px;font-size:13px;color:var(--ink);overflow-x:auto;white-space:nowrap;flex:1;align-self:center}
+.copy-btn{font-family:var(--font-body);font-weight:600;font-size:13px;border:0;border-left:1px solid var(--ink);background:var(--ink);color:var(--bone);padding:0 20px;cursor:pointer;transition:background .2s}
+.copy-btn:hover{background:var(--pink)}.copy-btn.done{background:var(--pink-deep)}
+.hero-fine{font-size:13px;color:var(--ink-3);margin:0}
+.hero-stats{display:grid;grid-template-columns:repeat(2,1fr);gap:28px 24px;padding-bottom:8px}
+.stat{display:flex;flex-direction:column;gap:4px;border-left:2px solid var(--pink);padding-left:14px}
+.stat-num{font-family:var(--font-display);font-weight:800;font-size:clamp(30px,3.2vw,44px);line-height:1;color:var(--ink);letter-spacing:-.02em}
+.stat-cap{font-family:var(--font-mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-3)}
+
+/* section header */
+.section-header{padding-top:8px;margin-top:56px}
+.sh-row{display:flex;align-items:baseline;gap:18px;flex-wrap:wrap;padding:14px 0 4px}
+.sh-title{font-family:var(--font-display);font-weight:800;font-size:clamp(26px,3vw,40px);line-height:1.04;letter-spacing:-.02em;margin:0;color:var(--ink)}
+.section-lede{font-family:var(--font-display);font-style:italic;font-size:18px;color:var(--ink-2);max-width:74ch;margin:6px 0 26px}
+
+/* layers */
+.layer-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:0;border-top:1px solid var(--rule);margin-top:8px}
+.layer{padding:28px 28px 32px;border-right:1px solid var(--paper-3)}
+.layer:last-child{border-right:0}
+.layer-no{display:block;font-size:13px;color:var(--pink);font-weight:600;margin-bottom:8px}
+.layer h3{font-family:var(--font-display);font-weight:700;font-size:26px;margin:0 0 10px;letter-spacing:-.01em}
+.layer p{margin:0;color:var(--ink-2);font-size:15.5px}
+.layer b{color:var(--ink)}
+
+/* dashboards */
+.dash-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:24px}
+.dash{border:1px solid var(--ink);background:var(--bone);padding:24px 26px 28px;margin-top:24px}
+.dash-grid .dash{margin-top:0}
+.dash-head .eyebrow{margin-bottom:8px}
+.dash-head h3{font-family:var(--font-display);font-weight:700;font-size:22px;line-height:1.1;margin:0 0 8px;letter-spacing:-.01em}
+.dash-note{font-size:14px;color:var(--ink-3);margin:0 0 18px;max-width:62ch}
+.dash-note b{color:var(--ink-2)}
+
+.bars{display:flex;flex-direction:column;gap:11px}
+.bar-row{display:grid;grid-template-columns:minmax(120px,1.3fr) minmax(0,2fr) auto;align-items:center;gap:14px}
+.bar-label{font-size:13.5px;color:var(--ink-2);font-weight:500}
+.bar-track{height:9px;background:var(--paper-2);border-radius:0;overflow:hidden}
+.bar-fill{height:100%;transform-origin:left;animation:grow .9s var(--ease) both}
+.bf-pink{background:var(--pink)}.bf-ink{background:var(--ink-2)}
+.bar-val{font-size:13px;color:var(--ink);text-align:right;white-space:nowrap}
+.bar-sub{color:var(--ink-4);font-size:11px}
+.chip-mini{font-family:var(--font-mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--pink-deep);border:1px solid var(--paper-3);padding:1px 5px;margin-left:4px}
+@keyframes grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+
+/* explorer */
+.dash-explorer{margin-top:8px}
+.explorer-chips{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:20px}
+.ex-chip{font-family:var(--font-body);font-size:13px;font-weight:500;background:var(--paper);border:1px solid var(--paper-3);color:var(--ink-2);padding:7px 13px;cursor:pointer;transition:all .15s;border-radius:999px}
+.ex-chip:hover{border-color:var(--pink);color:var(--pink-deep)}
+.ex-chip.active{background:var(--ink);color:var(--bone);border-color:var(--ink)}
+.explorer-panel{display:grid;grid-template-columns:1.4fr 1fr;gap:32px;align-items:center;min-height:160px}
+.ep-bars{display:flex;flex-direction:column;gap:18px}
+.ep-row{display:grid;grid-template-columns:130px 1fr auto;align-items:center;gap:14px}
+.ep-rl{font-size:14px;font-weight:600}
+.ep-track{height:26px;background:var(--paper-2);position:relative;overflow:hidden}
+.ep-fill{height:100%;transform-origin:left;animation:grow .7s var(--ease) both}
+.ep-v{font-family:var(--font-mono);font-size:15px;font-weight:600;white-space:nowrap}
+.ep-verdict{border-left:2px solid var(--pink);padding-left:18px}
+.ep-big{font-family:var(--font-display);font-weight:800;font-size:46px;line-height:1;letter-spacing:-.02em;color:var(--pink);display:block}
+.ep-vh{font-size:14px;color:var(--ink-2);margin:8px 0 0}
+.ep-meta{font-family:var(--font-mono);font-size:11px;color:var(--ink-4);margin-top:12px;letter-spacing:.04em}
+
+/* framework table */
+.dash-table .fw-table{width:100%;border-collapse:collapse;font-size:14px}
+.fw-table th{text-align:left;font-family:var(--font-mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);padding:8px 10px;border-bottom:2px solid var(--ink)}
+.fw-table th.sortable{cursor:pointer;user-select:none}.fw-table th.sortable:hover{color:var(--pink)}
+.fw-table td{padding:9px 10px;border-bottom:1px solid var(--paper-2);vertical-align:middle}
+.fw-rank{color:var(--ink-4);width:30px}
+.fw-name{color:var(--ink-2);max-width:340px}
+.fw-rm{color:var(--pink-deep);font-size:12px;margin-right:6px}
+.fw-bar{width:120px}
+.mini-track{height:7px;background:var(--paper-2)}.mini-fill{height:100%;background:var(--pink);transform-origin:left;animation:grow .9s var(--ease) both}
+.fw-gbp{font-weight:600;text-align:right}.fw-n,.fw-s{text-align:right;color:var(--ink-3)}
+.fw-table th.fw-gbp,.fw-table th.fw-n,.fw-table th.fw-s{text-align:right}
+
+/* expiry columns */
+.cols{display:flex;align-items:flex-end;gap:4px;height:180px;padding-top:8px}
+.col{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%}
+.col-bar{width:74%;background:var(--pink);min-height:2px;animation:rise .9s var(--ease) both}
+.col:hover .col-bar{background:var(--pink-hot)}
+.col-x{font-family:var(--font-mono);font-size:8.5px;color:var(--ink-4);margin-top:6px;text-align:center;line-height:1.3}
+.col-yr{color:var(--ink-2);font-weight:600}
+@keyframes rise{from{transform:scaleY(0);transform-origin:bottom}to{transform:scaleY(1)}}
+
+/* questions */
+.q-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:18px}
+.q-card{border:1px solid var(--paper-3);background:var(--bone);padding:20px 22px;display:flex;flex-direction:column;gap:8px;transition:border-color .2s,transform .2s}
+.q-card:hover{border-color:var(--pink);transform:translateY(-2px)}
+.q-persona{font-family:var(--font-mono);font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--bone);background:var(--ink);padding:3px 8px;align-self:flex-start}
+.q-buyer .q-persona{background:var(--pink-deep)}.q-seller .q-persona{background:var(--ink)}.q-researcher .q-persona{background:var(--ink-3)}
+.q-q{font-family:var(--font-display);font-style:italic;font-weight:500;font-size:18px;line-height:1.3;color:var(--ink);margin:2px 0 0}
+.q-o{font-size:14px;color:var(--ink-2);margin:0}.q-o code{color:var(--pink-deep);font-size:12.5px}
+
+/* tools */
+.tool-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:0;border-top:1px solid var(--rule);margin-top:8px}
+.tool-col{padding:24px 26px;border-right:1px solid var(--paper-3)}.tool-col:last-child{border-right:0}
+.tool-persona{margin:0 0 14px}
+.tool-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:12px}
+.tool-list li{display:flex;flex-direction:column;gap:2px}
+.tool-list code{color:var(--pink-deep);font-size:13px;font-weight:500}
+.tool-list span{font-size:13px;color:var(--ink-3)}
+
+/* honest */
+.honest-grid{display:grid;grid-template-columns:1fr 1.3fr;gap:36px;border-top:1px solid var(--rule);margin-top:8px;padding-top:26px}
+.honest-grid>p{font-family:var(--font-display);font-style:italic;font-size:19px;line-height:1.5;color:var(--ink-2);margin:0}
+.honest-grid ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:14px}
+.honest-grid li{font-size:14.5px;color:var(--ink-2);padding-left:18px;position:relative}
+.honest-grid li::before{content:"—";position:absolute;left:0;color:var(--pink)}
+.honest-grid b{color:var(--ink)}
+
+/* cta */
+.cta{margin-top:64px;background:var(--ink);color:var(--bone);padding:64px 48px;margin-left:-48px;margin-right:-48px}
+.cta-inner{max-width:var(--maxw);margin:0 auto;text-align:center;display:flex;flex-direction:column;align-items:center;gap:16px}
+.cta .orn{font-size:34px}
+.cta .eyebrow{color:var(--pink-hot)}
+.cta-title{font-family:var(--font-display);font-weight:800;font-size:clamp(30px,4vw,52px);line-height:1.02;letter-spacing:-.02em;margin:0;max-width:18ch;color:var(--bone)}
+.cta-title em{color:var(--pink-hot);font-style:italic}
+.cta-lede{font-size:17px;color:#D8CFC4;max-width:60ch;margin:0}
+.cta-row{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;margin-top:10px}
+.btn-primary{font-family:var(--font-body);font-weight:600;font-size:15px;padding:14px 28px;background:var(--pink);color:var(--bone);text-decoration:none;border-radius:999px;transition:all .2s var(--ease)}
+.btn-primary:hover{background:var(--pink-hot);color:var(--bone);box-shadow:0 12px 32px -12px rgba(229,25,127,.65);transform:translateY(-1px)}
+.btn-ghost{font-family:var(--font-body);font-weight:600;font-size:15px;padding:14px 24px;color:var(--bone);text-decoration:none;border:1px solid #4a443e;border-radius:999px;transition:all .2s}
+.btn-ghost:hover{border-color:var(--pink);color:var(--bone)}
+
+/* colophon */
+.colophon{margin-top:64px;padding-top:8px}
+.colophon-grid{display:grid;grid-template-columns:1.6fr 1fr 1fr;gap:32px;padding:32px 0 24px}
+.cl-note{font-size:13.5px;color:var(--ink-3);max-width:46ch;margin:10px 0 0}
+.cl-h{font-family:var(--font-mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-3);margin:0 0 12px}
+.cl-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:7px;font-size:14px}
+.cl-list a{color:var(--ink-2);text-decoration:none}.cl-list a:hover{color:var(--pink)}
+.cl-list li{color:var(--ink-3)}
+.cl-fine{font-size:11.5px;color:var(--ink-4);padding:16px 0 40px;margin:0;line-height:1.6}
+
+@media (max-width:920px){
+  .page{padding:20px 20px 0}
+  .hero,.layer-grid,.dash-grid,.q-grid,.tool-grid,.honest-grid,.explorer-panel,.colophon-grid{grid-template-columns:1fr}
+  .hero{gap:36px;padding:36px 0 40px}
+  .hero-stats{grid-template-columns:repeat(2,1fr)}
+  .layer,.tool-col{border-right:0;border-bottom:1px solid var(--paper-3)}
+  .cta{margin-left:-20px;margin-right:-20px;padding:48px 20px}
+  .ep-verdict{border-left:0;border-top:2px solid var(--pink);padding-left:0;padding-top:16px}
+  .fw-name{max-width:none}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+</style>
+</head>
+<body>
+<div class="page">
+<header class="masthead">
+  <div class="rule top"></div>
+  <div class="masthead-row">
+    <a class="brand" href="https://cns.me">
+      <span class="brand-cns">cns</span><span class="brand-dot"></span><span class="brand-me">me</span>
+      <span class="brand-blog">/ govbuy</span>
+    </a>
+    <span class="masthead-meta"><em>route × reality × statute</em></span>
+  </div>
+  <div class="rule"></div>
+  <nav class="masthead-nav">
+    <div class="nav-left">
+      <a href="#what">What</a><a href="#data">Data</a><a href="#ask">Ask</a><a href="#tools">Tools</a>
+    </div>
+    <div class="nav-right">
+      <a href="https://github.com/chrisns/govbuy">GitHub</a><a href="https://blog.cns.me">Blog</a><a href="https://talks.cns.me">Talks</a><a href="https://cns.me">cns.me</a>
+    </div>
+  </nav>
+  <div class="rule"></div>
+</header>
+
+<section class="hero">
+  <div class="hero-body">
+    <span class="eyebrow">An MCP server · UK public procurement</span>
+    <h1 class="hero-headline">The public-procurement <em>co-pilot.</em></h1>
+    <p class="hero-lede">Ask your AI assistant <em>how to buy</em> a thing across the UK public sector, <em>where to sell</em> it as a vendor, or <em>how public money flows</em> as a researcher — and get a complete, source-anchored, decision-grade answer. Route&nbsp;×&nbsp;reality&nbsp;×&nbsp;statute, in one place.</p>
+    <div class="install">
+      <code id="install">claude mcp add --transport http govbuy https://govbuy.run.cns.me/mcp</code>
+      <button class="copy-btn" data-copy="claude mcp add --transport http govbuy https://govbuy.run.cns.me/mcp" aria-label="Copy install command">Copy</button>
+    </div>
+    <p class="hero-fine">Works with any MCP client — Claude, Claude&nbsp;Code, and the rest. Free &amp; unauthenticated.</p>
+  </div>
+  <div class="hero-stats">
+    <div class="stat"><span class="stat-num numeral">3,207</span><span class="stat-cap">frameworks & dynamic markets</span></div><div class="stat"><span class="stat-num numeral">117,829</span><span class="stat-cap">catalogue listings</span></div><div class="stat"><span class="stat-num numeral">658,625</span><span class="stat-cap">real awards fused in</span></div><div class="stat"><span class="stat-num numeral">£1601bn</span><span class="stat-cap">of awarded spend mapped</span></div>
+  </div>
+</section>
+
+<section class="layers" id="what">
+  <header class="section-header">
+    <div class="rule strong"></div>
+    <div class="sh-row"><span class="eyebrow">What it holds</span><h2 class="sh-title">Three layers no other tool welds together</h2></div>
+  </header>
+  <div class="layer-grid">
+    <article class="layer">
+      <span class="layer-no numeral">01</span>
+      <h3>Route</h3>
+      <p><b class="numeral">3,207</b> frameworks, DPS &amp; dynamic markets across <b class="numeral">185</b> operators — every lot, mechanic and document a compliant purchase needs — plus <b class="numeral">117,829</b> catalogue listings of what suppliers actually sell, searchable by capability.</p>
+    </article>
+    <article class="layer">
+      <span class="layer-no numeral">02</span>
+      <h3>Reality</h3>
+      <p><b class="numeral">658,625</b> real tender awards joined on Companies House CRN: who actually wins the work, what buyers really pay, what's live, what's <i>coming</i> (<b class="numeral">29,306</b> pipeline notices) and what's <i>expiring</i>.</p>
+    </article>
+    <article class="layer">
+      <span class="layer-no numeral">03</span>
+      <h3>Statute</h3>
+      <p>The <b>Procurement Act 2023</b> mechanics — standstill, competitive flexible procedure, Schedule&nbsp;5 grounds, a two-limb exclusion gate (live Companies House + the s.62 debarment register) — so a route isn't just available but <i>defensible</i>.</p>
+    </article>
+  </div>
+</section>
+
+<section class="dashboards" id="data">
+  <header class="section-header">
+    <div class="rule strong"></div>
+    <div class="sh-row"><span class="eyebrow">Explore the data</span><h2 class="sh-title">Real numbers from the corpus — not a brochure</h2></div>
+  </header>
+  <p class="section-lede">Every figure below is live from <code>govbuy_public</code> as of <span class="numeral">2026-06-12</span>, the same data your assistant reasons over. Framework-ceiling outliers (&gt;£100m) are removed; medians are robust to them.</p>
+
+  <div class="dash dash-explorer" id="explorer">
+    <div class="dash-head">
+      <span class="eyebrow">Interactive · pick a sector</span>
+      <h3>Framework call-off vs open tender — what you really pay</h3>
+      <p class="dash-note">The conventional wisdom is that frameworks save money. At the <b>median</b> they mostly don't — open tender captures the mega-projects, so its median sits higher in most sectors. The revealing exception is <b>IT</b>, where the call-off median runs <i>above</i> open: a real convenience premium on the routine middle of the market.</p>
+    </div>
+    <div class="explorer-chips" id="exChips">
+      <button class="ex-chip" data-i="0">Health &amp; social work</button><button class="ex-chip" data-i="1">Construction</button><button class="ex-chip" data-i="2">Business &amp; management services</button><button class="ex-chip" data-i="3">Architecture &amp; engineering</button><button class="ex-chip" data-i="4">Medical equipment &amp; pharma</button><button class="ex-chip" data-i="5">Education &amp; training</button><button class="ex-chip" data-i="6">Transport services</button><button class="ex-chip active" data-i="7">IT services &amp; software</button><button class="ex-chip" data-i="8">Transport equipment</button><button class="ex-chip" data-i="9">Furniture &amp; furnishings</button><button class="ex-chip" data-i="10">Financial &amp; insurance</button><button class="ex-chip" data-i="11">Electrical machinery</button><button class="ex-chip" data-i="12">Repair &amp; maintenance</button><button class="ex-chip" data-i="13">Environmental services</button>
+    </div>
+    <div class="explorer-panel" id="exPanel"></div>
+  </div>
+
+  <div class="dash-grid">
+    <div class="dash">
+      <div class="dash-head"><span class="eyebrow">£1601bn mapped</span><h3>How public money is awarded</h3><p class="dash-note">Awarded spend by channel. Open tender dominates by value (the big programmes); framework &amp; DPS call-offs are the high-volume routine layer.</p></div>
+      <div class="bars">
+    <div class="bar-row">
+      <div class="bar-label">Open tender</div>
+      <div class="bar-track"><div class="bar-fill bf-ink" style="width:100.0%"></div></div>
+      <div class="bar-val numeral">£1045bn <span class="bar-sub">· 165,173</span></div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">Other / unclassified</div>
+      <div class="bar-track"><div class="bar-fill bf-ink" style="width:32.0%"></div></div>
+      <div class="bar-val numeral">£334bn <span class="bar-sub">· 129,218</span></div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">Framework call-off</div>
+      <div class="bar-track"><div class="bar-fill bf-pink" style="width:13.7%"></div></div>
+      <div class="bar-val numeral">£143bn <span class="bar-sub">· 114,313</span></div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">Direct award</div>
+      <div class="bar-track"><div class="bar-fill bf-ink" style="width:4.1%"></div></div>
+      <div class="bar-val numeral">£43bn <span class="bar-sub">· 66,120</span></div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">DPS call-off</div>
+      <div class="bar-track"><div class="bar-fill bf-pink" style="width:3.4%"></div></div>
+      <div class="bar-val numeral">£36bn <span class="bar-sub">· 19,699</span></div>
+    </div></div>
+    </div>
+    <div class="dash">
+      <div class="dash-head"><span class="eyebrow">The intermediary layer</span><h3>£4.0bn flows through resellers</h3><p class="dash-note">Thin-primes &amp; VARs that carry other firms onto frameworks — the public buyer often never contracts who does the work.</p></div>
+      <div class="bars">
+    <div class="bar-row">
+      <div class="bar-label">Softcat <span class="chip-mini">thin-prime</span></div>
+      <div class="bar-track"><div class="bar-fill bf-pink" style="width:100.0%"></div></div>
+      <div class="bar-val numeral">£972m <span class="bar-sub">· 1,075</span></div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">PHOENIX SOFTWARE LIMITED <span class="chip-mini">VAR</span></div>
+      <div class="bar-track"><div class="bar-fill bf-pink" style="width:79.8%"></div></div>
+      <div class="bar-val numeral">£775m <span class="bar-sub">· 510</span></div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">CDW UK <span class="chip-mini">hybrid</span></div>
+      <div class="bar-track"><div class="bar-fill bf-pink" style="width:57.2%"></div></div>
+      <div class="bar-val numeral">£556m <span class="bar-sub">· 429</span></div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">Computacenter <span class="chip-mini">hybrid</span></div>
+      <div class="bar-track"><div class="bar-fill bf-pink" style="width:42.2%"></div></div>
+      <div class="bar-val numeral">£410m <span class="bar-sub">· 286</span></div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">BYTES SOFTWARE SERVICES LIMITED <span class="chip-mini">VAR</span></div>
+      <div class="bar-track"><div class="bar-fill bf-pink" style="width:31.1%"></div></div>
+      <div class="bar-val numeral">£302m <span class="bar-sub">· 298</span></div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">Trustmarque <span class="chip-mini">VAR</span></div>
+      <div class="bar-track"><div class="bar-fill bf-pink" style="width:30.8%"></div></div>
+      <div class="bar-val numeral">£299m <span class="bar-sub">· 129</span></div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">boxxe <span class="chip-mini">thin-prime</span></div>
+      <div class="bar-track"><div class="bar-fill bf-pink" style="width:26.7%"></div></div>
+      <div class="bar-val numeral">£260m <span class="bar-sub">· 409</span></div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">XMA <span class="chip-mini">thin-prime</span></div>
+      <div class="bar-track"><div class="bar-fill bf-pink" style="width:22.8%"></div></div>
+      <div class="bar-val numeral">£222m <span class="bar-sub">· 272</span></div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">Bramble Hub Limited <span class="chip-mini">thin-prime</span></div>
+      <div class="bar-track"><div class="bar-fill bf-pink" style="width:11.2%"></div></div>
+      <div class="bar-val numeral">£109m <span class="bar-sub">· 84</span></div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">NTT DATA UK LIMITED <span class="chip-mini">hybrid</span></div>
+      <div class="bar-track"><div class="bar-fill bf-pink" style="width:11.0%"></div></div>
+      <div class="bar-val numeral">£107m <span class="bar-sub">· 28</span></div>
+    </div></div>
+    </div>
+  </div>
+
+  <div class="dash dash-table">
+    <div class="dash-head"><span class="eyebrow">Sortable · click a header</span><h3>The frameworks that actually move money</h3><p class="dash-note">Attributable call-off spend per framework (CRN-joined from real awards). Sort by spend, awards or supplier breadth.</p></div>
+    <table class="fw-table" id="fwTable">
+      <thead><tr>
+        <th class="fw-rank">#</th><th class="fw-name">Framework</th><th class="fw-bar"></th>
+        <th class="fw-gbp sortable" data-key="gbp">Call-off £ ▾</th>
+        <th class="fw-n sortable" data-key="n">Awards</th>
+        <th class="fw-s sortable" data-key="suppliers">Suppliers</th>
+      </tr></thead>
+      <tbody>
+    <tr data-gbp="1012322988" data-n="181" data-suppliers="63">
+      <td class="fw-rank numeral">1</td>
+      <td class="fw-name"><span class="fw-rm numeral">RM6100</span> RM6100</td>
+      <td class="fw-bar"><div class="mini-track"><div class="mini-fill" style="width:100.0%"></div></div></td>
+      <td class="fw-gbp numeral">£1.0bn</td>
+      <td class="fw-n numeral">181</td>
+      <td class="fw-s numeral">63</td>
+    </tr>
+    <tr data-gbp="768642459" data-n="63" data-suppliers="27">
+      <td class="fw-rank numeral">2</td>
+      <td class="fw-name"><span class="fw-rm numeral">RM6088</span> Construction Works and Associated Services</td>
+      <td class="fw-bar"><div class="mini-track"><div class="mini-fill" style="width:75.9%"></div></div></td>
+      <td class="fw-gbp numeral">£769m</td>
+      <td class="fw-n numeral">63</td>
+      <td class="fw-s numeral">27</td>
+    </tr>
+    <tr data-gbp="626730207" data-n="767" data-suppliers="49">
+      <td class="fw-rank numeral">3</td>
+      <td class="fw-name"><span class="fw-rm numeral">RM6068</span> Technology Products &amp; Associated Services</td>
+      <td class="fw-bar"><div class="mini-track"><div class="mini-fill" style="width:61.9%"></div></div></td>
+      <td class="fw-gbp numeral">£627m</td>
+      <td class="fw-n numeral">767</td>
+      <td class="fw-s numeral">49</td>
+    </tr>
+    <tr data-gbp="623227962" data-n="31" data-suppliers="9">
+      <td class="fw-rank numeral">4</td>
+      <td class="fw-name"><span class="fw-rm numeral">RM6123</span> Media Services</td>
+      <td class="fw-bar"><div class="mini-track"><div class="mini-fill" style="width:61.6%"></div></div></td>
+      <td class="fw-gbp numeral">£623m</td>
+      <td class="fw-n numeral">31</td>
+      <td class="fw-s numeral">9</td>
+    </tr>
+    <tr data-gbp="573820035" data-n="515" data-suppliers="65">
+      <td class="fw-rank numeral">5</td>
+      <td class="fw-name"><span class="fw-rm numeral">RM6098</span> Technology Products &amp; Associated Services 2 (TePAS 2)</td>
+      <td class="fw-bar"><div class="mini-track"><div class="mini-fill" style="width:56.7%"></div></div></td>
+      <td class="fw-gbp numeral">£574m</td>
+      <td class="fw-n numeral">515</td>
+      <td class="fw-s numeral">65</td>
+    </tr>
+    <tr data-gbp="424950128" data-n="16" data-suppliers="4">
+      <td class="fw-rank numeral">6</td>
+      <td class="fw-name"><span class="fw-rm numeral">RM6011</span> Supply of Energy and Ancillary Services</td>
+      <td class="fw-bar"><div class="mini-track"><div class="mini-fill" style="width:42.0%"></div></div></td>
+      <td class="fw-gbp numeral">£425m</td>
+      <td class="fw-n numeral">16</td>
+      <td class="fw-s numeral">4</td>
+    </tr>
+    <tr data-gbp="393945998" data-n="20" data-suppliers="6">
+      <td class="fw-rank numeral">7</td>
+      <td class="fw-name"><span class="fw-rm numeral">RM1056</span> RM1056</td>
+      <td class="fw-bar"><div class="mini-track"><div class="mini-fill" style="width:38.9%"></div></div></td>
+      <td class="fw-gbp numeral">£394m</td>
+      <td class="fw-n numeral">20</td>
+      <td class="fw-s numeral">6</td>
+    </tr>
+    <tr data-gbp="368240736" data-n="76" data-suppliers="36">
+      <td class="fw-rank numeral">8</td>
+      <td class="fw-name"><span class="fw-rm numeral">RM3804</span> RM3804</td>
+      <td class="fw-bar"><div class="mini-track"><div class="mini-fill" style="width:36.4%"></div></div></td>
+      <td class="fw-gbp numeral">£368m</td>
+      <td class="fw-n numeral">76</td>
+      <td class="fw-s numeral">36</td>
+    </tr>
+    <tr data-gbp="327398054" data-n="35" data-suppliers="18">
+      <td class="fw-rank numeral">9</td>
+      <td class="fw-name"><span class="fw-rm numeral">RM6263</span> Digital Specialists and Programmes</td>
+      <td class="fw-bar"><div class="mini-track"><div class="mini-fill" style="width:32.3%"></div></div></td>
+      <td class="fw-gbp numeral">£327m</td>
+      <td class="fw-n numeral">35</td>
+      <td class="fw-s numeral">18</td>
+    </tr>
+    <tr data-gbp="320043081" data-n="18" data-suppliers="2">
+      <td class="fw-rank numeral">10</td>
+      <td class="fw-name"><span class="fw-rm numeral">RM6288</span> Workforce Solutions</td>
+      <td class="fw-bar"><div class="mini-track"><div class="mini-fill" style="width:31.6%"></div></div></td>
+      <td class="fw-gbp numeral">£320m</td>
+      <td class="fw-n numeral">18</td>
+      <td class="fw-s numeral">2</td>
+    </tr>
+    <tr data-gbp="282012430" data-n="674" data-suppliers="313">
+      <td class="fw-rank numeral">11</td>
+      <td class="fw-name"><span class="fw-rm numeral">RM1557.13</span> RM1557.13</td>
+      <td class="fw-bar"><div class="mini-track"><div class="mini-fill" style="width:27.9%"></div></div></td>
+      <td class="fw-gbp numeral">£282m</td>
+      <td class="fw-n numeral">674</td>
+      <td class="fw-s numeral">313</td>
+    </tr>
+    <tr data-gbp="279809096" data-n="15" data-suppliers="7">
+      <td class="fw-rank numeral">12</td>
+      <td class="fw-name"><span class="fw-rm numeral">RM3830</span> RM3830</td>
+      <td class="fw-bar"><div class="mini-track"><div class="mini-fill" style="width:27.6%"></div></div></td>
+      <td class="fw-gbp numeral">£280m</td>
+      <td class="fw-n numeral">15</td>
+      <td class="fw-s numeral">7</td>
+    </tr></tbody>
+    </table>
+  </div>
+
+  <div class="dash-grid">
+    <div class="dash">
+      <div class="dash-head"><span class="eyebrow">£250bn re-procurement wave</span><h3>Contracts expiring — the next 18 months</h3><p class="dash-note">Every bar is real contract-end value. For buyers: re-procurement deadlines. For sellers: displacement windows.</p></div>
+      <div class="cols"><div class="col" title="2026-06: £7.4bn across 2,498 contracts">
+      <div class="col-bar" style="height:26.3%"></div>
+      <div class="col-x">Jun</div>
+    </div><div class="col" title="2026-07: £12bn across 5,173 contracts">
+      <div class="col-bar" style="height:41.1%"></div>
+      <div class="col-x">Jul</div>
+    </div><div class="col" title="2026-08: £8.7bn across 3,348 contracts">
+      <div class="col-bar" style="height:30.9%"></div>
+      <div class="col-x">Aug</div>
+    </div><div class="col" title="2026-09: £14bn across 3,448 contracts">
+      <div class="col-bar" style="height:49.3%"></div>
+      <div class="col-x">Sep</div>
+    </div><div class="col" title="2026-10: £11bn across 2,400 contracts">
+      <div class="col-bar" style="height:40.3%"></div>
+      <div class="col-x">Oct</div>
+    </div><div class="col" title="2026-11: £15bn across 2,211 contracts">
+      <div class="col-bar" style="height:52.5%"></div>
+      <div class="col-x">Nov</div>
+    </div><div class="col" title="2026-12: £12bn across 2,505 contracts">
+      <div class="col-bar" style="height:43.7%"></div>
+      <div class="col-x">Dec</div>
+    </div><div class="col" title="2027-01: £7.2bn across 2,031 contracts">
+      <div class="col-bar" style="height:25.5%"></div>
+      <div class="col-x">Jan<br><span class='col-yr'>2027</span></div>
+    </div><div class="col" title="2027-02: £9.2bn across 1,642 contracts">
+      <div class="col-bar" style="height:32.7%"></div>
+      <div class="col-x">Feb</div>
+    </div><div class="col" title="2027-03: £21bn across 6,443 contracts">
+      <div class="col-bar" style="height:72.6%"></div>
+      <div class="col-x">Mar</div>
+    </div><div class="col" title="2027-04: £28bn across 2,184 contracts">
+      <div class="col-bar" style="height:98.0%"></div>
+      <div class="col-x">Apr</div>
+    </div><div class="col" title="2027-05: £16bn across 1,978 contracts">
+      <div class="col-bar" style="height:56.6%"></div>
+      <div class="col-x">May</div>
+    </div><div class="col" title="2027-06: £28bn across 2,135 contracts">
+      <div class="col-bar" style="height:100.0%"></div>
+      <div class="col-x">Jun</div>
+    </div><div class="col" title="2027-07: £18bn across 3,520 contracts">
+      <div class="col-bar" style="height:64.4%"></div>
+      <div class="col-x">Jul</div>
+    </div><div class="col" title="2027-08: £12bn across 2,169 contracts">
+      <div class="col-bar" style="height:41.1%"></div>
+      <div class="col-x">Aug</div>
+    </div><div class="col" title="2027-09: £6.6bn across 1,903 contracts">
+      <div class="col-bar" style="height:23.4%"></div>
+      <div class="col-x">Sep</div>
+    </div><div class="col" title="2027-10: £11bn across 1,814 contracts">
+      <div class="col-bar" style="height:37.9%"></div>
+      <div class="col-x">Oct</div>
+    </div><div class="col" title="2027-11: £8.7bn across 1,404 contracts">
+      <div class="col-bar" style="height:30.6%"></div>
+      <div class="col-x">Nov</div>
+    </div><div class="col" title="2027-12: £4.9bn across 380 contracts">
+      <div class="col-bar" style="height:17.4%"></div>
+      <div class="col-x">Dec</div>
+    </div></div>
+    </div>
+    <div class="dash">
+      <div class="dash-head"><span class="eyebrow">117,829 listings · 6 catalogues</span><h3>What's actually on the shelves</h3><p class="dash-note">Per-listing descriptions across every public UK buying catalogue, searchable by capability — token-free re-crawled.</p></div>
+      <div class="bars">
+    <div class="bar-row">
+      <div class="bar-label">G-Cloud 14</div>
+      <div class="bar-track"><div class="bar-fill bf-ink" style="width:100.0%"></div></div>
+      <div class="bar-val numeral">43,733</div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">Azure Marketplace</div>
+      <div class="bar-track"><div class="bar-fill bf-ink" style="width:89.0%"></div></div>
+      <div class="bar-val numeral">38,928</div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">YPO</div>
+      <div class="bar-track"><div class="bar-fill bf-ink" style="width:53.6%"></div></div>
+      <div class="bar-val numeral">23,459</div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">ESPO</div>
+      <div class="bar-track"><div class="bar-fill bf-ink" style="width:26.6%"></div></div>
+      <div class="bar-val numeral">11,621</div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">NHS Buying Catalogue</div>
+      <div class="bar-track"><div class="bar-fill bf-ink" style="width:0.1%"></div></div>
+      <div class="bar-val numeral">48</div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">NDX</div>
+      <div class="bar-track"><div class="bar-fill bf-ink" style="width:0.1%"></div></div>
+      <div class="bar-val numeral">40</div>
+    </div></div>
+    </div>
+  </div>
+</section>
+
+<section class="questions" id="ask">
+  <header class="section-header">
+    <div class="rule strong"></div>
+    <div class="sh-row"><span class="eyebrow">Ask it anything</span><h2 class="sh-title">Real questions, real answers</h2></div>
+  </header>
+  <p class="section-lede">A sample of what people actually ask — across buyer, seller and researcher. Every answer is genuine <code>claude&nbsp;-p</code> output, source-anchored, with the URLs to verify.</p>
+  <div class="q-grid">
+    <article class="q-card q-buyer">
+      <span class="q-persona">Buyer</span>
+      <p class="q-q">I'm a council. I need to host a containerised web app for ~£80k/year. Just tell me how to buy it.</p>
+      <p class="q-o"><code>plan_buy</code> → G-Cloud 14 call-off, a 3-supplier shortlist with real delivery records, the £176k median, and the PA2023 steps — one brief.</p>
+    </article>
+    <article class="q-card q-buyer">
+      <span class="q-persona">Buyer</span>
+      <p class="q-q">A fire service needs drone thermal-imaging kit fast and compliantly — is a direct award allowed?</p>
+      <p class="q-o">YPO Drones DPS 1148 — <b>further competition only</b>, no direct award; the Schedule 5 urgency route explained, with the Feb-2029 DPS sunset flagged.</p>
+    </article>
+    <article class="q-card q-buyer">
+      <span class="q-persona">Buyer</span>
+      <p class="q-q">We're about to award to a supplier in liquidation — should we?</p>
+      <p class="q-o">The exclusion gate <b>stops you</b>: a live Companies House check + the s.62 debarment register, both PA2023 limbs.</p>
+    </article>
+    <article class="q-card q-buyer">
+      <span class="q-persona">Buyer</span>
+      <p class="q-q">Which of the viable routes is best for a managed SOC — and why?</p>
+      <p class="q-o"><code>compare_routes</code> ranks Cyber Security 3 DPS vs TS4 vs Network Services 3 on speed × depth × runway × real price.</p>
+    </article>
+    <article class="q-card q-seller">
+      <span class="q-persona">Seller</span>
+      <p class="q-q">I've built an AI triage tool but I'm on no framework. How do I get in front of the NHS this quarter?</p>
+      <p class="q-o">Get admitted to an AI dynamic market (RM6200 / HealthTrust) — continuous joining; plus where NHS commissioners actually shop.</p>
+    </article>
+    <article class="q-card q-seller">
+      <span class="q-persona">Seller</span>
+      <p class="q-q">Find me an incumbent on a big contract that's expiring, and how to compete.</p>
+      <p class="q-o"><code>contract_expiry_radar</code> surfaces the displacement window — incumbent, value, end date, the route to re-bid.</p>
+    </article>
+    <article class="q-card q-seller">
+      <span class="q-persona">Seller</span>
+      <p class="q-q">I rent out goats that clear invasive scrub. How do I sell conservation grazing to the public sector?</p>
+      <p class="q-o">An honest answer: no grazing framework exists; the money flows via grounds-maintenance primes — subcontract, and chase sub-threshold local notices.</p>
+    </article>
+    <article class="q-card q-researcher">
+      <span class="q-persona">Researcher</span>
+      <p class="q-q">Is the public sector overpaying by buying IT through framework call-offs instead of open competition?</p>
+      <p class="q-o">In IT the median call-off (£183k) runs <b>above</b> open tender (£140k) — a real convenience premium; every other sector inverts.</p>
+    </article>
+    <article class="q-card q-researcher">
+      <span class="q-persona">Researcher</span>
+      <p class="q-q">Map the 'thin-prime' economy — who fronts other firms onto public frameworks, and how much flows there?</p>
+      <p class="q-o">£4.0bn of call-off spend traced to the reseller layer — Softcat, Phoenix, CDW, Bramble Hub…</p>
+    </article>
+    <article class="q-card q-researcher">
+      <span class="q-persona">Researcher</span>
+      <p class="q-q">Which 'live' tech frameworks are dead paper — appointed suppliers but no real spend?</p>
+      <p class="q-o">It tells you what it can prove <i>and what it can't</i> — separating genuinely-idle frameworks from attribution gaps.</p>
+    </article></div>
+</section>
+
+<section class="tools" id="tools">
+  <header class="section-header">
+    <div class="rule strong"></div>
+    <div class="sh-row"><span class="eyebrow">17 tools, 3 personas</span><h2 class="sh-title">One MCP server, three jobs</h2></div>
+  </header>
+  <div class="tool-grid">
+    <div class="tool-col">
+      <h3 class="tool-persona"><span class="eyebrow">Buyer</span></h3>
+      <ul class="tool-list">
+        <li><code>find_routes</code><span>frameworks that fit a need + permitted mechanics</span></li><li><code>find_services</code><span>the catalogue listing that does it — semantic + proof-of-delivery</span></li><li><code>compliant_path</code><span>how to call it off — Procurement-Act-2023-precise</span></li><li><code>plan_buy</code><span>one opinionated brief: route + shortlist + price + exclusion + checklist</span></li><li><code>compare_routes</code><span>a decision matrix: speed × competition × depth × runway × price</span></li><li><code>benchmark_price</code><span>what the public sector really paid (median / p25–p75)</span></li><li><code>due_diligence</code><span>is this supplier safe? two-limb live exclusion + delivery record</span></li><li><code>get_supplier</code><span>one supplier — exclusion, full framework footprint, evidence</span></li>
+      </ul>
+    </div>
+    <div class="tool-col">
+      <h3 class="tool-persona"><span class="eyebrow">Seller</span></h3>
+      <ul class="tool-list">
+        <li><code>find_instruments_to_list</code><span>frameworks &amp; live DPS you can still join</span></li><li><code>supplier_pipeline</code><span>live + forward opportunities, incumbents to displace, resellers</span></li><li><code>contract_expiry_radar</code><span>incumbents whose contracts are running out</span></li><li><code>list_resellers</code><span>thin-primes &amp; VARs that can carry you in</span></li>
+      </ul>
+    </div>
+    <div class="tool-col">
+      <h3 class="tool-persona"><span class="eyebrow">Researcher</span></h3>
+      <ul class="tool-list">
+        <li><code>spend_xray</code><span>how money flows by channel + market concentration</span></li><li><code>get_instrument</code><span>one framework — suppliers, mechanics, observed-from-awards backfill</span></li><li><code>query_sql</code><span>read-only BigQuery over the whole corpus</span></li><li><code>get_schema / get_status</code><span>the schema + per-table freshness &amp; coverage</span></li>
+      </ul>
+    </div></div>
+</section>
+
+<section class="honest" id="honest">
+  <header class="section-header">
+    <div class="rule strong"></div>
+    <div class="sh-row"><span class="eyebrow">The honest part</span><h2 class="sh-title">What it can't do — and says so</h2></div>
+  </header>
+  <div class="honest-grid">
+    <p>Credibility is in the candour. govbuy never fabricates: every supplier, framework and £ comes from a source that literally states it, behind a verbatim-substring gate.</p>
+    <ul>
+      <li><b>Login-walled supplier lists.</b> ~328 frameworks publish membership only behind a portal login — govbuy says so rather than guessing.</li>
+      <li><b>Attribution gaps.</b> Most awards carry no framework reference, so a flagship showing low spend is often an attribution gap, <i>not</i> dead paper — and it tells you which.</li>
+      <li><b>Backfilled, labelled.</b> Where an official list is missing, <b class="numeral">3,910</b> supplier×framework edges are inferred from real awards — clearly marked observed-not-official.</li>
+      <li><b>Not legal advice.</b> It documents routes; it doesn't assemble the purchase or sign off compliance. Confirm on the official source it links.</li>
+    </ul>
+  </div>
+</section>
+
+<section class="cta" id="contact">
+  <div class="cta-inner">
+    <div class="orn">🦩</div>
+    <span class="eyebrow on-paper">Built by cns.me</span>
+    <h2 class="cta-title">If this is the kind of thing you need built — <em>let's talk.</em></h2>
+    <p class="cta-lede">govbuy is one example of how cns.me turns a messy, high-stakes domain into something an AI can reason over precisely. Strategy, data, and the engineering to make it real.</p>
+    <div class="cta-row">
+      <a class="btn-primary" href="mailto:chris@cns.me?subject=govbuy">chris@cns.me →</a>
+      <a class="btn-ghost" href="https://github.com/chrisns/govbuy">See the code</a>
+      <a class="btn-ghost" href="https://cns.me">cns.me</a>
+    </div>
+  </div>
+</section>
+
+<footer class="colophon">
+  <div class="colophon-grid">
+    <div>
+      <span class="brand"><span class="brand-cns">cns</span><span class="brand-dot"></span><span class="brand-me">me</span><span class="brand-blog">/ govbuy</span></span>
+      <p class="cl-note">An MCP server mapping UK public-sector routes to market. Source-anchored; not the authority of record; not legal advice.</p>
+    </div>
+    <div>
+      <h4 class="cl-h">Elsewhere</h4>
+      <ul class="cl-list">
+        <li><a href="https://cns.me">cns.me / LinkedIn</a></li><li><a href="https://blog.cns.me">Blog</a></li>
+        <li><a href="https://talks.cns.me">Talks</a></li><li><a href="https://github.com/chrisns/govbuy">GitHub</a></li>
+      </ul>
+    </div>
+    <div>
+      <h4 class="cl-h">The corpus</h4>
+      <ul class="cl-list">
+        <li class="numeral">3,207 frameworks</li><li class="numeral">658,625 awards</li>
+        <li class="numeral">28,272 suppliers</li><li>data as of <span class="numeral">2026-06-12</span></li>
+      </ul>
+    </div>
+  </div>
+  <div class="rule"></div>
+  <p class="cl-fine">© cns.me · Facts are not copyrightable; short excerpts kept for verification under the UK quotation exception, attributed &amp; linked. Open Government Licence v3.0 where applicable.</p>
+</footer>
+</div>
+<script>window.__DATA__={"premium":[{"d":"85","label":"Health & social work (CPV 85)","fw":294029,"fw_p25":65000,"fw_p75":1905476,"open":2267041,"fw_n":3614,"open_n":15089,"total":259711064775},{"d":"45","label":"Construction (CPV 45)","fw":259793,"fw_p25":81933,"fw_p75":1357560,"open":322000,"fw_n":7484,"open_n":18629,"total":214789231117},{"d":"79","label":"Business & management services (CPV 79)","fw":53095,"fw_p25":13921,"fw_p75":170064,"open":180000,"fw_n":26480,"open_n":13012,"total":123594819831},{"d":"71","label":"Architecture & engineering (CPV 71)","fw":115197,"fw_p25":49930,"fw_p75":376617,"open":198281,"fw_n":9986,"open_n":8094,"total":118877290523},{"d":"33","label":"Medical equipment & pharma (CPV 33)","fw":100000,"fw_p25":41376,"fw_p75":347216,"open":8300000,"fw_n":3355,"open_n":4122,"total":117706786003},{"d":"80","label":"Education & training (CPV 80)","fw":72151,"fw_p25":30632,"fw_p75":200000,"open":445200,"fw_n":7308,"open_n":10009,"total":86416520495},{"d":"60","label":"Transport services (CPV 60)","fw":84551,"fw_p25":33356,"fw_p75":364169,"open":322240,"fw_n":2633,"open_n":9367,"total":75683750132},{"d":"72","label":"IT services & software (CPV 72)","fw":183366,"fw_p25":64900,"fw_p75":737512,"open":140400,"fw_n":18984,"open_n":4003,"total":63315251872},{"d":"34","label":"Transport equipment (CPV 34)","fw":87826,"fw_p25":38581,"fw_p75":304882,"open":475000,"fw_n":3798,"open_n":3656,"total":42150071844},{"d":"39","label":"Furniture & furnishings (CPV 39)","fw":96000,"fw_p25":36226,"fw_p75":358986,"open":991000,"fw_n":1137,"open_n":2744,"total":37273004784},{"d":"66","label":"Financial & insurance (CPV 66)","fw":139195,"fw_p25":44048,"fw_p75":500000,"open":522403,"fw_n":2475,"open_n":2413,"total":31811530931},{"d":"31","label":"Electrical machinery (CPV 31)","fw":108661,"fw_p25":39760,"fw_p75":368135,"open":340000,"fw_n":525,"open_n":2102,"total":31592722974},{"d":"50","label":"Repair & maintenance (CPV 50)","fw":112892,"fw_p25":43908,"fw_p75":378853,"open":373390,"fw_n":2678,"open_n":4028,"total":30509771348},{"d":"90","label":"Environmental services (CPV 90)","fw":114315,"fw_p25":55000,"fw_p75":360000,"open":330000,"fw_n":1351,"open_n":4504,"total":29185037558}]};</script>
+<script>
+(function(){
+  var fmt=function(n){var a=Math.abs(n);if(a>=1e9)return "\u00a3"+(n/1e9).toFixed(a>=1e10?0:1)+"bn";if(a>=1e6)return "\u00a3"+(n/1e6).toFixed(a>=1e8?0:1)+"m";if(a>=1e3)return "\u00a3"+Math.round(n/1e3)+"k";return "\u00a3"+n;};
+  var cn=function(n){return n.toLocaleString("en-GB");};
+  // copy buttons
+  document.querySelectorAll(".copy-btn").forEach(function(b){b.addEventListener("click",function(){navigator.clipboard.writeText(b.getAttribute("data-copy")).then(function(){var t=b.textContent;b.textContent="Copied";b.classList.add("done");setTimeout(function(){b.textContent=t;b.classList.remove("done");},1400);});});});
+  // price explorer
+  var P=(window.__DATA__||{}).premium||[];
+  var panel=document.getElementById("exPanel");
+  var chips=document.getElementById("exChips");
+  function render(i){
+    var p=P[i];if(!p||!panel)return;
+    var mx=Math.max(p.fw,p.open);
+    var ratio=p.open?(p.fw/p.open):1;
+    var premium=ratio>1;
+    var pct=Math.round(Math.abs(ratio-1)*100);
+    var verdict=premium?("a "+pct+"% call-off <i>premium</i>"):(pct+"% <i>cheaper</i> via call-off at the median");
+    panel.innerHTML=
+      '<div class="ep-bars">'+
+        '<div class="ep-row"><span class="ep-rl">Framework call-off</span><div class="ep-track"><div class="ep-fill bf-pink" style="width:'+(p.fw/mx*100).toFixed(0)+'%"></div></div><span class="ep-v">'+fmt(p.fw)+'</span></div>'+
+        '<div class="ep-row"><span class="ep-rl">Open tender</span><div class="ep-track"><div class="ep-fill bf-ink" style="width:'+(p.open/mx*100).toFixed(0)+'%"></div></div><span class="ep-v">'+fmt(p.open)+'</span></div>'+
+      '</div>'+
+      '<div class="ep-verdict"><span class="ep-big">'+(premium?'+':'\u2212')+pct+'%</span><p class="ep-vh">median price is '+verdict+' in <b>'+p.label.replace(/ \(CPV.*/,'')+'</b>.</p><p class="ep-meta">'+cn(p.fw_n)+' call-offs \u00b7 '+cn(p.open_n)+' open \u00b7 '+fmt(p.total)+' total</p></div>';
+  }
+  if(chips){chips.querySelectorAll(".ex-chip").forEach(function(c){c.addEventListener("click",function(){chips.querySelectorAll(".ex-chip").forEach(function(x){x.classList.remove("active");});c.classList.add("active");render(+c.getAttribute("data-i"));});});}
+  var act=chips&&chips.querySelector(".ex-chip.active");render(act?+act.getAttribute("data-i"):0);
+  // table sort
+  var tbl=document.getElementById("fwTable");
+  if(tbl){tbl.querySelectorAll("th.sortable").forEach(function(th){th.addEventListener("click",function(){
+    var key=th.getAttribute("data-key");var tb=tbl.querySelector("tbody");
+    var rows=Array.prototype.slice.call(tb.querySelectorAll("tr"));
+    rows.sort(function(a,b){return (+b.getAttribute("data-"+key))-(+a.getAttribute("data-"+key));});
+    tbl.querySelectorAll("th.sortable").forEach(function(x){x.textContent=x.textContent.replace(/ [\u25be\u25b8]$/,"");});
+    th.textContent=th.textContent+" \u25be";
+    rows.forEach(function(r,idx){r.querySelector(".fw-rank").textContent=idx+1;tb.appendChild(r);});
+  });});}
+})();
+</script>
+</body>
+</html>
