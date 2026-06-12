@@ -84,7 +84,8 @@ export function buildServer(): McpServer {
         "Responses are source-anchored and carry URLs: framework official_url, operator_url, supplier ch_url (Companies House), buying-document urls, and an evidence.source_url on every asserted claim. " +
         "ALWAYS surface these to the user as clickable markdown links with the thing's name as the link text — naming a framework, supplier, or source without linking its URL is not useful. " +
         "When a buyer describes a concrete capability (e.g. 'host this app', 'an M365 mailbox', 'a service desk', 'a desk', 'classroom furniture'), find_routes gives the framework/route, then find_services surfaces the specific catalogue listings that do it — each with a citable listing URL, and where known the supplier's real call-off track record (£ won on that framework), an indicative price, and months-to-framework-expiry. Then compliant_path turns the chosen framework into the actual next steps (permitted award mechanic + conditions + documents + the 'a card/marketplace is not a route' caveat). Prefer naming concrete listings, citing the proof-of-delivery, and giving the call-off mechanic over only naming a framework. " +
-        "govbuy is fused with the UK Tenders corpus (658k real awards), so it serves three personas: BUYERS — benchmark_price (what was actually paid) + due_diligence (is this supplier safe: concentration, competitive-vs-direct, footprint); SUPPLIERS — supplier_pipeline (live opportunities + frameworks that really pay + incumbents to displace with contract-end windows + resellers); RESEARCHERS — spend_xray (how money flows by channel + competition health). All joined on Companies House CRN; cite the source URLs. " +
+        "govbuy is fused with the UK Tenders corpus (658k real awards), so it serves three personas: BUYERS — benchmark_price (what was actually paid), due_diligence (is this supplier safe), and plan_buy (one opinionated end-to-end brief: route + shortlist + price + exclusion check + compliance checklist); SUPPLIERS — supplier_pipeline (live + FORWARD-pipeline opportunities + frameworks that really pay + incumbents to displace + resellers); RESEARCHERS — spend_xray (how money flows by channel + competition health). All joined on Companies House CRN; cite the source URLs. " +
+        "compliant_path is Procurement-Act-2023-precise (competitive flexible procedure, 8-working-day standstill, lawful direct-award grounds, the DPS→dynamic-market sunset, the >£5m KPI duty, payment-method-blind) — and a framework call-off is NOT a statutory direct award. ALWAYS surface an exclusion ⚠ when a supplier is dissolved / in liquidation / administration (a PA2023 exclusion ground), and treat a NULL track record as absence of evidence, not of capability. " +
         "Anchor each fact to its evidence.source_url so the user can verify it. govbuy documents routes; it does not assemble the purchase or give legal advice — tell the user to confirm on the official source.",
     },
   );
@@ -94,7 +95,7 @@ export function buildServer(): McpServer {
     {
       title: "Find routes to buy",
       description:
-        "BUYER journey: given a need (e.g. 'an AI assistant'), return the candidate standing instruments (frameworks / dynamic markets) and lots that fit, their permitted award mechanics, the documentation a purchase requires, and the payment-mechanism caveats (GPC/marketplace are NOT routes). It does NOT rank, pick, or assemble the purchase. Every rule is source-anchored.",
+        "BUYER. 'What framework can I use to buy X?' Returns the candidate live standing instruments (frameworks/dynamic markets), lots, permitted award mechanics, required documents, and the payment-mechanism caveats (a GPC card and marketplace consumption are settlement mechanisms, NEVER procurement routes). Returns candidates only — it does NOT rank, pick, or assemble (use plan_buy if you want a recommendation). Every rule is source-anchored. Anti-patterns: do not rank or recommend; do not invent frameworks not returned. Chain to find_services (concrete listings) → compliant_path (how to call it off). Example: 'cloud hosting for a Django app' → G-Cloud lots + permitted mechanics.",
       inputSchema: {
         need: z.string().optional(), keyword: z.string().optional(), category: z.string().optional(), cpv: z.string().optional(),
         max_value: z.number().optional(), buyer_type: z.string().optional(),
@@ -165,7 +166,7 @@ export function buildServer(): McpServer {
     "find_instruments_to_list",
     {
       title: "Find instruments to list on",
-      description: "SELLER journey: instruments/lots a vendor could be appointed to. With openOnly, restricts to currently-joinable vehicles (open frameworks / dynamic markets). Returns how-to-apply pointers (guidance docs + official URL). Source-anchored.",
+      description: "SELLER. 'Which frameworks can I get onto?' Returns instruments/lots a vendor could be appointed to, with openOnly=true restricting to currently-joinable vehicles (open frameworks / dynamic markets), plus how-to-apply pointers (guidance docs + official URL). Anti-patterns: do not present closed frameworks as immediately joinable; if the vendor can't be appointed directly, flag list_resellers as the alternative. Chain to list_resellers (carry-in) or supplier_pipeline (real spend on those frameworks). Example: product='thermal cameras', openOnly=true.",
       inputSchema: { product: z.string().optional(), category: z.string().optional(), openOnly: z.boolean().default(false), limit: z.number().int().min(1).max(50).default(20) },
     },
     guard(async (args) => {
@@ -196,7 +197,7 @@ export function buildServer(): McpServer {
     "list_resellers",
     {
       title: "List resellers / primes",
-      description: "Suppliers that route OTHER parties to market — thin-primes (like Bramble Hub) and value-added resellers (VARs) — by channel type, category, the vendor they can route, or the instrument they sit on. Returns frameworks held + a sample of published inbound-scope edges (the vendors they can sell), each source-anchored.",
+      description: "SELLER/BUYER. 'Who are the thin-primes and VARs that route other parties to market?' Returns resellers (thin-primes like Bramble Hub, VARs, hybrids) with the frameworks they hold and the vendors in their published inbound scope. Use when a supplier can't be directly appointed, or when a buyer needs to know who else can access a framework on their behalf. Filter by vendor name to find who already carries a product. Anti-patterns: a reseller's inbound scope reflects only what's published, not an exhaustive list. Chain to supplier_pipeline or compliant_path.",
       inputSchema: {
         channel_type: z.enum(["thin_prime", "var", "vendor", "hybrid", "unknown"]).optional(),
         category: z.string().optional(), vendor: z.string().optional(), instrument: z.string().optional(),
@@ -240,7 +241,7 @@ export function buildServer(): McpServer {
     "get_supplier",
     {
       title: "Get supplier",
-      description: "One supplier by name or Companies House number: the CRN match snapshot (band, status-at-match, link-out), its channel type, the instruments/lots it is appointed to (with membership qualifier), and its inbound scope if it resells.",
+      description: "BUYER/RESEARCHER. Full profile of one supplier by name or Companies House CRN: the CRN match snapshot (band, status-at-match), an **exclusion alert** (⚠ if dissolved/in liquidation/administration — a PA2023 exclusion ground), channel type (thin-prime/VAR/vendor), instruments/lots appointed to (with membership qualifier + dates), and inbound scope if it resells. Use when you know which supplier you're investigating. Anti-patterns: status_at_match is a snapshot at match time, NOT live Companies House status — always link ch_url for the live record. Chain to due_diligence (delivery track record) or get_instrument (the specific framework).",
       inputSchema: { name: z.string().optional(), crn: z.string().optional(), resultMode: RESULT_MODE },
     },
     guard(async (args) => {
@@ -259,7 +260,11 @@ export function buildServer(): McpServer {
       if (!rows.length) return toolError("UNKNOWN", `No supplier for '${args.name ?? args.crn}'.`);
       const r = deep(rows[0]) as Record<string, unknown>;
       const appointments = (r.appointments as Record<string, unknown>[]).map((a) => ({ ...a, membership: membership(a) }));
-      const payload = await withEvidence({ supplier: { ...r, appointments }, display_guidance: DISPLAY_GUIDANCE });
+      const excluded = ["dissolved", "liquidation", "administration", "closed"].includes(String(r.status_at_match));
+      const exclusion = { flagged: excluded, status: excluded ? r.status_at_match : null,
+        note: excluded ? `⚠ Exclusion risk: Companies House status was '${r.status_at_match}' at match time — a PA2023 Schedule 6/7 (insolvency/dissolution) ground a contracting authority must consider. Snapshot only; re-check live at ch_url before any award.` : "No Companies-House distress flag on record (snapshot — re-check live before award)." };
+      const payload = await withEvidence({ supplier: { ...r, appointments }, exclusion,
+        display_guidance: "If exclusion.flagged is true, LEAD with the ⚠ warning. Always link ch_url for live status. " + DISPLAY_GUIDANCE });
       return ok(withFreshness(payload, await freshness()));
     }),
   );
@@ -269,7 +274,7 @@ export function buildServer(): McpServer {
     {
       title: "Find catalogue services",
       description:
-        "CAPABILITY search across every public-sector buying catalogue govbuy holds: given a real need (e.g. 'host an open-source app', 'Microsoft 365 mailbox', 'IT service desk', 'a desk', 'classroom furniture'), return the specific catalogue listings that match — each with supplier, the verbatim description, and the citable listing URL to link. Catalogues: g-cloud (43,733 cloud services, the main digital route), espo + ypo (physical goods — furniture, supplies), nhs-buying-catalogue (clinical IT), ndx. This answers 'who can actually DO/SUPPLY this' rather than just naming a framework: surface 3-8 concrete listings and link each. Filter by `catalogue` to scope (e.g. g-cloud for digital, espo/ypo for physical goods).",
+        "BUYER. 'Who can actually DO or SUPPLY this?' Searches every public-sector buying catalogue (g-cloud cloud services; espo + ypo physical goods; nhs-buying-catalogue clinical IT; ndx; azure) and returns specific listings with supplier, verbatim description and a citable listing URL. **Disambiguation is critical:** 'a desk'/'classroom furniture' → set catalogue=espo or ypo (physical goods); 'IT service desk'/'helpdesk software' → catalogue=g-cloud (cloud-software). Each row carries `supplier_public_calloff_gbp` (real CRN-matched delivery evidence from 658k awards) and an `exclusion_status` (⚠ if the supplier is dissolved/in liquidation at Companies House). Anti-patterns: NULL call-off = absence of evidence, NOT proof the supplier can't deliver — never treat it as disqualifying. Chain to compliant_path (how to buy) or due_diligence (is the supplier safe).",
       inputSchema: {
         need: z.string().optional(), keyword: z.string().optional(),
         catalogue: z.enum(["g-cloud", "espo", "ypo", "nhs-buying-catalogue", "ndx", "azure"]).optional(),
@@ -310,6 +315,7 @@ export function buildServer(): McpServer {
         s AS (
           SELECT sv.service_id, sv.catalogue, sv.name, sv.supplier_name, sv.lot, sv.description, sv.features, sv.benefits,
                  sv.url, sv.instrument_id, sup.company_number, sup.ch_url, sup.match_band,
+                 IF(sup.status_at_match IN ('dissolved','liquidation','administration','closed'), sup.status_at_match, NULL) AS exclusion_status,
                  inst.rm_reference, inst.expires_on, ${priceExpr} AS price_gbp,
                  LOWER(sv.name) AS nm,
                  LOWER(CONCAT(sv.name, ' ', IFNULL(sv.description, ''), ' ',
@@ -356,7 +362,7 @@ export function buildServer(): McpServer {
     {
       title: "Compliant call-off path",
       description:
-        "Turn 'which framework' into 'how to actually buy it': given an instrument_id or rm_reference, return the permitted award mechanics (direct award vs further competition) with their conditions, the buying documents, the framework's lifecycle + expiry, the official URL, and the payment-mechanism caveats (a GPC card or marketplace consumption is a settlement mechanism, NEVER a procurement route). Use after find_routes/find_services to give the buyer the actual next steps.",
+        "BUYER. 'How do I actually call this off — compliantly under the Procurement Act 2023?' Given an instrument_id or rm_reference, returns: the permitted award mechanics (direct award vs further competition) with conditions verbatim, the buying documents + URLs, lifecycle + expiry, AND the **Procurement Act 2023** statutory rules that govern it — the competitive flexible procedure, the 8-working-day standstill, lawful direct-award (Schedule 5) grounds, open-vs-closed frameworks, the DPS→dynamic-market sunset (Feb 2029), the >£5m KPI duty, the s.62 debarment-check duty, and that the regime is payment-method-blind (a GPC card/marketplace billing is a settlement mechanism, never a route, and confers no exemption). Crucially distinguishes a framework call-off from a statutory direct award (ss.41/43 cannot be used for call-offs). Use after find_routes/find_services. Anti-patterns: never present a GPC card as a route; never call a framework call-off a 'statutory direct award'; cite the source_url on statutory claims.",
       inputSchema: { instrument_id: z.string().optional(), rm_reference: z.string().optional() },
     },
     guard(async (args) => {
@@ -390,6 +396,7 @@ export function buildServer(): McpServer {
         types: { iid: "STRING", rm: "STRING" },
       })).map((r) => deep(r) as Record<string, unknown>);
       if (!rows.length) return toolError("UNKNOWN", `No instrument matched '${args.instrument_id ?? args.rm_reference}'.`);
+      const pa2023 = (await runQuery(`SELECT topic, statement, source_url FROM ${tableRef("pa2023_rule")} ORDER BY topic`)).map((r) => deep(r));
       const sect = (s: string) => rows.filter((r) => r.section === s);
       const head = sect("instrument")[0] ?? {};
       const payload = {
@@ -397,8 +404,12 @@ export function buildServer(): McpServer {
         award_mechanics: sect("mechanic").map((r) => ({ mechanic: r.title, lot_id: r.ref, permitted: r.permitted, conditions: r.conditions })),
         buying_documents: sect("document").map((r) => ({ title: r.title, doc_type: r.ref, url: r.url, summary: r.conditions })),
         payment_caveats: sect("payment_caveat").map((r) => ({ mechanism: r.title, permitted_for_procurement: r.status, note: r.conditions })),
+        procurement_act_2023: {
+          summary: "PA2023 (in force 24 Feb 2025) governs covered procurement in England/Wales/NI. A framework call-off (direct selection under the framework's objective mechanism, or further competition) is NOT a statutory direct award — ss.41/43 cannot be used for call-offs. Direct award without competition is lawful only on a Schedule 5 ground (+ a transparency notice). A competitive award needs an 8-working-day standstill after the contract award notice before signing. The regime is payment-method-blind — a GPC/purchase card confers no exemption.",
+          rules: pa2023,
+        },
         display_guidance:
-          "Lead with the permitted direct-award mechanic if present (call_off_no_further_competition) — that's the fastest compliant route — else further_competition. State the conditions verbatim. Link official_url and any buying-document urls. Flag expiry if near. Remind the buyer a GPC card / marketplace consumption is NOT a route. " + DISPLAY_GUIDANCE,
+          "Lead with the permitted mechanic (call_off_no_further_competition is the fastest compliant route; else further_competition), conditions verbatim. Then state the PA2023 reality: a framework call-off is NOT a statutory direct award; if this is a further competition, an 8-working-day standstill applies before signing; a GPC card/marketplace is never a route. Cite the rule source_url on any statutory point. Link official_url + document URLs; flag near expiry. " + DISPLAY_GUIDANCE,
       };
       return ok(withFreshness(payload, await freshness()));
     }),
@@ -409,7 +420,7 @@ export function buildServer(): McpServer {
     {
       title: "Supplier go-to-market pipeline",
       description:
-        "FOR A SUPPLIER — given what you sell (a CPV division + a keyword), return your whole route to market in one call, fusing the catalogue/framework world with 658k real tender awards: (1) LIVE opportunities open to bid now; (2) frameworks ranked by REAL call-off spend in your space (join the ones that actually pay, not dead paper); (3) the incumbents holding that spend + when their contracts END (your displacement window); (4) resellers/thin-primes who could carry you onto a framework. CPV divisions (2-digit): 72=IT services, 48=software, 30=office & computing equipment, 32=comms equipment, 35=security/safety/defence equipment, 34=transport equipment, 38=lab & precision instruments, 50=repair & maintenance, 71=architecture/engineering, 45=construction, 79=business/professional services, 90=environmental, 85=health/social, 80=education, 60=transport services, 55=catering/hotel. Pass the best-fit `cpv` AND a `need` keyword.",
+        "SELLER. 'What is my full route to market right now?' Fuses catalogue/framework data with 658k real tender awards in one call: (1) LIVE opportunities open to bid; (2) frameworks ranked by REAL call-off spend in your CPV space (join the ones that actually pay, not dormant paper); (3) incumbents holding that spend + when their contracts END (your displacement window); (4) resellers/thin-primes who could carry you onto a framework faster than direct appointment; (5) FORWARD pipeline — procurements PLANNED but not yet live (bid-prep 6-18 months ahead). Pass both a CPV division and a need keyword. CPV (2-digit): 72=IT services, 48=software, 30=office/computing equipment, 32=comms, 35=security/defence, 34=transport equipment, 38=lab/precision instruments, 50=repair, 71=engineering, 45=construction, 79=business services, 90=environmental, 85=health, 80=education. Anti-patterns: verify each live/pipeline notice on its official_url; CPV is a two-digit division, not a full code. Chain to find_instruments_to_list (join a framework) or list_resellers.",
       inputSchema: { cpv: z.string().optional(), need: z.string().optional(), limit: z.number().int().min(1).max(20).default(8) },
     },
     guard(async (args) => {
@@ -449,19 +460,27 @@ export function buildServer(): McpServer {
         FROM ${tableRef("reseller_channel")} rc JOIN ${tableRef("supplier")} s ON s.supplier_id = rc.supplier_id
         WHERE rc.channel_type IN ('thin_prime','var','hybrid')
         ORDER BY CASE rc.channel_type WHEN 'thin_prime' THEN 1 WHEN 'hybrid' THEN 2 ELSE 3 END, s.display_name LIMIT @lim`;
+      const pipeSql = `
+        SELECT buyer_name, title, cpv_division, ROUND(estimated_value) AS estimated_value,
+               CAST(expected_date AS STRING) AS expected_date, official_url
+        FROM ${tableRef("pipeline_notice")}
+        WHERE (@cpv IS NULL OR cpv_division = @cpv) AND (@kw IS NULL OR hay LIKE @kw)
+        ORDER BY expected_date LIMIT @lim`;
       const wide = { params: { cpv, kw, lim }, types: { cpv: "STRING" as const, kw: "STRING" as const } };
-      const [live, frameworks, incumbents, resellers] = await Promise.all([
+      const [live, frameworks, incumbents, resellers, coming] = await Promise.all([
         runQuery(liveSql, wide), runQuery(fwSql, { params: { cpv, lim }, types: { cpv: "STRING" } }),
         runQuery(incSql, { params: { cpv, lim }, types: { cpv: "STRING" } }), runQuery(rslSql, { params: { lim } }),
+        runQuery(pipeSql, wide),
       ]);
       const m = (rs: Record<string, unknown>[]) => rs.map((r) => deep(r));
       return ok(withFreshness({
         live_opportunities: m(live),
+        coming_soon_pipeline: m(coming),
         frameworks_with_real_calloff_spend: m(frameworks),
         incumbents_to_displace: m(incumbents),
         resellers_who_could_carry_you: m(resellers),
-        note: "A supplier's full route to market, fusing govbuy's frameworks/resellers with real tender awards. `frameworks_with_real_calloff_spend` ranks routes by money that actually flowed (call-off channels only, ceiling-award outliers removed). `incumbents_to_displace.latest_contract_end` is when to pounce. Live opportunities are real open notices — verify each on its official_url. " + NOT_ADVICE,
-        display_guidance: "Lead with live opportunities (link each official_url) and the 2-3 frameworks with the most real call-off spend in their space (link official_url, flag lifecycle_status + expiry). Then name the incumbents with their £ won and contract-end dates as the displacement window, and the thin-primes/VARs (with ch_url) as a faster way in. " + DISPLAY_GUIDANCE,
+        note: "A supplier's full route to market, fusing govbuy's frameworks/resellers with real tender awards. `coming_soon_pipeline` = PLANNED procurements not yet live (prepare ahead). `frameworks_with_real_calloff_spend` ranks routes by money that actually flowed (call-off channels only, ceiling outliers removed). `incumbents_to_displace.latest_contract_end` is when to pounce. Verify each notice on its official_url. " + NOT_ADVICE,
+        display_guidance: "Lead with what's actionable now — live opportunities (link official_url) and the 2-3 frameworks with the most real call-off spend (link official_url, flag lifecycle + expiry). Then the FORWARD pipeline (procurements coming, with expected dates) as bid-prep signal, the incumbents with £ won + contract-end displacement windows, and the thin-primes/VARs (ch_url) as a faster way in. " + DISPLAY_GUIDANCE,
       }, await freshness()));
     }),
   );
@@ -471,7 +490,7 @@ export function buildServer(): McpServer {
     {
       title: "Benchmark real prices paid",
       description:
-        "FOR A BUYER — what did the public sector ACTUALLY pay for this, vs list price? Given a CPV division (+ optional keyword on buyer/supplier name), returns the real award £ distribution (count, p25, median, p75, mean) overall and by channel (framework call-off vs open vs direct), from 658k real tender awards. CPV divisions: 72=IT services, 48=software, 30=computing equipment, 32=comms, 35=security equipment, 45=construction, 71=engineering, 79=business services, 85=health, 80=education, 90=environmental, 50=repair/maintenance.",
+        "BUYER. 'What did the public sector actually pay for this?' Returns the real award £ distribution (count, p25, median, p75, mean) overall and by channel (framework call-off vs open vs direct) from 658k tender awards. The `keyword` matches buyer/supplier name only — a weak SECTOR hint, NOT scope-of-work; read results as a range, not a quote. Anti-patterns: do not invent prices; do not treat the keyword as a precise scope filter. Chain to due_diligence (check the supplier) or compliant_path (the route). CPV: 72=IT, 48=software, 30=computing equipment, 35=security, 45=construction, 71=engineering, 79=business services, 85=health, 80=education, 90=environmental. Example: cpv='72', keyword='cyber'.",
       inputSchema: { cpv: z.string(), keyword: z.string().optional() },
     },
     guard(async (args) => {
@@ -500,7 +519,7 @@ export function buildServer(): McpServer {
     {
       title: "Supplier due diligence",
       description:
-        "FOR A BUYER — before you pick a supplier, is it safe? Given a Companies House CRN or a supplier name, returns its REAL delivery record from tender awards: total public-sector call-off £ and count, distinct buyers, customer concentration (top buyer's share — a one-customer risk flag), channel mix (% won competitively via framework/open vs direct award), CPV footprint, and last-activity / latest-contract-end dates. CRN-keyed, source-anchored.",
+        "BUYER. 'Is this supplier safe to choose?' Given a Companies House CRN or name, returns its CRN-matched delivery record from real awards — total call-off £ + count, distinct buyers, customer concentration (top buyer's share = single-customer risk), channel mix (% won competitively vs direct award), CPV footprint, contract-end dates — PLUS an **exclusion check** (a ⚠ if the firm is dissolved / in liquidation / administration at Companies House, a PA2023 Schedule 6/7 ground the buyer must consider). Anti-patterns: NULL/zero results = absence of evidence, not of capability (they may trade under another entity or win below threshold) — do not infer inability. Chain to compliant_path (proceed) or find_services (alternatives).",
       inputSchema: { crn: z.string().optional(), supplier: z.string().optional() },
     },
     guard(async (args) => {
@@ -529,10 +548,90 @@ export function buildServer(): McpServer {
         FROM base`;
       const rows = await runQuery(sql, { params: { crn: args.crn ?? null, sup }, types: { crn: "STRING", sup: "STRING" } });
       const r = rows.length ? deep(rows[0]) as Record<string, unknown> : {};
-      if (!r || r.calloffs == null || Number(r.calloffs) === 0) return toolError("UNKNOWN", `No CRN-matched public-sector awards for '${args.crn ?? args.supplier}'. Absence of evidence, not of capability — they may trade under a different entity or win below threshold.`);
-      return ok(withFreshness({ supplier: { crn: args.crn ?? null, query: args.supplier ?? null }, profile: r,
-        note: "CRN-matched delivery record from real tender awards (call-off channels, £ ceiling outliers removed). top_buyer_pct_of_calloff high (>50%) = single-customer risk; pct_direct_award high = wins by direct award not competition. NULL/absent = no matched awards, not proof of incapacity. " + NOT_ADVICE,
-        display_guidance: "State £ won + call-offs + distinct buyers as the delivery record, flag concentration (top buyer share) and how much is competitive vs direct award, and give the CPV footprint. " + DISPLAY_GUIDANCE }, await freshness()));
+      const sinfo = (await runQuery(`SELECT company_number, display_name, ch_url, status_at_match
+          FROM ${tableRef("supplier")} WHERE company_number = COALESCE(@crn,
+            (SELECT company_number FROM ${tableRef("supplier")} WHERE @sup IS NOT NULL AND LOWER(display_name) LIKE @sup AND company_number IS NOT NULL LIMIT 1)) LIMIT 1`,
+        { params: { crn: args.crn ?? null, sup }, types: { crn: "STRING", sup: "STRING" } })).map((x) => deep(x) as Record<string, unknown>)[0] ?? {};
+      const distress = ["dissolved", "liquidation", "administration", "closed"];
+      const excluded = distress.includes(String(sinfo.status_at_match));
+      if ((!r || r.calloffs == null || Number(r.calloffs) === 0) && !sinfo.company_number) return toolError("UNKNOWN", `No CRN-matched public-sector awards for '${args.crn ?? args.supplier}'. Absence of evidence, not of capability — they may trade under a different entity or win below threshold.`);
+      return ok(withFreshness({
+        supplier: { crn: sinfo.company_number ?? args.crn ?? null, display_name: sinfo.display_name ?? null, ch_url: sinfo.ch_url ?? null, companies_house_status: sinfo.status_at_match ?? null },
+        exclusion: { flagged: excluded, status: excluded ? sinfo.status_at_match : null,
+          note: excluded ? `⚠ Exclusion risk: Companies House status was '${sinfo.status_at_match}' at award-match time — a PA2023 Schedule 6/7 (insolvency/dissolution) ground a contracting authority must consider. This is a snapshot; re-check live at Companies House before any award.` : "No Companies-House distress flag on record (snapshot — re-check live before award)." },
+        profile: r,
+        note: "CRN-matched delivery record from real tender awards (call-off channels, £ ceiling outliers removed). top_buyer_pct_of_calloff >50% = single-customer risk; high pct_direct_award = wins by direct award not competition. NULL/absent record = no matched awards, not proof of incapacity. " + NOT_ADVICE,
+        display_guidance: "If `exclusion.flagged` is true, LEAD with the ⚠ warning before anything else. Then state £ won + call-offs + distinct buyers as the record, flag concentration and competitive-vs-direct mix, and the CPV footprint. Link the ch_url. " + DISPLAY_GUIDANCE,
+      }, await freshness()));
+    }),
+  );
+
+  server.registerTool(
+    "plan_buy",
+    {
+      title: "Plan the buy (opinionated)",
+      description:
+        "BUYER. 'Just tell me how to buy this.' Given a need (+ optional cpv division, budget), returns ONE opinionated, source-anchored buying brief: a recommended route + PA2023-correct call-off mechanic, a ranked shortlist of up to 3 real listings (each with CRN-matched delivery record + a Companies-House exclusion check), an indicative market price from real awards, forward pipeline notices to watch, and a compliance checklist. Unlike find_routes it DOES recommend — but everything is indicative and caveated; the buyer still runs their own assessment. Anti-patterns: keep every caveat; never drop the exclusion ⚠ or the PA2023 standstill note; cite the listing + framework URLs.",
+      inputSchema: { need: z.string(), cpv: z.string().optional(), budget_gbp: z.number().optional() },
+    },
+    guard(async (args) => {
+      const toks = tokenize(args.need);
+      if (!toks.length) return toolError("INVALID_QUERY", "Describe the need, e.g. 'cloud hosting for a Django app'.");
+      const cpv = args.cpv ?? null; const kw = `%${args.need.toLowerCase()}%`;
+      const nameHits = `(SELECT COUNT(1) FROM UNNEST(@toks) t WHERE REGEXP_CONTAINS(nm, CONCAT(r'\\b', t, r'\\b')))`;
+      const anyHits = `(SELECT COUNT(1) FROM UNNEST(@toks) t WHERE REGEXP_CONTAINS(hay, CONCAT(r'\\b', t, r'\\b')))`;
+      const shortlistSql = `
+        WITH s AS (
+          SELECT sv.service_id, sv.catalogue, sv.name, sv.supplier_name, sv.url, sv.instrument_id, sup.ch_url, sup.company_number,
+                 IF(sup.status_at_match IN ('dissolved','liquidation','administration','closed'), sup.status_at_match, NULL) AS exclusion_status,
+                 tr.calloff_gbp, tr.calloff_count, LOWER(sv.name) AS nm,
+                 LOWER(CONCAT(sv.name,' ',IFNULL(sv.description,''),' ',ARRAY_TO_STRING(sv.features,' '))) AS hay
+          FROM ${tableRef("service")} sv
+          LEFT JOIN ${tableRef("supplier")} sup ON sup.supplier_id = sv.supplier_id
+          LEFT JOIN ${tableRef("supplier_calloff_total")} tr ON tr.supplier_crn = sup.company_number)
+        SELECT service_id, catalogue, name, supplier_name, url, ch_url, exclusion_status, calloff_gbp, calloff_count, instrument_id
+        FROM s WHERE ${anyHits} > 0
+        ORDER BY (${anyHits} = ARRAY_LENGTH(@toks)) DESC, (5*${nameHits} + ${anyHits}) DESC, calloff_gbp DESC NULLS LAST LIMIT 3`;
+      const benchSql = `SELECT ROUND(APPROX_QUANTILES(award_amount,100)[OFFSET(25)]) p25, ROUND(APPROX_QUANTILES(award_amount,100)[OFFSET(50)]) median,
+          ROUND(APPROX_QUANTILES(award_amount,100)[OFFSET(75)]) p75, COUNT(*) n
+        FROM ${tableRef("tender_award")} WHERE @cpv IS NOT NULL AND cpv_division=@cpv AND channel IN ('framework_call_off','dps_call_off') AND award_amount BETWEEN 0 AND 100000000`;
+      const pipeSql = `SELECT buyer_name, title, ROUND(estimated_value) AS estimated_value, CAST(expected_date AS STRING) AS expected_date, official_url
+        FROM ${tableRef("pipeline_notice")} WHERE (@cpv IS NULL OR cpv_division=@cpv) AND hay LIKE @kw ORDER BY expected_date LIMIT 3`;
+      const [sl, bench, pipe] = await Promise.all([
+        runQuery(shortlistSql, { params: { toks }, types: { toks: ["STRING"] } }),
+        runQuery(benchSql, { params: { cpv }, types: { cpv: "STRING" } }),
+        runQuery(pipeSql, { params: { cpv, kw }, types: { cpv: "STRING", kw: "STRING" } }),
+      ]);
+      const shortlist = sl.map((r) => deep(r) as Record<string, unknown>);
+      if (!shortlist.length) return toolError("UNKNOWN", `No catalogue listing matched '${args.need}'. Try find_routes for the framework route, or rephrase.`);
+      const iid = String(shortlist[0].instrument_id ?? "g-cloud-14");
+      const mech = (await runQuery(`SELECT i.name, i.rm_reference, CAST(i.expires_on AS STRING) AS expires_on, i.official_url, i.lifecycle_status,
+          ARRAY_AGG(am.mechanic ORDER BY CASE WHEN am.mechanic='call_off_no_further_competition' THEN 1 ELSE 2 END LIMIT 1)[SAFE_OFFSET(0)] AS top_mechanic
+        FROM ${tableRef("instrument")} i
+        LEFT JOIN ${tableRef("award_mechanic")} am ON am.instrument_id = i.instrument_id AND am.permitted
+        WHERE i.instrument_id=@iid
+        GROUP BY i.name, i.rm_reference, i.expires_on, i.official_url, i.lifecycle_status LIMIT 1`,
+        { params: { iid }, types: { iid: "STRING" } })).map((r) => deep(r) as Record<string, unknown>)[0] ?? {};
+      const b = (bench.map((r) => deep(r) as Record<string, unknown>)[0]) ?? {};
+      const anyExcluded = shortlist.some((s) => s.exclusion_status);
+      return ok(withFreshness({
+        summary: `For "${args.need}": the recommended route is to call off the best-fit listing on ${mech.name ?? iid} (${mech.top_mechanic ?? "per the framework's mechanic"}).${anyExcluded ? " ⚠ One shortlisted supplier carries a Companies-House exclusion flag — see below." : ""}`,
+        recommended_route: { instrument: mech.name ?? null, rm_reference: mech.rm_reference ?? null, mechanic: mech.top_mechanic ?? null, lifecycle_status: mech.lifecycle_status ?? null, expires_on: mech.expires_on ?? null, official_url: mech.official_url ?? null },
+        indicative_price: b.n ? { p25_gbp: b.p25, median_gbp: b.median, p75_gbp: b.p75, sample_size: b.n, note: `from ${b.n} comparable CPV-${cpv} call-off awards (real spend; a range, not a quote)` } : { note: "pass a `cpv` division (e.g. '72'=IT) for a real-award price benchmark" },
+        shortlisted_services: shortlist.map((s, i) => ({ rank: i + 1, name: s.name, supplier: s.supplier_name, catalogue: s.catalogue, url: s.url, ch_url: s.ch_url,
+          track_record: s.calloff_gbp ? `£${s.calloff_gbp} across ${s.calloff_count} public-sector call-offs (CRN-matched)` : "no CRN-matched call-offs on record (absence of evidence, not of capability)",
+          exclusion_flag: !!s.exclusion_status, exclusion_status: s.exclusion_status ?? null })),
+        pipeline_to_watch: pipe.map((r) => deep(r)),
+        compliance_checklist: [
+          "A framework call-off is NOT a statutory direct award (PA2023 ss.41/43 don't apply to call-offs).",
+          "If you run a further competition, observe the 8-working-day standstill after the contract award notice before signing.",
+          "Check the s.62 debarment register and exclusion grounds (Sch 6/7) before award; re-check each supplier's LIVE Companies House status.",
+          "A GPC card / marketplace billing is a settlement mechanism, NEVER the procurement route, and confers no PA2023 exemption.",
+          "Confirm the instrument's live expiry, lot scope and supplier eligibility on the operator's own documentation.",
+        ],
+        note: "An opinionated, INDICATIVE buying brief composed from the catalogue + 658k real awards + PA2023. It recommends a route but is not legal/commercial advice, not the authority of record — you run the assessment. " + NOT_ADVICE,
+        display_guidance: "Present as a brief: the recommended route + mechanic; the 3 shortlisted listings (link each url + ch_url, show the track record, LEAD any exclusion ⚠); the indicative price range; pipeline to watch; then the compliance checklist verbatim. " + DISPLAY_GUIDANCE,
+      }, await freshness()));
     }),
   );
 
@@ -541,7 +640,7 @@ export function buildServer(): McpServer {
     {
       title: "Spend & competition x-ray",
       description:
-        "FOR A RESEARCHER — how does public money flow in a category, and is competition healthy? Given an optional CPV division and a lookback in years, returns spend + award counts split by CHANNEL (framework call-off vs DPS vs open tender vs direct award, with % of spend), the distinct-supplier count, and the top-5 suppliers' share of spend (market concentration). Over 658k real awards.",
+        "RESEARCHER. 'How does public money flow in this category, and is competition healthy?' Returns spend + award counts split by channel (framework call-off vs DPS vs open tender vs direct award, with % of spend), distinct-supplier count, and top-5 suppliers' share of spend (market concentration) over a configurable lookback. High direct-award % = thin competition; high top-5 share = concentrated market. Over 658k real awards (£ ceiling outliers >£100m removed). Anti-patterns: not a pricing tool — use benchmark_price for £. Chain to benchmark_price (distribution within a channel) or due_diligence (drill into a dominant supplier).",
       inputSchema: { cpv: z.string().optional(), years: z.number().int().min(1).max(10).default(3) },
     },
     guard(async (args) => {
