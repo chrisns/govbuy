@@ -44,7 +44,8 @@ the data already fused (117k listings + 658k awards on CRN). Done when AC-DONE h
 - **AC-DONE-3:** golden-eval re-run (throttled, 27 Qs) scores 70% raw / **≈78% harness-corrected** — the PA2023
   failure cluster is gone (the hardest PA2023 question now passes). Honest decomposition in `STATUS.md` →
   *Eval honesty*: 2 failures were harness artifacts (Monitor-status non-answers; pass solo), 1 exposed a real
-  supplier-identity reconciliation bug (5,181 CRNs map to >1 `supplier_id` — now the top next-step), 5 are
-  genuine content gaps (specific DPS instruments, one s49 mechanic error, one fabricated £/URL, one residency flag).
+  supplier-identity reconciliation bug (5,181 CRNs map to >1 `supplier_id`) **now fixed in `get_supplier`**
+  (verified live — Appvia returns both RM1557.14 + RM6190), 5 are genuine content gaps (specific DPS instruments,
+  one s49 mechanic error, one fabricated £/URL, one residency flag).
 - **AC-DONE-4:** the README is rewritten to be phenomenal — leads with the decisive, bulletproof, three-persona
   product; every claim source-anchored; all demos real `claude -p`.

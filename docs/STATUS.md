@@ -68,11 +68,14 @@ are *not* 8 feature gaps:
   appointed-supplier list + 2025 call-off £ + the lot-membership caveat. **Harness-corrected ≈ 78% (21/27).** The
   harness now forbids the run-agent from backgrounding `claude -p` (the artifact's cause), so the next automated run
   reports the corrected figure directly.
-- **1 surfaced a real bug** (now logged, see *Next steps*): supplier identity is **not reconciled across ingestion
-  sources**. Appvia is two rows — `appvia-ltd` (GCA spine → TS4/RM6190) and `dm-708440` (Digital Marketplace →
-  G-Cloud 14), same CRN, never merged — so `get_supplier`/`due_diligence` under-report a supplier's true framework
-  footprint. **5,181 Companies House numbers map to >1 `supplier_id`.** This is the most valuable thing the eval
-  caught; not a regression but a genuine data-quality gap.
+- **1 surfaced a real bug — now FIXED.** Supplier identity is split across ingestion sources: Appvia is two rows
+  — `appvia-ltd` (GCA spine → TS4/RM6190) and `dm-708440` (Digital Marketplace → G-Cloud 14), same CRN, never
+  merged — so `get_supplier` under-reported the framework footprint (**5,181 Companies House numbers map to >1
+  `supplier_id`**). `get_supplier` now resolves the best-matched record then UNIONs appointments/channels/scope
+  across every `supplier_id` sharing that `company_number`, with a `reconciliation` note. Verified live:
+  `get_supplier(Appvia)` and the end-to-end eval question now return **both** RM1557.14 and RM6190.
+  (`due_diligence`/`find_services`/`plan_buy` already joined track record on CRN, so they were never affected.)
+  The most valuable thing the eval caught — and shipped.
 - **5 are genuine content gaps:** specific instruments not surfaced for a precise need (YPO Drones DPS 1148 / 900616;
   RM6200 AI DPS + HealthTrust AI DPS), one PA2023 **s49 open-framework** mechanic stated wrong, one answer that
   **fabricated** a £ figure + an unverifiable framework URL (the verbatim gate covers published catalogue text, not
@@ -150,14 +153,12 @@ enrichment of G-Cloud descriptions from the detail pages.
   is increasingly marginal.
 
 ## Next steps
-1. **Reconcile supplier identity across sources** (the eval's most valuable catch). 5,181 CRNs map to >1
-   `supplier_id` because the GCA spine (`<slug>-ltd`) and the Digital Marketplace directory (`dm-<id>`) ingest
-   the same company under different ids (e.g. Appvia: `appvia-ltd` on TS4 vs `dm-708440` on G-Cloud). Fix:
-   union appointments + call-off track record across all `supplier_id`s sharing a `company_number`, or merge on
-   CRN at ingest, so `get_supplier`/`due_diligence` show the full framework footprint.
-2. **Credentials** for the login-walled portals (start with hunterpcm.uk) → unlocks ~98 + the rest.
-3. Optional: headless-browser pass for the genuinely-JS `blocked` subset.
-4. Nightly: `govbuy-ingest refresh` (deterministic GCA+G-Cloud spine) + the saved agentic workflows;
+1. **Credentials** for the login-walled portals (start with hunterpcm.uk) → unlocks ~98 + the rest.
+2. Optional: headless-browser pass for the genuinely-JS `blocked` subset.
+3. Nightly: `govbuy-ingest refresh` (deterministic GCA+G-Cloud spine) + the saved agentic workflows;
    no scheduler in infra — operator-hosted, cost-metered, with a liveness alert.
+4. _(Optional, deeper)_ The query-time CRN reconciliation in `get_supplier` could be pushed into ingest
+   (one canonical `supplier_id` per `company_number`), which would also de-duplicate the 5,181 split CRNs
+   everywhere at once — but the read-time union already gives correct answers today.
 
 _Generated after the breadth/depth sweeps; figures from `govbuy_public`. Not the authority of record._
