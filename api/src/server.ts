@@ -21,12 +21,14 @@ const NOT_ADVICE = "Candidate route-to-market information, source-anchored. NOT 
 const DISPLAY_GUIDANCE = "Render every URL in this response as a clickable markdown link whose text is the name of the thing it points to — do not just cite names. Specifically: official_url is the framework/instrument's official page; operator_url is the operator's site; each supplier's ch_url is its Companies House record; buying_docs[].url and how_to_apply[].url are the buying/guidance/application documents; and every evidence.source_url is the source a claim is anchored to (link it so the user can verify). When a thing has a URL, present its name as a link to that URL; reserve bare-text mentions for things that genuinely have no URL.";
 
 const CE = tableRef("claim_evidence");
-// Evidence as a NON-FANNING correlated subquery. A LEFT JOIN on claim_evidence multiplies the parent row
-// by the number of evidence rows sharing an evidence_id (often 5-6), so a top-level join silently duplicates
-// instruments in the result. This picks the single highest-confidence evidence row instead — same struct
-// shape, one row per parent.
-const EV1 = (inst: string) => `(SELECT AS STRUCT ev.source_url, ev.source_kind, ev.excerpt, ev.licence, ev.confidence
-        FROM ${CE} ev WHERE ev.evidence_id = ${inst}.evidence_id ORDER BY ev.confidence DESC LIMIT 1)`;
+// Evidence as a NON-FANNING, DE-CORRELATABLE join. A LEFT JOIN straight onto claim_evidence multiplies the
+// parent row by the number of evidence rows sharing an evidence_id (often 5-6) — silently duplicating
+// instruments/mechanics in the result (385 instruments, 2,665 mechanics affected). A correlated
+// `(SELECT … ORDER BY confidence LIMIT 1)` fixes the duplication but BigQuery can't de-correlate it across
+// tables (runtime error). So we pre-group claim_evidence to ONE highest-confidence row per evidence_id and
+// LEFT JOIN that — one row per parent, and a plain de-correlatable join: `LEFT JOIN ${EVAGG} x` → `x.ev`.
+const EVAGG = `(SELECT evidence_id, ARRAY_AGG(STRUCT(source_url, source_kind, excerpt, licence, confidence)
+        ORDER BY confidence DESC LIMIT 1)[OFFSET(0)] AS ev FROM ${CE} GROUP BY evidence_id)`;
 
 // Tokenise a free-text need into significant terms (drop stopwords) for ANY-token matching.
 const STOP = new Set(["a", "an", "the", "for", "of", "to", "my", "our", "i", "we", "want", "need", "buy", "buying", "purchase", "procure", "procurement", "product", "products", "solution", "solutions", "service", "services", "shelf", "compliantly"]);
@@ -47,11 +49,11 @@ function tokenize(term: string): string[] {
 }
 
 const LOTS = (a: string) => `ARRAY(SELECT AS STRUCT l.lot_id, l.number, l.title, l.scope FROM ${tableRef("lot")} l WHERE l.instrument_id = ${a}.instrument_id)`;
-// Evidence is fetched as a non-fanning subquery (EV1), not a LEFT JOIN: a mechanic/doc whose evidence_id
-// has multiple claim_evidence rows would otherwise appear duplicated N times in the array (2,665 mechanics
-// reference such multi-row evidence ids).
-const MECHANICS = (a: string) => `ARRAY(SELECT AS STRUCT m.mechanic, m.permitted, m.lot_id, m.conditions, ${EV1("m")} AS evidence FROM ${tableRef("award_mechanic")} m WHERE m.instrument_id = ${a}.instrument_id)`;
-const DOCS = (a: string) => `ARRAY(SELECT AS STRUCT d.doc_type, d.title, d.url, d.required_for_purchase, ${EV1("d")} AS evidence FROM ${tableRef("buying_doc")} d WHERE d.instrument_id = ${a}.instrument_id)`;
+// Evidence is attached via a LEFT JOIN to the pre-grouped EVAGG (one row per evidence_id), NOT a raw join
+// onto claim_evidence: a mechanic/doc whose evidence_id has multiple claim_evidence rows would otherwise
+// appear duplicated N times in the array (2,665 mechanics reference such multi-row evidence ids).
+const MECHANICS = (a: string) => `ARRAY(SELECT AS STRUCT m.mechanic, m.permitted, m.lot_id, m.conditions, mev.ev AS evidence FROM ${tableRef("award_mechanic")} m LEFT JOIN ${EVAGG} mev ON mev.evidence_id = m.evidence_id WHERE m.instrument_id = ${a}.instrument_id)`;
+const DOCS = (a: string) => `ARRAY(SELECT AS STRUCT d.doc_type, d.title, d.url, d.required_for_purchase, dev.ev AS evidence FROM ${tableRef("buying_doc")} d LEFT JOIN ${EVAGG} dev ON dev.evidence_id = d.evidence_id WHERE d.instrument_id = ${a}.instrument_id)`;
 
 async function paymentCaveats(): Promise<unknown[]> {
   try {
@@ -128,7 +130,7 @@ export function buildServer(): McpServer {
                i.starts_on, i.expires_on, i.category_tags, i.official_url,
                o.name AS operator, o.kind AS operator_kind, o.home_url AS operator_url,
                ${LOTS("i")} AS lots, ${MECHANICS("i")} AS award_mechanics, ${DOCS("i")} AS buying_docs,
-               ${EV1("i")} AS evidence,
+               iev.ev AS evidence,
                -- relevance: a query token hitting the NAME is worth most, then a category tag, then a lot.
                -- Without this, ORDER BY name alphabetically buries a specific match (e.g. "Drones DPS") under
                -- generic ones (every "…Equipment" framework) when a broad token like "equipment" is present.
@@ -137,6 +139,7 @@ export function buildServer(): McpServer {
                 + (SELECT COUNT(1) FROM ${tableRef("lot")} l, UNNEST(@toks) tok WHERE l.instrument_id = i.instrument_id AND (REGEXP_CONTAINS(LOWER(l.title), CONCAT(r'\\b', tok, r'(?:es|s)?\\b')) OR REGEXP_CONTAINS(LOWER(IFNULL(l.scope,'')), CONCAT(r'\\b', tok, r'(?:es|s)?\\b'))))) AS match_score
         FROM ${tableRef("instrument")} i
         JOIN ${tableRef("operator")} o USING (operator_id)
+        LEFT JOIN ${EVAGG} iev ON iev.evidence_id = i.evidence_id
         WHERE i.lifecycle_status = 'live_for_call_off'
           AND (ARRAY_LENGTH(@toks) = 0
             OR EXISTS (SELECT 1 FROM UNNEST(@toks) tok WHERE REGEXP_CONTAINS(LOWER(i.name), CONCAT(r'\\b', tok, r'(?:es|s)?\\b')))
@@ -166,9 +169,10 @@ export function buildServer(): McpServer {
                         aps.lot_id, aps.status, aps.appointed_from, aps.last_seen_on, aps.left_on, aps.confidence, aps.conflict
                      FROM ${tableRef("appointed_supplier")} aps JOIN ${tableRef("supplier")} s USING (supplier_id)
                      WHERE aps.instrument_id = i.instrument_id) AS appointed_suppliers,
-               ${EV1("i")} AS evidence
+               iev.ev AS evidence
         FROM ${tableRef("instrument")} i
         JOIN ${tableRef("operator")} o USING (operator_id)
+        LEFT JOIN ${EVAGG} iev ON iev.evidence_id = i.evidence_id
         WHERE i.instrument_id = @id OR i.rm_reference = @rm
         -- an exact id match wins; then prefer the CANONICAL agreement (the operator that owns the RM
         -- namespace, i.e. GCA) over other operators that merely list it as an access route, so an
@@ -205,12 +209,13 @@ export function buildServer(): McpServer {
                ${LOTS("i")} AS lots,
                ARRAY(SELECT AS STRUCT d.doc_type, d.title, d.url FROM ${tableRef("buying_doc")} d
                      WHERE d.instrument_id = i.instrument_id AND d.doc_type IN ('buyer_guide','required_documents','order_form')) AS how_to_apply,
-               ${EV1("i")} AS evidence,
+               iev.ev AS evidence,
                (4 * (SELECT COUNT(1) FROM UNNEST(@toks) tok WHERE REGEXP_CONTAINS(LOWER(i.name), CONCAT(r'\\b', tok, r'(?:es|s)?\\b')))
                 + 2 * (SELECT COUNT(1) FROM UNNEST(i.category_tags) t, UNNEST(@toks) tok WHERE LOWER(t) = tok OR LOWER(t) LIKE CONCAT(tok, '%'))
                 + (SELECT COUNT(1) FROM ${tableRef("lot")} l, UNNEST(@toks) tok WHERE l.instrument_id = i.instrument_id AND (REGEXP_CONTAINS(LOWER(l.title), CONCAT(r'\\b', tok, r'(?:es|s)?\\b')) OR REGEXP_CONTAINS(LOWER(IFNULL(l.scope,'')), CONCAT(r'\\b', tok, r'(?:es|s)?\\b'))))) AS match_score
         FROM ${tableRef("instrument")} i
         JOIN ${tableRef("operator")} o USING (operator_id)
+        LEFT JOIN ${EVAGG} iev ON iev.evidence_id = i.evidence_id
         WHERE ${openClause}
           AND (ARRAY_LENGTH(@toks) = 0
             OR EXISTS (SELECT 1 FROM UNNEST(@toks) tok WHERE REGEXP_CONTAINS(LOWER(i.name), CONCAT(r'\\b', tok, r'(?:es|s)?\\b')))

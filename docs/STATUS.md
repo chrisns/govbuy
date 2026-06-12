@@ -88,9 +88,14 @@ are *not* 8 feature gaps:
   3. **Live DPS hidden from sellers.** `find_instruments_to_list?openOnly=true` allowed only `open_framework` /
      `dynamic_market`, excluding the 210 `legacy_dps` — but a DPS is *by definition* continuously joinable while
      live. Now live legacy DPS count as `joinable_now`, so the AI/Drones DPS reach sellers asking "what can I join?".
+  4. **Row-multiplying evidence join.** A top-level `LEFT JOIN claim_evidence` fanned each instrument out by its
+     evidence-row count (385 instruments, often 5-6×: the AI DPS appeared 6 times); the `MECHANICS` array did the
+     same (2,665 mechanics). Replaced with a join to a pre-grouped, highest-confidence evidence derived table
+     (de-correlatable — a naïve correlated `ORDER BY…LIMIT 1` errors at runtime on BigQuery).
   Plus a relevance fix: `find_routes`/`find_instruments_to_list` ranked purely alphabetically, burying a specific
   match under generic ones; they now rank by a name>tag>lot match score. Verified live: a `drone`/`drones` query
-  returns the Drones DPS 1148 top; `openOnly` surfaces RM6200 as joinable.
+  returns the Drones DPS 1148 top (deduped); `openOnly` surfaces RM6200 as joinable; `get_instrument` returns
+  single, non-duplicated mechanics + evidence.
 - **3 residual items:** the **s49 open-framework** complaint was a *judge* error, not ours — a PA2023 open framework
   admits suppliers at defined re-opening points (s.49), it's a *dynamic market* that's continuously open; the answer
   was right. The remaining two are answer-quality, not data: one answer **fabricated** a £ figure + an unverifiable
