@@ -44,6 +44,28 @@ Extraction workflows run on **Haiku** (gate-protected, cheap); re-discovery on S
 The page and any linked user-guide PDF don't state direct-award vs further-competition. Inferring a
 route would be fabrication (the gate forbids it). PDF user guides were the big unlock (44% → 71%).
 
+### Decisive & bulletproof — the top-5 voter-tournament winners (DELIVERED)
+The five features the voter panel picked (see [top5-acceptance.md](top5-acceptance.md)), all live + verified:
+- **PA2023 regime engine** — `compliant_path` is now statutorily precise (15 sourced rules in `pa2023_rule`):
+  competitive flexible procedure, the 8-working-day standstill, Schedule 5 direct-award grounds, open/closed
+  frameworks, the DPS→dynamic-market sunset (Feb 2029), the >£5m KPI duty, payment-method-blind, and that a
+  framework call-off is NOT a statutory direct award. (Verified: the eval's hardest PA2023 question now nails it.)
+- **Exclusion gate** — `get_supplier`/`due_diligence`/`find_services`/`plan_buy` flag dissolved / liquidation /
+  administration suppliers (1,790 of them) as a PA2023 Sch 6/7 ⚠, never silently. (Verified: stopped an award to a
+  supplier in liquidation.)
+- **`plan_buy`** — one opinionated brief: route + mechanic + shortlist (track record + exclusion) + indicative
+  price + forward pipeline + compliance checklist.
+- **Steering descriptions** — all 15 tool descriptions rewritten (persona, next-tool, anti-patterns, "a desk"
+  disambiguation, NULL = absence-of-evidence).
+- **Forward pipeline** — `pipeline_notice` (29,306 planned notices) + `supplier_pipeline`'s coming-soon section.
+
+**Eval honesty:** the post-delivery golden run scored 70%/0.71 (27 Qs) — *lower than the 74% baseline, but the
+run was rate-limit-contaminated*: the harness fires 55 `claude -p` agents at once and Anthropic throttled,
+truncating several answers (one came back empty). Clean SOLO re-runs of the "failed" questions pass (e.g. the
+goats question correctly returns the grounds-maintenance frameworks). The genuine residual gaps are
+tool-path-narration expectations and DPS-vs-dynamic-market terminology — not feature regressions. The eval
+harness needs lower concurrency / backoff to give a trustworthy number; that's the next harness fix.
+
 ### Fused with UK Tenders — route × reality, for buyers + suppliers + researchers
 govbuy is welded to the UK Tenders corpus (681k processes / 470k awards) on **Companies House CRN +
 RM-reference + CPV**, all materialised into `govbuy_public` (boundary preserved — the API SA never
