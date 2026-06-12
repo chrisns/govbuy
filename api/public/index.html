@@ -75,7 +75,9 @@ code{font-family:var(--font-mono);font-size:.92em}
 .section-header{padding-top:8px;margin-top:56px}
 .sh-row{display:flex;align-items:baseline;gap:18px;flex-wrap:wrap;padding:14px 0 4px}
 .sh-title{font-family:var(--font-display);font-weight:800;font-size:clamp(26px,3vw,40px);line-height:1.04;letter-spacing:-.02em;margin:0;color:var(--ink)}
-.section-lede{font-family:var(--font-display);font-style:italic;font-size:18px;color:var(--ink-2);max-width:74ch;margin:6px 0 26px}
+.section-lede{font-family:var(--font-display);font-style:italic;font-size:18px;color:var(--ink-2);max-width:74ch;margin:6px 0 14px}
+.dash-method{font-size:12.5px;line-height:1.65;color:var(--ink-3);max-width:92ch;margin:0 0 26px;padding:14px 16px;background:var(--paper-2);border-left:2px solid var(--ink-4)}
+.dash-method b{color:var(--ink-2)}.dash-method code{font-size:11.5px;color:var(--pink-deep)}
 
 /* layers */
 .layer-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:0;border-top:1px solid var(--rule);margin-top:8px}
@@ -281,7 +283,8 @@ code{font-family:var(--font-mono);font-size:.92em}
     <div class="rule strong"></div>
     <div class="sh-row"><span class="eyebrow">Explore the data</span><h2 class="sh-title">Real numbers from the corpus — not a brochure</h2></div>
   </header>
-  <p class="section-lede">Every figure below is live from <code>govbuy_public</code> as of <span class="numeral">2026-06-12</span>, the same data your assistant reasons over. Framework-ceiling outliers (&gt;£100m) are removed; medians are robust to them.</p>
+  <p class="section-lede">Every figure below is live from <code>govbuy_public</code> as of <span class="numeral">2026-06-12</span> — the same data your assistant reasons over.</p>
+  <p class="dash-method"><b>Method, plainly:</b> figures are over <b>award records</b> (one per award&times;supplier line, 658,625 of them across 57,190 appointed-supplier edges) from the fused UK-Tenders corpus. Framework-ceiling outliers (&gt;£100m) are removed so medians aren't distorted; the price explorer uses awards &ge;£1,000. Totals are sums over award records and are not de-duplicated across multi-supplier awards, so they read as gross awarded value, not net spend. Reseller £ come from a curated reseller-graph join across every CPV a firm operates in. Dirty upstream dates are bounded by each chart's window. Counts of <code>instrument</code>/<code>service</code> are exact. Nothing here is hand-entered — re-run <code>scripts/build-site.mjs</code> to reproduce.</p>
 
   <div class="dash dash-explorer" id="explorer">
     <div class="dash-head">
