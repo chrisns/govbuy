@@ -198,10 +198,36 @@ code{font-family:var(--font-mono);font-size:.92em}
 .cl-list li{color:var(--ink-3)}
 .cl-fine{font-size:11.5px;color:var(--ink-4);padding:16px 0 40px;margin:0;line-height:1.6}
 
+/* connect / setup */
+.conn-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;margin-top:8px}
+.conn-card{border:1px solid var(--ink);background:var(--bone);display:flex;flex-direction:column;min-width:0}
+.conn-codewrap,.conn-code{min-width:0;max-width:100%}
+.conn-head{padding:16px 18px 10px;border-bottom:1px solid var(--paper-3)}
+.conn-head h3{font-family:var(--font-display);font-weight:700;font-size:18px;margin:0 0 3px}
+.conn-kind{font-family:var(--font-mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+.conn-codewrap{position:relative;flex:1;display:flex}
+.conn-code{font-family:var(--font-mono);font-size:11.5px;line-height:1.5;color:var(--ink);background:var(--paper-2);margin:0;padding:14px 16px;width:100%;overflow-x:auto;white-space:pre}
+.conn-copy{position:absolute;top:8px;right:8px;padding:5px 12px;font-size:11px;border:1px solid var(--ink);background:var(--bone);color:var(--ink);border-left:1px solid var(--ink)}
+.conn-copy:hover{background:var(--pink);color:var(--bone);border-color:var(--pink)}
+.conn-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 18px;font-size:12.5px;color:var(--ink-3);border-top:1px solid var(--paper-3)}
+.conn-docs{color:var(--pink-deep);text-decoration:none;font-weight:600;white-space:nowrap}
+.conn-docs:hover{color:var(--pink-hot)}
+
+/* in-dashboard links: subtle, inherit colour, hover to pink */
+.fw-link,.tool-link{color:var(--ink-2);text-decoration:none}
+.fw-link:hover{color:var(--pink-deep)}.fw-link:hover .fw-rm{color:var(--pink-hot)}
+.tool-link{text-decoration:none}.tool-link:hover code{color:var(--pink-hot)}
+.bar-label a{color:inherit;text-decoration:none;border-bottom:1px solid transparent}
+.bar-label a:hover{color:var(--pink-deep);border-bottom-color:var(--pink-deep)}
+.q-o a{color:var(--pink-deep);text-decoration:none;border-bottom:1px solid rgba(179,14,97,.3)}
+.q-o a:hover{color:var(--pink-hot);border-bottom-color:var(--pink-hot)}
+.layer a{color:var(--ink);text-decoration:none;border-bottom:1px solid var(--pink)}
+.layer a:hover{color:var(--pink-deep)}
+
 @media (max-width:920px){
   html,body{overflow-x:hidden}
   .page{padding:20px 20px 0}
-  .hero,.layer-grid,.dash-grid,.q-grid,.tool-grid,.honest-grid,.explorer-panel,.colophon-grid{grid-template-columns:1fr}
+  .hero,.layer-grid,.dash-grid,.q-grid,.tool-grid,.honest-grid,.explorer-panel,.colophon-grid,.conn-grid{grid-template-columns:1fr}
   .hero{gap:36px;padding:36px 0 40px}
   .hero-headline{font-size:clamp(34px,9vw,58px)}
   .hero-stats{grid-template-columns:repeat(2,1fr)}
@@ -229,7 +255,7 @@ code{font-family:var(--font-mono);font-size:.92em}
   <div class="rule"></div>
   <nav class="masthead-nav">
     <div class="nav-left">
-      <a href="#what">What</a><a href="#data">Data</a><a href="#ask">Ask</a><a href="#tools">Tools</a>
+      <a href="#what">What</a><a href="#data">Data</a><a href="#ask">Ask</a><a href="#tools">Tools</a><a href="#connect">Setup</a>
     </div>
     <div class="nav-right">
       <a href="https://github.com/chrisns/govbuy">GitHub</a><a href="https://blog.cns.me">Blog</a><a href="https://talks.cns.me">Talks</a><a href="https://cns.me">cns.me</a>
@@ -268,12 +294,12 @@ code{font-family:var(--font-mono);font-size:.92em}
     <article class="layer">
       <span class="layer-no numeral">02</span>
       <h3>Reality</h3>
-      <p><b class="numeral">658,625</b> real tender awards joined on Companies House CRN: who actually wins the work, what buyers really pay, what's live, what's <i>coming</i> (<b class="numeral">29,306</b> pipeline notices) and what's <i>expiring</i>.</p>
+      <p><b class="numeral">658,625</b> real tender awards joined on <a href="https://www.gov.uk/government/organisations/companies-house" target="_blank" rel="noopener">Companies House</a> CRN: who actually wins the work, what buyers really pay, what's live, what's <i>coming</i> (<b class="numeral">29,306</b> pipeline notices) and what's <i>expiring</i>.</p>
     </article>
     <article class="layer">
       <span class="layer-no numeral">03</span>
       <h3>Statute</h3>
-      <p>The <b>Procurement Act 2023</b> mechanics — standstill, competitive flexible procedure, Schedule&nbsp;5 grounds, a two-limb exclusion gate (live Companies House + the s.62 debarment register) — so a route isn't just available but <i>defensible</i>.</p>
+      <p>The <a href="https://www.legislation.gov.uk/ukpga/2023/54/contents" target="_blank" rel="noopener"><b>Procurement Act 2023</b></a> mechanics — standstill, competitive flexible procedure, <a href="https://www.legislation.gov.uk/ukpga/2023/54/schedule/5" target="_blank" rel="noopener">Schedule&nbsp;5</a> grounds, a two-limb exclusion gate (live <a href="https://www.gov.uk/government/organisations/companies-house" target="_blank" rel="noopener">Companies House</a> + the <a href="https://www.legislation.gov.uk/ukpga/2023/54/section/62" target="_blank" rel="noopener">s.62 debarment register</a>) — so a route isn't just available but <i>defensible</i>.</p>
     </article>
   </div>
 </section>
@@ -332,52 +358,52 @@ code{font-family:var(--font-mono);font-size:.92em}
       <div class="dash-head"><span class="eyebrow">The intermediary layer</span><h3>£4.0bn flows through resellers</h3><p class="dash-note">Thin-primes &amp; VARs that carry other firms onto frameworks — the public buyer often never contracts who does the work.</p></div>
       <div class="bars">
     <div class="bar-row">
-      <div class="bar-label">Softcat <span class="chip-mini">thin-prime</span></div>
+      <div class="bar-label"><a href="https://find-and-update.company-information.service.gov.uk/company/02174990" target="_blank" rel="noopener">Softcat</a> <span class="chip-mini">thin-prime</span></div>
       <div class="bar-track"><div class="bar-fill bf-pink" style="width:100.0%"></div></div>
       <div class="bar-val numeral">£972m <span class="bar-sub">· 1,075</span></div>
     </div>
     <div class="bar-row">
-      <div class="bar-label">PHOENIX SOFTWARE LIMITED <span class="chip-mini">VAR</span></div>
+      <div class="bar-label"><a href="https://find-and-update.company-information.service.gov.uk/company/02548628" target="_blank" rel="noopener">PHOENIX SOFTWARE LIMITED</a> <span class="chip-mini">VAR</span></div>
       <div class="bar-track"><div class="bar-fill bf-pink" style="width:79.8%"></div></div>
       <div class="bar-val numeral">£775m <span class="bar-sub">· 510</span></div>
     </div>
     <div class="bar-row">
-      <div class="bar-label">CDW UK <span class="chip-mini">hybrid</span></div>
+      <div class="bar-label"><a href="https://find-and-update.company-information.service.gov.uk/company/02465350" target="_blank" rel="noopener">CDW UK</a> <span class="chip-mini">hybrid</span></div>
       <div class="bar-track"><div class="bar-fill bf-pink" style="width:57.2%"></div></div>
       <div class="bar-val numeral">£556m <span class="bar-sub">· 429</span></div>
     </div>
     <div class="bar-row">
-      <div class="bar-label">Computacenter <span class="chip-mini">hybrid</span></div>
+      <div class="bar-label"><a href="https://find-and-update.company-information.service.gov.uk/company/01584718" target="_blank" rel="noopener">Computacenter</a> <span class="chip-mini">hybrid</span></div>
       <div class="bar-track"><div class="bar-fill bf-pink" style="width:42.2%"></div></div>
       <div class="bar-val numeral">£410m <span class="bar-sub">· 286</span></div>
     </div>
     <div class="bar-row">
-      <div class="bar-label">BYTES SOFTWARE SERVICES LIMITED <span class="chip-mini">VAR</span></div>
+      <div class="bar-label"><a href="https://find-and-update.company-information.service.gov.uk/company/01616977" target="_blank" rel="noopener">BYTES SOFTWARE SERVICES LIMITED</a> <span class="chip-mini">VAR</span></div>
       <div class="bar-track"><div class="bar-fill bf-pink" style="width:31.1%"></div></div>
       <div class="bar-val numeral">£302m <span class="bar-sub">· 298</span></div>
     </div>
     <div class="bar-row">
-      <div class="bar-label">Trustmarque <span class="chip-mini">VAR</span></div>
+      <div class="bar-label"><a href="https://find-and-update.company-information.service.gov.uk/company/02183240" target="_blank" rel="noopener">Trustmarque</a> <span class="chip-mini">VAR</span></div>
       <div class="bar-track"><div class="bar-fill bf-pink" style="width:30.8%"></div></div>
       <div class="bar-val numeral">£299m <span class="bar-sub">· 129</span></div>
     </div>
     <div class="bar-row">
-      <div class="bar-label">boxxe <span class="chip-mini">thin-prime</span></div>
+      <div class="bar-label"><a href="https://find-and-update.company-information.service.gov.uk/company/02109168" target="_blank" rel="noopener">boxxe</a> <span class="chip-mini">thin-prime</span></div>
       <div class="bar-track"><div class="bar-fill bf-pink" style="width:26.7%"></div></div>
       <div class="bar-val numeral">£260m <span class="bar-sub">· 409</span></div>
     </div>
     <div class="bar-row">
-      <div class="bar-label">XMA <span class="chip-mini">thin-prime</span></div>
+      <div class="bar-label"><a href="https://find-and-update.company-information.service.gov.uk/company/02051703" target="_blank" rel="noopener">XMA</a> <span class="chip-mini">thin-prime</span></div>
       <div class="bar-track"><div class="bar-fill bf-pink" style="width:22.8%"></div></div>
       <div class="bar-val numeral">£222m <span class="bar-sub">· 272</span></div>
     </div>
     <div class="bar-row">
-      <div class="bar-label">Bramble Hub Limited <span class="chip-mini">thin-prime</span></div>
+      <div class="bar-label"><a href="https://find-and-update.company-information.service.gov.uk/company/04136381" target="_blank" rel="noopener">Bramble Hub Limited</a> <span class="chip-mini">thin-prime</span></div>
       <div class="bar-track"><div class="bar-fill bf-pink" style="width:11.2%"></div></div>
       <div class="bar-val numeral">£109m <span class="bar-sub">· 84</span></div>
     </div>
     <div class="bar-row">
-      <div class="bar-label">NTT DATA UK LIMITED <span class="chip-mini">hybrid</span></div>
+      <div class="bar-label"><a href="https://find-and-update.company-information.service.gov.uk/company/03085018" target="_blank" rel="noopener">NTT DATA UK LIMITED</a> <span class="chip-mini">hybrid</span></div>
       <div class="bar-track"><div class="bar-fill bf-pink" style="width:11.0%"></div></div>
       <div class="bar-val numeral">£107m <span class="bar-sub">· 28</span></div>
     </div></div>
@@ -396,7 +422,7 @@ code{font-family:var(--font-mono);font-size:.92em}
       <tbody>
     <tr data-gbp="1012322988" data-n="181" data-suppliers="63">
       <td class="fw-rank numeral">1</td>
-      <td class="fw-name"><span class="fw-rm numeral">RM6100</span> RM6100</td>
+      <td class="fw-name"><a href="https://www.gca.gov.uk/agreements/RM6100" target="_blank" rel="noopener" class="fw-link"><span class="fw-rm numeral">RM6100</span> RM6100</a></td>
       <td class="fw-bar"><div class="mini-track"><div class="mini-fill" style="width:100.0%"></div></div></td>
       <td class="fw-gbp numeral">£1.0bn</td>
       <td class="fw-n numeral">181</td>
@@ -404,7 +430,7 @@ code{font-family:var(--font-mono);font-size:.92em}
     </tr>
     <tr data-gbp="768642459" data-n="63" data-suppliers="27">
       <td class="fw-rank numeral">2</td>
-      <td class="fw-name"><span class="fw-rm numeral">RM6088</span> Construction Works and Associated Services</td>
+      <td class="fw-name"><a href="https://www.gca.gov.uk/agreements/RM6088" target="_blank" rel="noopener" class="fw-link"><span class="fw-rm numeral">RM6088</span> Construction Works and Associated Services</a></td>
       <td class="fw-bar"><div class="mini-track"><div class="mini-fill" style="width:75.9%"></div></div></td>
       <td class="fw-gbp numeral">£769m</td>
       <td class="fw-n numeral">63</td>
@@ -412,7 +438,7 @@ code{font-family:var(--font-mono);font-size:.92em}
     </tr>
     <tr data-gbp="626730207" data-n="767" data-suppliers="49">
       <td class="fw-rank numeral">3</td>
-      <td class="fw-name"><span class="fw-rm numeral">RM6068</span> Technology Products &amp; Associated Services</td>
+      <td class="fw-name"><a href="https://www.gca.gov.uk/agreements/RM6068" target="_blank" rel="noopener" class="fw-link"><span class="fw-rm numeral">RM6068</span> Technology Products &amp; Associated Services</a></td>
       <td class="fw-bar"><div class="mini-track"><div class="mini-fill" style="width:61.9%"></div></div></td>
       <td class="fw-gbp numeral">£627m</td>
       <td class="fw-n numeral">767</td>
@@ -420,7 +446,7 @@ code{font-family:var(--font-mono);font-size:.92em}
     </tr>
     <tr data-gbp="623227962" data-n="31" data-suppliers="9">
       <td class="fw-rank numeral">4</td>
-      <td class="fw-name"><span class="fw-rm numeral">RM6123</span> Media Services</td>
+      <td class="fw-name"><a href="https://www.gca.gov.uk/agreements/RM6123" target="_blank" rel="noopener" class="fw-link"><span class="fw-rm numeral">RM6123</span> Media Services</a></td>
       <td class="fw-bar"><div class="mini-track"><div class="mini-fill" style="width:61.6%"></div></div></td>
       <td class="fw-gbp numeral">£623m</td>
       <td class="fw-n numeral">31</td>
@@ -428,7 +454,7 @@ code{font-family:var(--font-mono);font-size:.92em}
     </tr>
     <tr data-gbp="573820035" data-n="515" data-suppliers="65">
       <td class="fw-rank numeral">5</td>
-      <td class="fw-name"><span class="fw-rm numeral">RM6098</span> Technology Products &amp; Associated Services 2 (TePAS 2)</td>
+      <td class="fw-name"><a href="https://www.gca.gov.uk/agreements/RM6098" target="_blank" rel="noopener" class="fw-link"><span class="fw-rm numeral">RM6098</span> Technology Products &amp; Associated Services 2 (TePAS 2)</a></td>
       <td class="fw-bar"><div class="mini-track"><div class="mini-fill" style="width:56.7%"></div></div></td>
       <td class="fw-gbp numeral">£574m</td>
       <td class="fw-n numeral">515</td>
@@ -436,7 +462,7 @@ code{font-family:var(--font-mono);font-size:.92em}
     </tr>
     <tr data-gbp="424950128" data-n="16" data-suppliers="4">
       <td class="fw-rank numeral">6</td>
-      <td class="fw-name"><span class="fw-rm numeral">RM6011</span> Supply of Energy and Ancillary Services</td>
+      <td class="fw-name"><a href="https://www.gov.uk/search/all?keywords=Supply%20of%20Energy%20and%20Ancillary%20Services%20framework" target="_blank" rel="noopener" class="fw-link"><span class="fw-rm numeral">RM6011</span> Supply of Energy and Ancillary Services</a></td>
       <td class="fw-bar"><div class="mini-track"><div class="mini-fill" style="width:42.0%"></div></div></td>
       <td class="fw-gbp numeral">£425m</td>
       <td class="fw-n numeral">16</td>
@@ -444,7 +470,7 @@ code{font-family:var(--font-mono);font-size:.92em}
     </tr>
     <tr data-gbp="393945998" data-n="20" data-suppliers="6">
       <td class="fw-rank numeral">7</td>
-      <td class="fw-name"><span class="fw-rm numeral">RM1056</span> RM1056</td>
+      <td class="fw-name"><a href="https://www.gov.uk/search/all?keywords=RM1056%20framework" target="_blank" rel="noopener" class="fw-link"><span class="fw-rm numeral">RM1056</span> RM1056</a></td>
       <td class="fw-bar"><div class="mini-track"><div class="mini-fill" style="width:38.9%"></div></div></td>
       <td class="fw-gbp numeral">£394m</td>
       <td class="fw-n numeral">20</td>
@@ -452,7 +478,7 @@ code{font-family:var(--font-mono);font-size:.92em}
     </tr>
     <tr data-gbp="368240736" data-n="76" data-suppliers="36">
       <td class="fw-rank numeral">8</td>
-      <td class="fw-name"><span class="fw-rm numeral">RM3804</span> RM3804</td>
+      <td class="fw-name"><a href="https://www.gca.gov.uk/agreements/RM3804" target="_blank" rel="noopener" class="fw-link"><span class="fw-rm numeral">RM3804</span> RM3804</a></td>
       <td class="fw-bar"><div class="mini-track"><div class="mini-fill" style="width:36.4%"></div></div></td>
       <td class="fw-gbp numeral">£368m</td>
       <td class="fw-n numeral">76</td>
@@ -460,7 +486,7 @@ code{font-family:var(--font-mono);font-size:.92em}
     </tr>
     <tr data-gbp="327398054" data-n="35" data-suppliers="18">
       <td class="fw-rank numeral">9</td>
-      <td class="fw-name"><span class="fw-rm numeral">RM6263</span> Digital Specialists and Programmes</td>
+      <td class="fw-name"><a href="https://www.gca.gov.uk/agreements/RM6263" target="_blank" rel="noopener" class="fw-link"><span class="fw-rm numeral">RM6263</span> Digital Specialists and Programmes</a></td>
       <td class="fw-bar"><div class="mini-track"><div class="mini-fill" style="width:32.3%"></div></div></td>
       <td class="fw-gbp numeral">£327m</td>
       <td class="fw-n numeral">35</td>
@@ -468,7 +494,7 @@ code{font-family:var(--font-mono);font-size:.92em}
     </tr>
     <tr data-gbp="320043081" data-n="18" data-suppliers="2">
       <td class="fw-rank numeral">10</td>
-      <td class="fw-name"><span class="fw-rm numeral">RM6288</span> Workforce Solutions</td>
+      <td class="fw-name"><a href="https://www.gca.gov.uk/agreements/RM6288" target="_blank" rel="noopener" class="fw-link"><span class="fw-rm numeral">RM6288</span> Workforce Solutions</a></td>
       <td class="fw-bar"><div class="mini-track"><div class="mini-fill" style="width:31.6%"></div></div></td>
       <td class="fw-gbp numeral">£320m</td>
       <td class="fw-n numeral">18</td>
@@ -476,7 +502,7 @@ code{font-family:var(--font-mono);font-size:.92em}
     </tr>
     <tr data-gbp="282012430" data-n="674" data-suppliers="313">
       <td class="fw-rank numeral">11</td>
-      <td class="fw-name"><span class="fw-rm numeral">RM1557.13</span> RM1557.13</td>
+      <td class="fw-name"><a href="https://www.gca.gov.uk/agreements/RM1557.13" target="_blank" rel="noopener" class="fw-link"><span class="fw-rm numeral">RM1557.13</span> RM1557.13</a></td>
       <td class="fw-bar"><div class="mini-track"><div class="mini-fill" style="width:27.9%"></div></div></td>
       <td class="fw-gbp numeral">£282m</td>
       <td class="fw-n numeral">674</td>
@@ -484,7 +510,7 @@ code{font-family:var(--font-mono);font-size:.92em}
     </tr>
     <tr data-gbp="279809096" data-n="15" data-suppliers="7">
       <td class="fw-rank numeral">12</td>
-      <td class="fw-name"><span class="fw-rm numeral">RM3830</span> RM3830</td>
+      <td class="fw-name"><a href="https://www.gca.gov.uk/agreements/RM3830" target="_blank" rel="noopener" class="fw-link"><span class="fw-rm numeral">RM3830</span> RM3830</a></td>
       <td class="fw-bar"><div class="mini-track"><div class="mini-fill" style="width:27.6%"></div></div></td>
       <td class="fw-gbp numeral">£280m</td>
       <td class="fw-n numeral">15</td>
@@ -559,32 +585,32 @@ code{font-family:var(--font-mono);font-size:.92em}
       <div class="dash-head"><span class="eyebrow">117,829 listings · 6 catalogues</span><h3>What's actually on the shelves</h3><p class="dash-note">Per-listing descriptions across every public UK buying catalogue, searchable by capability — token-free re-crawled.</p></div>
       <div class="bars">
     <div class="bar-row">
-      <div class="bar-label">G-Cloud 14</div>
+      <div class="bar-label"><a href="https://www.applytosupply.digitalmarketplace.service.gov.uk/g-cloud/search" target="_blank" rel="noopener">G-Cloud 14</a></div>
       <div class="bar-track"><div class="bar-fill bf-ink" style="width:100.0%"></div></div>
       <div class="bar-val numeral">43,733</div>
     </div>
     <div class="bar-row">
-      <div class="bar-label">Azure Marketplace</div>
+      <div class="bar-label"><a href="https://azuremarketplace.microsoft.com/en-gb/marketplace/apps" target="_blank" rel="noopener">Azure Marketplace</a></div>
       <div class="bar-track"><div class="bar-fill bf-ink" style="width:89.0%"></div></div>
       <div class="bar-val numeral">38,928</div>
     </div>
     <div class="bar-row">
-      <div class="bar-label">YPO</div>
+      <div class="bar-label"><a href="https://www.ypo.co.uk/frameworks" target="_blank" rel="noopener">YPO</a></div>
       <div class="bar-track"><div class="bar-fill bf-ink" style="width:53.6%"></div></div>
       <div class="bar-val numeral">23,459</div>
     </div>
     <div class="bar-row">
-      <div class="bar-label">ESPO</div>
+      <div class="bar-label"><a href="https://www.espo.org/Frameworks" target="_blank" rel="noopener">ESPO</a></div>
       <div class="bar-track"><div class="bar-fill bf-ink" style="width:26.6%"></div></div>
       <div class="bar-val numeral">11,621</div>
     </div>
     <div class="bar-row">
-      <div class="bar-label">NHS Buying Catalogue</div>
+      <div class="bar-label"><a href="https://buyingcatalogue.digital.nhs.uk/" target="_blank" rel="noopener">NHS Buying Catalogue</a></div>
       <div class="bar-track"><div class="bar-fill bf-ink" style="width:0.1%"></div></div>
       <div class="bar-val numeral">48</div>
     </div>
     <div class="bar-row">
-      <div class="bar-label">NDX</div>
+      <div class="bar-label"><a href="https://ndx.digital.cabinet-office.gov.uk/catalogue/" target="_blank" rel="noopener">NDX</a></div>
       <div class="bar-track"><div class="bar-fill bf-ink" style="width:0.1%"></div></div>
       <div class="bar-val numeral">40</div>
     </div></div>
@@ -602,32 +628,32 @@ code{font-family:var(--font-mono);font-size:.92em}
     <article class="q-card q-buyer">
       <span class="q-persona">Buyer</span>
       <p class="q-q">I'm a council. I need to host a containerised web app for ~£80k/year. Just tell me how to buy it.</p>
-      <p class="q-o"><code>plan_buy</code> → G-Cloud 14 call-off, a 3-supplier shortlist with real delivery records, the £176k median, and the PA2023 steps — one brief.</p>
+      <p class="q-o"><a href="https://github.com/chrisns/govbuy#tools" target="_blank" rel="noopener"><code>plan_buy</code></a> → <a href="https://www.gca.gov.uk/agreements/RM1557.14" target="_blank" rel="noopener">G-Cloud 14</a> call-off, a 3-supplier shortlist with real delivery records, the £176k median, and the PA2023 steps — one brief.</p>
     </article>
     <article class="q-card q-buyer">
       <span class="q-persona">Buyer</span>
       <p class="q-q">A fire service needs drone thermal-imaging kit fast and compliantly — is a direct award allowed?</p>
-      <p class="q-o">YPO Drones DPS 1148 — <b>further competition only</b>, no direct award; the Schedule 5 urgency route explained, with the Feb-2029 DPS sunset flagged.</p>
+      <p class="q-o"><a href="https://www.ypo.co.uk/frameworks-home/900632" target="_blank" rel="noopener">YPO Drones DPS 1148</a> — <b>further competition only</b>, no direct award; the <a href="https://www.legislation.gov.uk/ukpga/2023/54/schedule/5" target="_blank" rel="noopener">Schedule 5</a> urgency route explained, with the Feb-2029 DPS sunset flagged.</p>
     </article>
     <article class="q-card q-buyer">
       <span class="q-persona">Buyer</span>
       <p class="q-q">We're about to award to a supplier in liquidation — should we?</p>
-      <p class="q-o">The exclusion gate <b>stops you</b>: a live Companies House check + the s.62 debarment register, both PA2023 limbs.</p>
+      <p class="q-o">The exclusion gate <b>stops you</b>: a live <a href="https://www.gov.uk/government/organisations/companies-house" target="_blank" rel="noopener">Companies House</a> check + the <a href="https://www.legislation.gov.uk/ukpga/2023/54/section/62" target="_blank" rel="noopener">s.62 debarment register</a>, both PA2023 limbs.</p>
     </article>
     <article class="q-card q-buyer">
       <span class="q-persona">Buyer</span>
       <p class="q-q">Which of the viable routes is best for a managed SOC — and why?</p>
-      <p class="q-o"><code>compare_routes</code> ranks Cyber Security 3 DPS vs TS4 vs Network Services 3 on speed × depth × runway × real price.</p>
+      <p class="q-o"><a href="https://github.com/chrisns/govbuy#tools" target="_blank" rel="noopener"><code>compare_routes</code></a> ranks <a href="https://www.gca.gov.uk/agreements/RM3764.3" target="_blank" rel="noopener">Cyber Security 3 DPS</a> vs <a href="https://www.gca.gov.uk/agreements/RM6190" target="_blank" rel="noopener">TS4</a> vs <a href="https://www.gca.gov.uk/agreements/RM6116" target="_blank" rel="noopener">Network Services 3</a> on speed × depth × runway × real price.</p>
     </article>
     <article class="q-card q-seller">
       <span class="q-persona">Seller</span>
       <p class="q-q">I've built an AI triage tool but I'm on no framework. How do I get in front of the NHS this quarter?</p>
-      <p class="q-o">Get admitted to an AI dynamic market (RM6200 / HealthTrust) — continuous joining; plus where NHS commissioners actually shop.</p>
+      <p class="q-o">Get admitted to an AI dynamic market (<a href="https://www.gca.gov.uk/agreements/RM6200" target="_blank" rel="noopener">RM6200</a> / <a href="https://www.healthtrusteurope.com/" target="_blank" rel="noopener">HealthTrust</a>) — continuous joining; plus where NHS commissioners actually shop.</p>
     </article>
     <article class="q-card q-seller">
       <span class="q-persona">Seller</span>
       <p class="q-q">Find me an incumbent on a big contract that's expiring, and how to compete.</p>
-      <p class="q-o"><code>contract_expiry_radar</code> surfaces the displacement window — incumbent, value, end date, the route to re-bid.</p>
+      <p class="q-o"><a href="https://github.com/chrisns/govbuy#tools" target="_blank" rel="noopener"><code>contract_expiry_radar</code></a> surfaces the displacement window — incumbent, value, end date, the route to re-bid.</p>
     </article>
     <article class="q-card q-seller">
       <span class="q-persona">Seller</span>
@@ -642,7 +668,7 @@ code{font-family:var(--font-mono);font-size:.92em}
     <article class="q-card q-researcher">
       <span class="q-persona">Researcher</span>
       <p class="q-q">Map the 'thin-prime' economy — who fronts other firms onto public frameworks, and how much flows there?</p>
-      <p class="q-o">£4.0bn of call-off spend traced to the reseller layer — Softcat, Phoenix, CDW, Bramble Hub…</p>
+      <p class="q-o">£4.0bn of call-off spend traced to the reseller layer — <a href="https://find-and-update.company-information.service.gov.uk/company/02174990" target="_blank" rel="noopener">Softcat</a>, <a href="https://find-and-update.company-information.service.gov.uk/company/02548628" target="_blank" rel="noopener">Phoenix</a>, <a href="https://find-and-update.company-information.service.gov.uk/company/02465350" target="_blank" rel="noopener">CDW</a>, <a href="https://find-and-update.company-information.service.gov.uk/company/04136381" target="_blank" rel="noopener">Bramble Hub</a>…</p>
     </article>
     <article class="q-card q-researcher">
       <span class="q-persona">Researcher</span>
@@ -660,21 +686,100 @@ code{font-family:var(--font-mono);font-size:.92em}
     <div class="tool-col">
       <h3 class="tool-persona"><span class="eyebrow">Buyer</span></h3>
       <ul class="tool-list">
-        <li><code>find_routes</code><span>frameworks that fit a need + permitted mechanics</span></li><li><code>find_services</code><span>the catalogue listing that does it — semantic + proof-of-delivery</span></li><li><code>compliant_path</code><span>how to call it off — Procurement-Act-2023-precise</span></li><li><code>plan_buy</code><span>one opinionated brief: route + shortlist + price + exclusion + checklist</span></li><li><code>compare_routes</code><span>a decision matrix: speed × competition × depth × runway × price</span></li><li><code>benchmark_price</code><span>what the public sector really paid (median / p25–p75)</span></li><li><code>due_diligence</code><span>is this supplier safe? two-limb live exclusion + delivery record</span></li><li><code>get_supplier</code><span>one supplier — exclusion, full framework footprint, evidence</span></li>
+        <li><a href="https://github.com/chrisns/govbuy#tools" target="_blank" rel="noopener" class="tool-link"><code>find_routes</code></a><span>frameworks that fit a need + permitted mechanics</span></li><li><a href="https://github.com/chrisns/govbuy#tools" target="_blank" rel="noopener" class="tool-link"><code>find_services</code></a><span>the catalogue listing that does it — semantic + proof-of-delivery</span></li><li><a href="https://github.com/chrisns/govbuy#tools" target="_blank" rel="noopener" class="tool-link"><code>compliant_path</code></a><span>how to call it off — Procurement-Act-2023-precise</span></li><li><a href="https://github.com/chrisns/govbuy#tools" target="_blank" rel="noopener" class="tool-link"><code>plan_buy</code></a><span>one opinionated brief: route + shortlist + price + exclusion + checklist</span></li><li><a href="https://github.com/chrisns/govbuy#tools" target="_blank" rel="noopener" class="tool-link"><code>compare_routes</code></a><span>a decision matrix: speed × competition × depth × runway × price</span></li><li><a href="https://github.com/chrisns/govbuy#tools" target="_blank" rel="noopener" class="tool-link"><code>benchmark_price</code></a><span>what the public sector really paid (median / p25–p75)</span></li><li><a href="https://github.com/chrisns/govbuy#tools" target="_blank" rel="noopener" class="tool-link"><code>due_diligence</code></a><span>is this supplier safe? two-limb live exclusion + delivery record</span></li><li><a href="https://github.com/chrisns/govbuy#tools" target="_blank" rel="noopener" class="tool-link"><code>get_supplier</code></a><span>one supplier — exclusion, full framework footprint, evidence</span></li>
       </ul>
     </div>
     <div class="tool-col">
       <h3 class="tool-persona"><span class="eyebrow">Seller</span></h3>
       <ul class="tool-list">
-        <li><code>find_instruments_to_list</code><span>frameworks &amp; live DPS you can still join</span></li><li><code>supplier_pipeline</code><span>live + forward opportunities, incumbents to displace, resellers</span></li><li><code>contract_expiry_radar</code><span>incumbents whose contracts are running out</span></li><li><code>list_resellers</code><span>thin-primes &amp; VARs that can carry you in</span></li>
+        <li><a href="https://github.com/chrisns/govbuy#tools" target="_blank" rel="noopener" class="tool-link"><code>find_instruments_to_list</code></a><span>frameworks &amp; live DPS you can still join</span></li><li><a href="https://github.com/chrisns/govbuy#tools" target="_blank" rel="noopener" class="tool-link"><code>supplier_pipeline</code></a><span>live + forward opportunities, incumbents to displace, resellers</span></li><li><a href="https://github.com/chrisns/govbuy#tools" target="_blank" rel="noopener" class="tool-link"><code>contract_expiry_radar</code></a><span>incumbents whose contracts are running out</span></li><li><a href="https://github.com/chrisns/govbuy#tools" target="_blank" rel="noopener" class="tool-link"><code>list_resellers</code></a><span>thin-primes &amp; VARs that can carry you in</span></li>
       </ul>
     </div>
     <div class="tool-col">
       <h3 class="tool-persona"><span class="eyebrow">Researcher</span></h3>
       <ul class="tool-list">
-        <li><code>spend_xray</code><span>how money flows by channel + market concentration</span></li><li><code>get_instrument</code><span>one framework — suppliers, mechanics, observed-from-awards backfill</span></li><li><code>query_sql</code><span>read-only BigQuery over the whole corpus</span></li><li><code>get_schema / get_status</code><span>the schema + per-table freshness &amp; coverage</span></li>
+        <li><a href="https://github.com/chrisns/govbuy#tools" target="_blank" rel="noopener" class="tool-link"><code>spend_xray</code></a><span>how money flows by channel + market concentration</span></li><li><a href="https://github.com/chrisns/govbuy#tools" target="_blank" rel="noopener" class="tool-link"><code>get_instrument</code></a><span>one framework — suppliers, mechanics, observed-from-awards backfill</span></li><li><a href="https://github.com/chrisns/govbuy#tools" target="_blank" rel="noopener" class="tool-link"><code>query_sql</code></a><span>read-only BigQuery over the whole corpus</span></li><li><a href="https://github.com/chrisns/govbuy#tools" target="_blank" rel="noopener" class="tool-link"><code>get_schema / get_status</code></a><span>the schema + per-table freshness &amp; coverage</span></li>
       </ul>
     </div></div>
+</section>
+
+<section class="connect" id="connect">
+  <header class="section-header">
+    <div class="rule strong"></div>
+    <div class="sh-row"><span class="eyebrow">Connect it</span><h2 class="sh-title">Set it up in your assistant — in a minute</h2></div>
+  </header>
+  <p class="section-lede">govbuy is a remote <a href="https://modelcontextprotocol.io" target="_blank" rel="noopener">Model-Context-Protocol</a> server at <code>https://govbuy.run.cns.me/mcp</code> — streamable HTTP, free, unauthenticated, no API key. Add the URL to any MCP-capable client and the 17 tools appear. Recipes (current as of <span class="numeral">2026-06-12</span> — each links its official docs):</p>
+  <div class="conn-grid">
+    <article class="conn-card">
+      <div class="conn-head"><h3>Claude Code</h3><span class="conn-kind">Terminal — one command</span></div>
+      <div class="conn-codewrap"><pre class="conn-code">claude mcp add --transport http govbuy https://govbuy.run.cns.me/mcp</pre><button class="copy-btn conn-copy" data-copy="claude mcp add --transport http govbuy https://govbuy.run.cns.me/mcp" aria-label="Copy Claude Code config">Copy</button></div>
+      <div class="conn-foot"><span>Then ask Claude anything about UK procurement.</span><a href="https://docs.claude.com/en/docs/claude-code/mcp" target="_blank" rel="noopener" class="conn-docs">Docs →</a></div>
+    </article>
+    <article class="conn-card">
+      <div class="conn-head"><h3>Claude Desktop</h3><span class="conn-kind">Settings → Developer → Edit Config</span></div>
+      <div class="conn-codewrap"><pre class="conn-code">{
+  "mcpServers": {
+    "govbuy": { "type": "http", "url": "https://govbuy.run.cns.me/mcp" }
+  }
+}</pre><button class="copy-btn conn-copy" data-copy="{
+  "mcpServers": {
+    "govbuy": { "type": "http", "url": "https://govbuy.run.cns.me/mcp" }
+  }
+}" aria-label="Copy Claude Desktop config">Copy</button></div>
+      <div class="conn-foot"><span>Add to claude_desktop_config.json, then restart.</span><a href="https://modelcontextprotocol.io/quickstart/user" target="_blank" rel="noopener" class="conn-docs">Docs →</a></div>
+    </article>
+    <article class="conn-card">
+      <div class="conn-head"><h3>GitHub Copilot (VS Code)</h3><span class="conn-kind">Create .vscode/mcp.json (or ⌘⇧P → “MCP: Add Server”)</span></div>
+      <div class="conn-codewrap"><pre class="conn-code">{
+  "servers": {
+    "govbuy": { "type": "http", "url": "https://govbuy.run.cns.me/mcp" }
+  }
+}</pre><button class="copy-btn conn-copy" data-copy="{
+  "servers": {
+    "govbuy": { "type": "http", "url": "https://govbuy.run.cns.me/mcp" }
+  }
+}" aria-label="Copy GitHub Copilot (VS Code) config">Copy</button></div>
+      <div class="conn-foot"><span>Use in Copilot Chat → Agent mode.</span><a href="https://code.visualstudio.com/docs/copilot/chat/mcp-servers" target="_blank" rel="noopener" class="conn-docs">Docs →</a></div>
+    </article>
+    <article class="conn-card">
+      <div class="conn-head"><h3>Gemini CLI</h3><span class="conn-kind">Edit ~/.gemini/settings.json</span></div>
+      <div class="conn-codewrap"><pre class="conn-code">{
+  "mcpServers": {
+    "govbuy": { "httpUrl": "https://govbuy.run.cns.me/mcp" }
+  }
+}</pre><button class="copy-btn conn-copy" data-copy="{
+  "mcpServers": {
+    "govbuy": { "httpUrl": "https://govbuy.run.cns.me/mcp" }
+  }
+}" aria-label="Copy Gemini CLI config">Copy</button></div>
+      <div class="conn-foot"><span>Gemini uses httpUrl for streamable-HTTP servers.</span><a href="https://github.com/google-gemini/gemini-cli/blob/main/docs/tools/mcp-server.md" target="_blank" rel="noopener" class="conn-docs">Docs →</a></div>
+    </article>
+    <article class="conn-card">
+      <div class="conn-head"><h3>Cursor</h3><span class="conn-kind">Edit ~/.cursor/mcp.json</span></div>
+      <div class="conn-codewrap"><pre class="conn-code">{
+  "mcpServers": {
+    "govbuy": { "url": "https://govbuy.run.cns.me/mcp" }
+  }
+}</pre><button class="copy-btn conn-copy" data-copy="{
+  "mcpServers": {
+    "govbuy": { "url": "https://govbuy.run.cns.me/mcp" }
+  }
+}" aria-label="Copy Cursor config">Copy</button></div>
+      <div class="conn-foot"><span>Or Settings → MCP → Add new server.</span><a href="https://docs.cursor.com/context/model-context-protocol" target="_blank" rel="noopener" class="conn-docs">Docs →</a></div>
+    </article>
+    <article class="conn-card">
+      <div class="conn-head"><h3>Any MCP client</h3><span class="conn-kind">Windsurf, Zed, Cline, LibreChat, n8n…</span></div>
+      <div class="conn-codewrap"><pre class="conn-code">{
+  "mcpServers": {
+    "govbuy": { "type": "http", "url": "https://govbuy.run.cns.me/mcp" }
+  }
+}</pre><button class="copy-btn conn-copy" data-copy="{
+  "mcpServers": {
+    "govbuy": { "type": "http", "url": "https://govbuy.run.cns.me/mcp" }
+  }
+}" aria-label="Copy Any MCP client config">Copy</button></div>
+      <div class="conn-foot"><span>Point any Model-Context-Protocol client at the URL.</span><a href="https://modelcontextprotocol.io/clients" target="_blank" rel="noopener" class="conn-docs">Docs →</a></div>
+    </article></div>
 </section>
 
 <section class="honest" id="honest">

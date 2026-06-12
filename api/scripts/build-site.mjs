@@ -10,6 +10,18 @@ import { dirname, join } from "node:path";
 const PROJECT = process.env.GCP_PROJECT || "govreposcrape";
 const bq = new BigQuery({ projectId: PROJECT });
 const q = async (sql) => (await bq.query({ query: sql, useLegacySql: false }))[0];
+// Validate a URL at build time so the site never ships a broken framework link (some stored official_urls
+// are stale CCS pages; some old RMs have no live GCA page). Treats 2xx/3xx/403/405 as "exists".
+const okUrl = async (u) => {
+  if (!u) return false;
+  try {
+    const ctrl = new AbortController(); const t = setTimeout(() => ctrl.abort(), 8000);
+    let r = await fetch(u, { method: "HEAD", redirect: "follow", signal: ctrl.signal });
+    if (r.status === 404 || r.status === 405) r = await fetch(u, { method: "GET", redirect: "follow", signal: ctrl.signal });
+    clearTimeout(t);
+    return r.status < 400 || r.status === 403;
+  } catch { return false; }
+};
 const __dir = dirname(fileURLToPath(import.meta.url));
 const OUT = join(__dir, "..", "public");
 
@@ -52,8 +64,12 @@ const [head, channels, premium, frameworks, resellers, expiry, catalogue, observ
   q(`WITH t AS (SELECT rm_reference, ROUND(SUM(award_amount)) gbp, COUNT(*) n, COUNT(DISTINCT supplier_crn) suppliers
         FROM govbuy_public.tender_award WHERE rm_reference IS NOT NULL AND channel IN ('framework_call_off','dps_call_off') AND award_amount BETWEEN 0 AND 100000000
         GROUP BY rm_reference ORDER BY gbp DESC LIMIT 12),
-     nm AS (SELECT rm_reference, ANY_VALUE(name) name FROM govbuy_public.instrument WHERE rm_reference IS NOT NULL GROUP BY rm_reference)
-     SELECT t.rm_reference, COALESCE(nm.name, t.rm_reference) name, t.gbp, t.n, t.suppliers FROM t LEFT JOIN nm USING(rm_reference) ORDER BY t.gbp DESC`),
+     nm AS (SELECT rm_reference, ANY_VALUE(name) name,
+              ANY_VALUE(official_url) official_url,
+              ARRAY_AGG(official_url IGNORE NULLS ORDER BY IF(operator_id='gca',0,1))[SAFE_OFFSET(0)] gca_url
+            FROM govbuy_public.instrument WHERE rm_reference IS NOT NULL GROUP BY rm_reference)
+     SELECT t.rm_reference, COALESCE(nm.name, t.rm_reference) name, COALESCE(nm.gca_url, nm.official_url) official_url, t.gbp, t.n, t.suppliers
+     FROM t LEFT JOIN nm USING(rm_reference) ORDER BY t.gbp DESC`),
   q(`SELECT s.display_name, s.company_number, ANY_VALUE(rc.channel_type) channel_type, ct.calloff_gbp gbp, ct.calloff_count n
      FROM govbuy_public.reseller_channel rc JOIN govbuy_public.supplier s ON s.supplier_id=rc.supplier_id
      JOIN govbuy_public.supplier_calloff_total ct ON ct.supplier_crn=s.company_number
@@ -74,13 +90,20 @@ const data = {
   head: Object.fromEntries(Object.entries(head[0]).map(([k, v]) => [k, num(v)])),
   channels: channels.map((r) => ({ channel: r.channel, awards: num(r.awards), gbp: num(r.gbp) })),
   premium: premium.map((r) => ({ d: r.cpv_division, label: cpvLabel(r.cpv_division), fw: num(r.fw_median), fw_p25: num(r.fw_p25), fw_p75: num(r.fw_p75), open: num(r.open_median), fw_n: num(r.fw_n), open_n: num(r.open_n), total: num(r.total_gbp) })),
-  frameworks: frameworks.map((r) => ({ rm: r.rm_reference, name: r.name, gbp: num(r.gbp), n: num(r.n), suppliers: num(r.suppliers) })),
+  frameworks: frameworks.map((r) => ({ rm: r.rm_reference, name: r.name, url: r.official_url || null, gbp: num(r.gbp), n: num(r.n), suppliers: num(r.suppliers) })),
   resellers: resellers.map((r) => ({ name: r.display_name, crn: r.company_number, type: r.channel_type, gbp: num(r.gbp), n: num(r.n) })),
   expiry: expiry.map((r) => ({ ym: r.ym, n: num(r.n), gbp: num(r.gbp) })),
   catalogue: catalogue.map((r) => ({ catalogue: r.catalogue, n: num(r.n) })),
   observed: Object.fromEntries(Object.entries(observed[0]).map(([k, v]) => [k, num(v)])),
   distressed: num(exclusion[0].distressed),
 };
+
+// Resolve every framework link to one that actually loads (validated), else a gov.uk search fallback.
+console.error("validating framework links …");
+for (const f of data.frameworks) {
+  const cand = f.url || (/^RM/i.test(f.rm) ? `https://www.gca.gov.uk/agreements/${f.rm.replace(/\s+/g, "")}` : null);
+  f.url = (cand && await okUrl(cand)) ? cand : `https://www.gov.uk/search/all?keywords=${encodeURIComponent((f.name && f.name !== f.rm ? f.name : f.rm) + " framework")}`;
+}
 
 mkdirSync(OUT, { recursive: true });
 writeFileSync(join(OUT, "index.html"), renderHtml(data));
@@ -98,6 +121,17 @@ const gbp = (n) => {
 };
 const cnum = (n) => n.toLocaleString("en-GB");
 const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+// Every named thing links to its canonical source (the MCP's own "link the name" rule, on the site too).
+const extLink = (href, html, cls) => `<a href="${href}" target="_blank" rel="noopener"${cls ? ` class="${cls}"` : ""}>${html}</a>`;
+const chUrl = (crn) => `https://find-and-update.company-information.service.gov.uk/company/${encodeURIComponent(crn)}`;
+const fwUrl = (f) => f.url; // resolved + validated in main()
+const CAT_URL = {
+  "g-cloud": "https://www.applytosupply.digitalmarketplace.service.gov.uk/g-cloud/search",
+  "azure": "https://azuremarketplace.microsoft.com/en-gb/marketplace/apps",
+  "ypo": "https://www.ypo.co.uk/frameworks", "espo": "https://www.espo.org/Frameworks",
+  "nhs-buying-catalogue": "https://buyingcatalogue.digital.nhs.uk/", "ndx": "https://ndx.digital.cabinet-office.gov.uk/catalogue/",
+};
+const REPO = "https://github.com/chrisns/govbuy";
 
 const CHANNEL_LABEL = { framework_call_off: "Framework call-off", open: "Open tender", direct: "Direct award", dps_call_off: "DPS call-off", other: "Other / unclassified" };
 const RESELLER_LABEL = { thin_prime: "thin-prime", var: "VAR", hybrid: "hybrid" };
@@ -116,7 +150,7 @@ function renderHtml(d) {
   const fwRows = d.frameworks.map((f, i) => `
     <tr data-gbp="${f.gbp}" data-n="${f.n}" data-suppliers="${f.suppliers}">
       <td class="fw-rank numeral">${i + 1}</td>
-      <td class="fw-name"><span class="fw-rm numeral">${esc(f.rm)}</span> ${esc(f.name)}</td>
+      <td class="fw-name">${extLink(fwUrl(f), `<span class="fw-rm numeral">${esc(f.rm)}</span> ${esc(f.name)}`, "fw-link")}</td>
       <td class="fw-bar"><div class="mini-track"><div class="mini-fill" style="width:${(f.gbp / fwMax * 100).toFixed(1)}%"></div></div></td>
       <td class="fw-gbp numeral">${gbp(f.gbp)}</td>
       <td class="fw-n numeral">${cnum(f.n)}</td>
@@ -127,7 +161,7 @@ function renderHtml(d) {
   const resellerTotal = d.resellers.reduce((a, r) => a + r.gbp, 0);
   const rsBars = d.resellers.map((r) => `
     <div class="bar-row">
-      <div class="bar-label">${esc(r.name)} <span class="chip-mini">${RESELLER_LABEL[r.type] || esc(r.type)}</span></div>
+      <div class="bar-label">${extLink(chUrl(r.crn), esc(r.name))} <span class="chip-mini">${RESELLER_LABEL[r.type] || esc(r.type)}</span></div>
       <div class="bar-track"><div class="bar-fill bf-pink" style="width:${(r.gbp / rsMax * 100).toFixed(1)}%"></div></div>
       <div class="bar-val numeral">${gbp(r.gbp)} <span class="bar-sub">· ${cnum(r.n)}</span></div>
     </div>`).join("");
@@ -147,7 +181,7 @@ function renderHtml(d) {
   const CAT_LABEL = { "g-cloud": "G-Cloud 14", "azure": "Azure Marketplace", "ypo": "YPO", "espo": "ESPO", "nhs-buying-catalogue": "NHS Buying Catalogue", "ndx": "NDX" };
   const catBars = d.catalogue.map((c) => `
     <div class="bar-row">
-      <div class="bar-label">${CAT_LABEL[c.catalogue] || esc(c.catalogue)}</div>
+      <div class="bar-label">${extLink(CAT_URL[c.catalogue] || REPO, CAT_LABEL[c.catalogue] || esc(c.catalogue))}</div>
       <div class="bar-track"><div class="bar-fill bf-ink" style="width:${(c.n / catMax * 100).toFixed(1)}%"></div></div>
       <div class="bar-val numeral">${cnum(c.n)}</div>
     </div>`).join("");
@@ -155,16 +189,27 @@ function renderHtml(d) {
   const itPremium = d.premium.find((p) => p.d === "72");
   const totalAwardGbp = d.channels.reduce((a, c) => a + c.gbp, 0);
 
+  const A = (href, t) => extLink(href, t);
+  const L = {
+    gc14: "https://www.gca.gov.uk/agreements/RM1557.14", rm6200: "https://www.gca.gov.uk/agreements/RM6200",
+    ts4: "https://www.gca.gov.uk/agreements/RM6190", ns3: "https://www.gca.gov.uk/agreements/RM6116",
+    css3: "https://www.gca.gov.uk/agreements/RM3764.3", drones: "https://www.ypo.co.uk/frameworks-home/900632",
+    ht: "https://www.healthtrusteurope.com/", ch: "https://www.gov.uk/government/organisations/companies-house",
+    s62: "https://www.legislation.gov.uk/ukpga/2023/54/section/62", sch5: "https://www.legislation.gov.uk/ukpga/2023/54/schedule/5",
+    softcat: chUrl("02174990"), phoenix: chUrl("02548628"), cdw: chUrl("02465350"), bramble: chUrl("04136381"),
+    pa2023: "https://www.legislation.gov.uk/ukpga/2023/54/contents",
+  };
+  const tool = (t) => extLink(REPO + "#tools", `<code>${t}</code>`);
   const questions = [
-    { p: "buyer", q: "I'm a council. I need to host a containerised web app for ~£80k/year. Just tell me how to buy it.", o: "<code>plan_buy</code> → G-Cloud 14 call-off, a 3-supplier shortlist with real delivery records, the £176k median, and the PA2023 steps — one brief." },
-    { p: "buyer", q: "A fire service needs drone thermal-imaging kit fast and compliantly — is a direct award allowed?", o: "YPO Drones DPS 1148 — <b>further competition only</b>, no direct award; the Schedule 5 urgency route explained, with the Feb-2029 DPS sunset flagged." },
-    { p: "buyer", q: "We're about to award to a supplier in liquidation — should we?", o: "The exclusion gate <b>stops you</b>: a live Companies House check + the s.62 debarment register, both PA2023 limbs." },
-    { p: "buyer", q: "Which of the viable routes is best for a managed SOC — and why?", o: "<code>compare_routes</code> ranks Cyber Security 3 DPS vs TS4 vs Network Services 3 on speed × depth × runway × real price." },
-    { p: "seller", q: "I've built an AI triage tool but I'm on no framework. How do I get in front of the NHS this quarter?", o: "Get admitted to an AI dynamic market (RM6200 / HealthTrust) — continuous joining; plus where NHS commissioners actually shop." },
-    { p: "seller", q: "Find me an incumbent on a big contract that's expiring, and how to compete.", o: "<code>contract_expiry_radar</code> surfaces the displacement window — incumbent, value, end date, the route to re-bid." },
+    { p: "buyer", q: "I'm a council. I need to host a containerised web app for ~£80k/year. Just tell me how to buy it.", o: `${tool("plan_buy")} → ${A(L.gc14, "G-Cloud 14")} call-off, a 3-supplier shortlist with real delivery records, the £176k median, and the PA2023 steps — one brief.` },
+    { p: "buyer", q: "A fire service needs drone thermal-imaging kit fast and compliantly — is a direct award allowed?", o: `${A(L.drones, "YPO Drones DPS 1148")} — <b>further competition only</b>, no direct award; the ${A(L.sch5, "Schedule 5")} urgency route explained, with the Feb-2029 DPS sunset flagged.` },
+    { p: "buyer", q: "We're about to award to a supplier in liquidation — should we?", o: `The exclusion gate <b>stops you</b>: a live ${A(L.ch, "Companies House")} check + the ${A(L.s62, "s.62 debarment register")}, both PA2023 limbs.` },
+    { p: "buyer", q: "Which of the viable routes is best for a managed SOC — and why?", o: `${tool("compare_routes")} ranks ${A(L.css3, "Cyber Security 3 DPS")} vs ${A(L.ts4, "TS4")} vs ${A(L.ns3, "Network Services 3")} on speed × depth × runway × real price.` },
+    { p: "seller", q: "I've built an AI triage tool but I'm on no framework. How do I get in front of the NHS this quarter?", o: `Get admitted to an AI dynamic market (${A(L.rm6200, "RM6200")} / ${A(L.ht, "HealthTrust")}) — continuous joining; plus where NHS commissioners actually shop.` },
+    { p: "seller", q: "Find me an incumbent on a big contract that's expiring, and how to compete.", o: `${tool("contract_expiry_radar")} surfaces the displacement window — incumbent, value, end date, the route to re-bid.` },
     { p: "seller", q: "I rent out goats that clear invasive scrub. How do I sell conservation grazing to the public sector?", o: "An honest answer: no grazing framework exists; the money flows via grounds-maintenance primes — subcontract, and chase sub-threshold local notices." },
     { p: "researcher", q: "Is the public sector overpaying by buying IT through framework call-offs instead of open competition?", o: "In IT the median call-off (£183k) runs <b>above</b> open tender (£140k) — a real convenience premium; every other sector inverts." },
-    { p: "researcher", q: "Map the 'thin-prime' economy — who fronts other firms onto public frameworks, and how much flows there?", o: `${gbp(resellerTotal)} of call-off spend traced to the reseller layer — Softcat, Phoenix, CDW, Bramble Hub…` },
+    { p: "researcher", q: "Map the 'thin-prime' economy — who fronts other firms onto public frameworks, and how much flows there?", o: `${gbp(resellerTotal)} of call-off spend traced to the reseller layer — ${A(L.softcat, "Softcat")}, ${A(L.phoenix, "Phoenix")}, ${A(L.cdw, "CDW")}, ${A(L.bramble, "Bramble Hub")}…` },
     { p: "researcher", q: "Which 'live' tech frameworks are dead paper — appointed suppliers but no real spend?", o: "It tells you what it can prove <i>and what it can't</i> — separating genuinely-idle frameworks from attribution gaps." },
   ];
   const PERSONA = { buyer: "Buyer", seller: "Seller", researcher: "Researcher" };
@@ -203,11 +248,29 @@ function renderHtml(d) {
     <div class="tool-col">
       <h3 class="tool-persona"><span class="eyebrow">${persona}</span></h3>
       <ul class="tool-list">
-        ${list.map(([t, desc]) => `<li><code>${esc(t)}</code><span>${esc(desc)}</span></li>`).join("")}
+        ${list.map(([t, desc]) => `<li>${extLink(REPO + "#tools", `<code>${esc(t)}</code>`, "tool-link")}<span>${esc(desc)}</span></li>`).join("")}
       </ul>
     </div>`).join("");
 
   const installCmd = "claude mcp add --transport http govbuy https://govbuy.run.cns.me/mcp";
+
+  // Setup recipes for common AI clients. govbuy is a remote, streamable-HTTP MCP server at
+  // https://govbuy.run.cns.me/mcp — free, unauthenticated, no API key.
+  const URL_MCP = "https://govbuy.run.cns.me/mcp";
+  const clients = [
+    { name: "Claude Code", kind: "Terminal — one command", code: installCmd, docs: "https://docs.claude.com/en/docs/claude-code/mcp", note: "Then ask Claude anything about UK procurement." },
+    { name: "Claude Desktop", kind: "Settings → Developer → Edit Config", code: `{\n  "mcpServers": {\n    "govbuy": { "type": "http", "url": "${URL_MCP}" }\n  }\n}`, docs: "https://modelcontextprotocol.io/quickstart/user", note: "Add to claude_desktop_config.json, then restart." },
+    { name: "GitHub Copilot (VS Code)", kind: "Create .vscode/mcp.json (or ⌘⇧P → “MCP: Add Server”)", code: `{\n  "servers": {\n    "govbuy": { "type": "http", "url": "${URL_MCP}" }\n  }\n}`, docs: "https://code.visualstudio.com/docs/copilot/chat/mcp-servers", note: "Use in Copilot Chat → Agent mode." },
+    { name: "Gemini CLI", kind: "Edit ~/.gemini/settings.json", code: `{\n  "mcpServers": {\n    "govbuy": { "httpUrl": "${URL_MCP}" }\n  }\n}`, docs: "https://github.com/google-gemini/gemini-cli/blob/main/docs/tools/mcp-server.md", note: "Gemini uses httpUrl for streamable-HTTP servers." },
+    { name: "Cursor", kind: "Edit ~/.cursor/mcp.json", code: `{\n  "mcpServers": {\n    "govbuy": { "url": "${URL_MCP}" }\n  }\n}`, docs: "https://docs.cursor.com/context/model-context-protocol", note: "Or Settings → MCP → Add new server." },
+    { name: "Any MCP client", kind: "Windsurf, Zed, Cline, LibreChat, n8n…", code: `{\n  "mcpServers": {\n    "govbuy": { "type": "http", "url": "${URL_MCP}" }\n  }\n}`, docs: "https://modelcontextprotocol.io/clients", note: "Point any Model-Context-Protocol client at the URL." },
+  ];
+  const connectCards = clients.map((c) => `
+    <article class="conn-card">
+      <div class="conn-head"><h3>${esc(c.name)}</h3><span class="conn-kind">${esc(c.kind)}</span></div>
+      <div class="conn-codewrap"><pre class="conn-code">${esc(c.code)}</pre><button class="copy-btn conn-copy" data-copy="${esc(c.code)}" aria-label="Copy ${esc(c.name)} config">Copy</button></div>
+      <div class="conn-foot"><span>${esc(c.note)}</span>${extLink(c.docs, "Docs →", "conn-docs")}</div>
+    </article>`).join("");
 
   return `<!doctype html>
 <html lang="en">
@@ -263,12 +326,12 @@ ${MASTHEAD}
     <article class="layer">
       <span class="layer-no numeral">02</span>
       <h3>Reality</h3>
-      <p><b class="numeral">${cnum(d.head.fused_awards)}</b> real tender awards joined on Companies House CRN: who actually wins the work, what buyers really pay, what's live, what's <i>coming</i> (<b class="numeral">${cnum(d.head.pipeline)}</b> pipeline notices) and what's <i>expiring</i>.</p>
+      <p><b class="numeral">${cnum(d.head.fused_awards)}</b> real tender awards joined on ${A(L.ch, "Companies House")} CRN: who actually wins the work, what buyers really pay, what's live, what's <i>coming</i> (<b class="numeral">${cnum(d.head.pipeline)}</b> pipeline notices) and what's <i>expiring</i>.</p>
     </article>
     <article class="layer">
       <span class="layer-no numeral">03</span>
       <h3>Statute</h3>
-      <p>The <b>Procurement Act 2023</b> mechanics — standstill, competitive flexible procedure, Schedule&nbsp;5 grounds, a two-limb exclusion gate (live Companies House + the s.62 debarment register) — so a route isn't just available but <i>defensible</i>.</p>
+      <p>The ${A(L.pa2023, "<b>Procurement Act 2023</b>")} mechanics — standstill, competitive flexible procedure, ${A(L.sch5, "Schedule&nbsp;5")} grounds, a two-limb exclusion gate (live ${A(L.ch, "Companies House")} + the ${A(L.s62, "s.62 debarment register")}) — so a route isn't just available but <i>defensible</i>.</p>
     </article>
   </div>
 </section>
@@ -337,6 +400,12 @@ ${MASTHEAD}
   <div class="tool-grid">${toolCols}</div>
 </section>
 
+<section class="connect" id="connect">
+  ${sectionHeader("Connect it", "Set it up in your assistant — in a minute")}
+  <p class="section-lede">govbuy is a remote <a href="https://modelcontextprotocol.io" target="_blank" rel="noopener">Model-Context-Protocol</a> server at <code>${esc(URL_MCP)}</code> — streamable HTTP, free, unauthenticated, no API key. Add the URL to any MCP-capable client and the 17 tools appear. Recipes (current as of <span class="numeral">${d.generated}</span> — each links its official docs):</p>
+  <div class="conn-grid">${connectCards}</div>
+</section>
+
 <section class="honest" id="honest">
   ${sectionHeader("The honest part", "What it can't do — and says so")}
   <div class="honest-grid">
@@ -391,7 +460,7 @@ const MASTHEAD = `<header class="masthead">
   <div class="rule"></div>
   <nav class="masthead-nav">
     <div class="nav-left">
-      <a href="#what">What</a><a href="#data">Data</a><a href="#ask">Ask</a><a href="#tools">Tools</a>
+      <a href="#what">What</a><a href="#data">Data</a><a href="#ask">Ask</a><a href="#tools">Tools</a><a href="#connect">Setup</a>
     </div>
     <div class="nav-right">
       <a href="https://github.com/chrisns/govbuy">GitHub</a><a href="https://blog.cns.me">Blog</a><a href="https://talks.cns.me">Talks</a><a href="https://cns.me">cns.me</a>
@@ -609,10 +678,36 @@ code{font-family:var(--font-mono);font-size:.92em}
 .cl-list li{color:var(--ink-3)}
 .cl-fine{font-size:11.5px;color:var(--ink-4);padding:16px 0 40px;margin:0;line-height:1.6}
 
+/* connect / setup */
+.conn-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;margin-top:8px}
+.conn-card{border:1px solid var(--ink);background:var(--bone);display:flex;flex-direction:column;min-width:0}
+.conn-codewrap,.conn-code{min-width:0;max-width:100%}
+.conn-head{padding:16px 18px 10px;border-bottom:1px solid var(--paper-3)}
+.conn-head h3{font-family:var(--font-display);font-weight:700;font-size:18px;margin:0 0 3px}
+.conn-kind{font-family:var(--font-mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+.conn-codewrap{position:relative;flex:1;display:flex}
+.conn-code{font-family:var(--font-mono);font-size:11.5px;line-height:1.5;color:var(--ink);background:var(--paper-2);margin:0;padding:14px 16px;width:100%;overflow-x:auto;white-space:pre}
+.conn-copy{position:absolute;top:8px;right:8px;padding:5px 12px;font-size:11px;border:1px solid var(--ink);background:var(--bone);color:var(--ink);border-left:1px solid var(--ink)}
+.conn-copy:hover{background:var(--pink);color:var(--bone);border-color:var(--pink)}
+.conn-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 18px;font-size:12.5px;color:var(--ink-3);border-top:1px solid var(--paper-3)}
+.conn-docs{color:var(--pink-deep);text-decoration:none;font-weight:600;white-space:nowrap}
+.conn-docs:hover{color:var(--pink-hot)}
+
+/* in-dashboard links: subtle, inherit colour, hover to pink */
+.fw-link,.tool-link{color:var(--ink-2);text-decoration:none}
+.fw-link:hover{color:var(--pink-deep)}.fw-link:hover .fw-rm{color:var(--pink-hot)}
+.tool-link{text-decoration:none}.tool-link:hover code{color:var(--pink-hot)}
+.bar-label a{color:inherit;text-decoration:none;border-bottom:1px solid transparent}
+.bar-label a:hover{color:var(--pink-deep);border-bottom-color:var(--pink-deep)}
+.q-o a{color:var(--pink-deep);text-decoration:none;border-bottom:1px solid rgba(179,14,97,.3)}
+.q-o a:hover{color:var(--pink-hot);border-bottom-color:var(--pink-hot)}
+.layer a{color:var(--ink);text-decoration:none;border-bottom:1px solid var(--pink)}
+.layer a:hover{color:var(--pink-deep)}
+
 @media (max-width:920px){
   html,body{overflow-x:hidden}
   .page{padding:20px 20px 0}
-  .hero,.layer-grid,.dash-grid,.q-grid,.tool-grid,.honest-grid,.explorer-panel,.colophon-grid{grid-template-columns:1fr}
+  .hero,.layer-grid,.dash-grid,.q-grid,.tool-grid,.honest-grid,.explorer-panel,.colophon-grid,.conn-grid{grid-template-columns:1fr}
   .hero{gap:36px;padding:36px 0 40px}
   .hero-headline{font-size:clamp(34px,9vw,58px)}
   .hero-stats{grid-template-columns:repeat(2,1fr)}
