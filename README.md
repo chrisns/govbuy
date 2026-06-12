@@ -1,13 +1,17 @@
-# govbuy — UK route-to-market MCP
+# govbuy — the UK public-procurement co-pilot
 
-Ask your AI assistant **how to buy** a thing across the UK public sector, **where to list it and who
-can prime you in** as a vendor, or **how public money actually flows** as a researcher — and get a
-complete, current, **source-anchored** answer. govbuy maps the **route** (the frameworks and dynamic
-markets that fit, their lots, permitted award mechanics, the documents a purchase needs, the appointed
-suppliers, and the resellers/primes like Bramble Hub that can carry an off-framework product to market)
-and **fuses it with the reality** — 658k real tender awards joined on Companies House CRN — so every
-answer also knows **who actually wins the work, what buyers really pay, and what's open to bid right
-now**. Route × reality, for buyers, suppliers and researchers alike.
+Ask your AI assistant **how to buy** a thing across the UK public sector, **where to sell it** as a
+vendor, or **how public money flows** as a researcher — and get a complete, **source-anchored**,
+decision-grade answer. govbuy fuses three layers no other tool holds together:
+
+- **Route** — 3,200 frameworks & dynamic markets, **117,829** catalogue listings, the lots, mechanics and documents a compliant purchase needs.
+- **Reality** — **658k** real tender awards joined on Companies House CRN: who actually wins the work, what buyers really pay, what's live, and what's *coming* (29k forward pipeline notices).
+- **Statute** — the **Procurement Act 2023** mechanics (standstill, competitive flexible procedure, exclusions, debarment) so the route isn't just available but *defensible*.
+
+That makes it **decisive** — `plan_buy` returns one opinionated buying brief (route + shortlist + real
+price + exclusion check + compliance steps), not a database dump — and **bulletproof**: every supplier
+is exclusion-checked against Companies House distress, and every claim ships its source URL. Route ×
+reality × statute, for buyers, suppliers and researchers alike.
 
 **Live now:**
 
@@ -24,6 +28,31 @@ claude mcp add --transport http govbuy https://govbuy.run.cns.me/mcp
 > official framework page, the Companies House record, the source of every claim — so your assistant
 > links you straight to them.)
 
+## The co-pilot in action
+
+<details>
+<summary><b>"I'm a council. I need to host a containerised web app for ~£80k/year. Just tell me how to buy it." — one call to <code>plan_buy</code></b></summary>
+
+> *(Real `claude -p` — `plan_buy` composes route + shortlist + price + exclusion + PA2023 into one brief.)*
+>
+> **Route:** call off **[G-Cloud 14 (`RM1557.14`)](https://www.applytosupply.digitalmarketplace.service.gov.uk/g-cloud/)** — call-off without further competition (expires **28 Oct 2026**, award before then). A GPC card / marketplace billing is **not** a route.
+> **Shortlist** (real listings, CRN-matched delivery record): [Platform.sh Managed Cloud Hosting](https://www.applytosupply.digitalmarketplace.service.gov.uk/g-cloud/services/559499857886093) — CTI Digital £1.85m/3 call-offs; Nublue £149k/2; [Dell Cloud Hosting (OpenShift)](https://www.applytosupply.digitalmarketplace.service.gov.uk/g-cloud/services/966032847531194) — **£182.7m / 491 call-offs**. None carry an exclusion flag.
+> **What it should cost** (19,319 comparable CPV-72 call-offs): p25 £60.6k · **median £176k** · p75 £707k — your £80k/yr sits above p25; a 3-yr call-off (~£240k) lands near the median.
+> **Compliance steps:** a framework call-off is NOT a statutory direct award (ss.41/43 don't apply); check the [s.62 debarment register](https://www.legislation.gov.uk/ukpga/2023/54/section/62) + Sch 6/7 exclusions + each supplier's live Companies House status; standstill not required for a straight call-off; keep a most-economically-advantageous audit note. Indicative — not legal advice; you run the assessment.
+</details>
+
+<details>
+<summary><b>"We're about to award to a supplier called TAD Architects. Are they safe?" — the exclusion gate</b></summary>
+
+> **⚠️ Stop — do not award without re-checking.** govbuy's exclusion check flags **Companies House status: `liquidation`** ([CRN OC347430](https://find-and-update.company-information.service.gov.uk/company/OC347430)) — a **PA2023 Schedule 6/7 (insolvency) ground** a contracting authority must consider before awarding. Plus **no delivery record** in 658k awards (£0 / 0 call-offs) — absence of evidence, not proof of incapacity, but nothing to lean on either. The status is a snapshot — verify live before proceeding. (`find_services` will find compliant alternatives.) **No other procurement tool stops you here.**
+</details>
+
+<details>
+<summary><b>"A statutory direct award under PA2023 — when is it allowed, and is it the same as buying off G-Cloud?" — statutorily precise</b></summary>
+
+> Straight from `compliant_path`, source-anchored to legislation.gov.uk: a **statutory direct award** is "no competition, by exception" — lawful only on a **Schedule 5** ground **and** a **[s.44 transparency notice](https://www.legislation.gov.uk/ukpga/2023/54/section/44)** published first. Buying off G-Cloud is a **framework call-off under s.45** — you apply the framework's own award mechanism; you do **not** invoke Schedule 5 or publish that notice. The mandatory **[8-working-day standstill (s.51)](https://www.legislation.gov.uk/ukpga/2023/54/section/51)** applies to competitive awards but is exempt for call-offs. **Bottom line: don't call a G-Cloud purchase a "direct award" in your business case — call it a framework call-off, or you'll fail an audit on the labelling alone.** This was the model's hardest question; now it's nailed.
+</details>
+
 ## What's inside
 
 | | |
@@ -34,6 +63,9 @@ claude mcp add --transport http govbuy https://govbuy.run.cns.me/mcp
 | Appointed-supplier edges | **57,055** (77% of frameworks carry a supplier list) |
 | Catalogue **listings** (what suppliers actually sell) | **117,829** across 6 buying catalogues — G-Cloud 14 (43,733), Azure Marketplace (38,928), YPO (23,459), ESPO (11,621), NHS Buying Catalogue (48), NDX (40) — each a citable listing URL with a full description, searchable by capability via `find_services`. All crawlers are deterministic + token-free re-runnable. |
 | Real awards **fused in** (route × reality) | **658k** award lines across **461k** awarded processes and **11.9k** buyers, from the UK Tenders corpus, welded on Companies House CRN — powering proof-of-delivery, price benchmarks, live pipelines and spend x-rays ([fusion ACs](docs/fusion-acceptance.md)) |
+| Forward **pipeline** | **29,306** planned/upcoming procurement notices — what's *coming* 6–18 months out, for bid-prep ([top-5 ACs](docs/top5-acceptance.md)) |
+| **Procurement Act 2023** engine | 15 sourced statutory rules (standstill, competitive flexible procedure, Schedule 5 direct-award grounds, debarment, KPI duty, payment-method-blind) make `compliant_path` *defensible*, not just available |
+| **Exclusion** signal | **1,790** suppliers flagged as dissolved / in liquidation / administration — a ⚠ "can I even use this supplier?" gate on every supplier result |
 | How-to-call-off mechanics | direct award vs further competition on **71%** of frameworks |
 | Spend coverage | **91.4%** of framework-attributable UK public spend |
 
@@ -56,7 +88,8 @@ CRN, so it serves buyers, suppliers *and* researchers from one place. It **docum
 | `find_routes` | **Buyer:** instruments/lots that fit a need + permitted award mechanics + required docs + GPC/marketplace caveats. Doesn't rank or assemble the buy. |
 | `get_instrument` | One framework/dynamic market: lots, lifecycle status, mechanics, buying docs, appointed suppliers (each with a membership qualifier + evidence). RM lookups return the canonical GCA agreement, not a reseller's listing of it. |
 | `find_services` | **Capability search (semantic + proof):** given a need ('host an open-source app', 'transcribe meetings', 'a desk'), the specific catalogue **listings** that do it — by meaning (vector search, so it matches with no shared keyword) and keyword. Each carries the citable listing URL, the supplier's **real call-off track record** (£ won on that framework), an indicative price, and months-to-expiry. Answers "who can actually do this *and delivers it*", not just "which framework". |
-| `compliant_path` | **How to actually buy it:** instrument/RM → the permitted award mechanic (direct award vs further competition) + conditions + buying documents + the "a GPC card / marketplace is **not** a route" caveats. The next steps. |
+| `compliant_path` | **How to actually buy it — Procurement-Act-2023-precise:** the permitted award mechanic + conditions + documents, plus the PA2023 rules that govern it (8-day standstill, competitive flexible procedure, Schedule 5 direct-award grounds, debarment duty, payment-method-blind) — and that a framework call-off is **not** a statutory direct award. |
+| `plan_buy` | **Buyer, decisive:** one opinionated brief for a need — recommended route + mechanic, a ranked shortlist (with CRN track record + exclusion check), an indicative price, forward pipeline, and a compliance checklist. The "just tell me how to buy this" tool. |
 | `benchmark_price` | **Buyer:** the real £ distribution the public sector actually paid for a category (median, p25–p75, overall + by channel) from 658k awards — list price → market price. |
 | `due_diligence` | **Buyer:** is this supplier safe? CRN-matched delivery record — call-off £, customer concentration, competitive-vs-direct mix, CPV footprint, contract-end dates. |
 | `find_instruments_to_list` | **Seller:** instruments a vendor can be appointed to (open frameworks / dynamic markets) + how-to-apply. |
