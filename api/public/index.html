@@ -6,6 +6,7 @@
 <title>govbuy — the UK public-procurement co-pilot</title>
 <meta name="description" content="Ask your AI assistant how to buy across the UK public sector, where to sell, or how public money flows — source-anchored across 3,200 frameworks, 117k catalogue listings and 658k real awards. An MCP server by cns.me." />
 <meta name="theme-color" content="#F4EFE7" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23F4EFE7'/%3E%3Ccircle cx='16' cy='17' r='7' fill='%23E5197F'/%3E%3C/svg%3E" />
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://govbuy.run.cns.me/" />
 <meta property="og:title" content="govbuy — the UK public-procurement co-pilot" />
@@ -241,7 +242,7 @@ code{font-family:var(--font-mono);font-size:.92em}
     <p class="hero-fine">Works with any MCP client — Claude, Claude&nbsp;Code, and the rest. Free &amp; unauthenticated.</p>
   </div>
   <div class="hero-stats">
-    <div class="stat"><span class="stat-num numeral">3,207</span><span class="stat-cap">frameworks & dynamic markets</span></div><div class="stat"><span class="stat-num numeral">117,829</span><span class="stat-cap">catalogue listings</span></div><div class="stat"><span class="stat-num numeral">658,625</span><span class="stat-cap">real awards fused in</span></div><div class="stat"><span class="stat-num numeral">£1601bn</span><span class="stat-cap">of awarded spend mapped</span></div>
+    <div class="stat"><span class="stat-num numeral">3,207</span><span class="stat-cap">frameworks & dynamic markets</span></div><div class="stat"><span class="stat-num numeral">117,829</span><span class="stat-cap">catalogue listings</span></div><div class="stat"><span class="stat-num numeral">658,625</span><span class="stat-cap">real awards fused in</span></div><div class="stat"><span class="stat-num numeral">£1.6tn</span><span class="stat-cap">of awarded contract value</span></div>
   </div>
 </section>
 
@@ -295,7 +296,7 @@ code{font-family:var(--font-mono);font-size:.92em}
     <div class="bar-row">
       <div class="bar-label">Open tender</div>
       <div class="bar-track"><div class="bar-fill bf-ink" style="width:100.0%"></div></div>
-      <div class="bar-val numeral">£1045bn <span class="bar-sub">· 165,173</span></div>
+      <div class="bar-val numeral">£1.0tn <span class="bar-sub">· 165,173</span></div>
     </div>
     <div class="bar-row">
       <div class="bar-label">Other / unclassified</div>
@@ -725,7 +726,7 @@ code{font-family:var(--font-mono);font-size:.92em}
 <script>window.__DATA__={"premium":[{"d":"85","label":"Health & social work (CPV 85)","fw":294029,"fw_p25":65000,"fw_p75":1905476,"open":2267041,"fw_n":3614,"open_n":15089,"total":259711064775},{"d":"45","label":"Construction (CPV 45)","fw":259793,"fw_p25":81933,"fw_p75":1357560,"open":322000,"fw_n":7484,"open_n":18629,"total":214789231117},{"d":"79","label":"Business & management services (CPV 79)","fw":53095,"fw_p25":13921,"fw_p75":170064,"open":180000,"fw_n":26480,"open_n":13012,"total":123594819831},{"d":"71","label":"Architecture & engineering (CPV 71)","fw":115197,"fw_p25":49930,"fw_p75":376617,"open":198281,"fw_n":9986,"open_n":8094,"total":118877290523},{"d":"33","label":"Medical equipment & pharma (CPV 33)","fw":100000,"fw_p25":41376,"fw_p75":347216,"open":8300000,"fw_n":3355,"open_n":4122,"total":117706786003},{"d":"80","label":"Education & training (CPV 80)","fw":72151,"fw_p25":30632,"fw_p75":200000,"open":445200,"fw_n":7308,"open_n":10009,"total":86416520495},{"d":"60","label":"Transport services (CPV 60)","fw":84551,"fw_p25":33356,"fw_p75":364169,"open":322240,"fw_n":2633,"open_n":9367,"total":75683750132},{"d":"72","label":"IT services & software (CPV 72)","fw":183366,"fw_p25":64900,"fw_p75":737512,"open":140400,"fw_n":18984,"open_n":4003,"total":63315251872},{"d":"34","label":"Transport equipment (CPV 34)","fw":87826,"fw_p25":38581,"fw_p75":304882,"open":475000,"fw_n":3798,"open_n":3656,"total":42150071844},{"d":"39","label":"Furniture & furnishings (CPV 39)","fw":96000,"fw_p25":36226,"fw_p75":358986,"open":991000,"fw_n":1137,"open_n":2744,"total":37273004784},{"d":"66","label":"Financial & insurance (CPV 66)","fw":139195,"fw_p25":44048,"fw_p75":500000,"open":522403,"fw_n":2475,"open_n":2413,"total":31811530931},{"d":"31","label":"Electrical machinery (CPV 31)","fw":108661,"fw_p25":39760,"fw_p75":368135,"open":340000,"fw_n":525,"open_n":2102,"total":31592722974},{"d":"50","label":"Repair & maintenance (CPV 50)","fw":112892,"fw_p25":43908,"fw_p75":378853,"open":373390,"fw_n":2678,"open_n":4028,"total":30509771348},{"d":"90","label":"Environmental services (CPV 90)","fw":114315,"fw_p25":55000,"fw_p75":360000,"open":330000,"fw_n":1351,"open_n":4504,"total":29185037558}]};</script>
 <script>
 (function(){
-  var fmt=function(n){var a=Math.abs(n);if(a>=1e9)return "\u00a3"+(n/1e9).toFixed(a>=1e10?0:1)+"bn";if(a>=1e6)return "\u00a3"+(n/1e6).toFixed(a>=1e8?0:1)+"m";if(a>=1e3)return "\u00a3"+Math.round(n/1e3)+"k";return "\u00a3"+n;};
+  var fmt=function(n){var a=Math.abs(n);if(a>=1e12)return "\u00a3"+(n/1e12).toFixed(1)+"tn";if(a>=1e9)return "\u00a3"+(n/1e9).toFixed(a>=1e10?0:1)+"bn";if(a>=1e6)return "\u00a3"+(n/1e6).toFixed(a>=1e8?0:1)+"m";if(a>=1e3)return "\u00a3"+Math.round(n/1e3)+"k";return "\u00a3"+n;};
   var cn=function(n){return n.toLocaleString("en-GB");};
   // copy buttons
   document.querySelectorAll(".copy-btn").forEach(function(b){b.addEventListener("click",function(){navigator.clipboard.writeText(b.getAttribute("data-copy")).then(function(){var t=b.textContent;b.textContent="Copied";b.classList.add("done");setTimeout(function(){b.textContent=t;b.classList.remove("done");},1400);});});});

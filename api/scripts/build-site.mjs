@@ -90,6 +90,7 @@ console.error(`wrote ${join(OUT, "index.html")} — ${data.head.fused_awards.toL
 // ----------------------------------------------------------------------------- rendering helpers
 const gbp = (n) => {
   const a = Math.abs(n);
+  if (a >= 1e12) return "£" + (n / 1e12).toFixed(1) + "tn";
   if (a >= 1e9) return "£" + (n / 1e9).toFixed(a >= 1e10 ? 0 : 1) + "bn";
   if (a >= 1e6) return "£" + (n / 1e6).toFixed(a >= 1e8 ? 0 : 1) + "m";
   if (a >= 1e3) return "£" + Math.round(n / 1e3) + "k";
@@ -216,6 +217,7 @@ function renderHtml(d) {
 <title>govbuy — the UK public-procurement co-pilot</title>
 <meta name="description" content="Ask your AI assistant how to buy across the UK public sector, where to sell, or how public money flows — source-anchored across 3,200 frameworks, 117k catalogue listings and 658k real awards. An MCP server by cns.me." />
 <meta name="theme-color" content="#F4EFE7" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23F4EFE7'/%3E%3Ccircle cx='16' cy='17' r='7' fill='%23E5197F'/%3E%3C/svg%3E" />
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://govbuy.run.cns.me/" />
 <meta property="og:title" content="govbuy — the UK public-procurement co-pilot" />
@@ -245,7 +247,7 @@ ${MASTHEAD}
       [cnum(d.head.frameworks), "frameworks & dynamic markets"],
       [cnum(d.head.listings), "catalogue listings"],
       [cnum(d.head.fused_awards), "real awards fused in"],
-      [gbp(totalAwardGbp), "of awarded spend mapped"],
+      [gbp(totalAwardGbp), "of awarded contract value"],
     ].map(([n, c]) => `<div class="stat"><span class="stat-num numeral">${n}</span><span class="stat-cap">${c}</span></div>`).join("")}
   </div>
 </section>
@@ -617,7 +619,7 @@ code{font-family:var(--font-mono);font-size:.92em}
 
 const CLIENT_JS = `
 (function(){
-  var fmt=function(n){var a=Math.abs(n);if(a>=1e9)return "\\u00a3"+(n/1e9).toFixed(a>=1e10?0:1)+"bn";if(a>=1e6)return "\\u00a3"+(n/1e6).toFixed(a>=1e8?0:1)+"m";if(a>=1e3)return "\\u00a3"+Math.round(n/1e3)+"k";return "\\u00a3"+n;};
+  var fmt=function(n){var a=Math.abs(n);if(a>=1e12)return "\\u00a3"+(n/1e12).toFixed(1)+"tn";if(a>=1e9)return "\\u00a3"+(n/1e9).toFixed(a>=1e10?0:1)+"bn";if(a>=1e6)return "\\u00a3"+(n/1e6).toFixed(a>=1e8?0:1)+"m";if(a>=1e3)return "\\u00a3"+Math.round(n/1e3)+"k";return "\\u00a3"+n;};
   var cn=function(n){return n.toLocaleString("en-GB");};
   // copy buttons
   document.querySelectorAll(".copy-btn").forEach(function(b){b.addEventListener("click",function(){navigator.clipboard.writeText(b.getAttribute("data-copy")).then(function(){var t=b.textContent;b.textContent="Copied";b.classList.add("done");setTimeout(function(){b.textContent=t;b.classList.remove("done");},1400);});});});
