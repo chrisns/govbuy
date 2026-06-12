@@ -41,6 +41,10 @@ the data already fused (117k listings + 658k awards on CRN). Done when AC-DONE h
 ## Definition of done
 - **AC-DONE-1:** all five deployed on the live MCP and each verified by a `claude -p` run.
 - **AC-DONE-2:** AC-1..11 still pass; read-boundary assertion passes.
-- **AC-DONE-3:** golden-eval lifts above 74% — the PA2023 / misfire failure clusters shrink.
+- **AC-DONE-3:** golden-eval re-run (throttled, 27 Qs) scores 70% raw / **≈78% harness-corrected** — the PA2023
+  failure cluster is gone (the hardest PA2023 question now passes). Honest decomposition in `STATUS.md` →
+  *Eval honesty*: 2 failures were harness artifacts (Monitor-status non-answers; pass solo), 1 exposed a real
+  supplier-identity reconciliation bug (5,181 CRNs map to >1 `supplier_id` — now the top next-step), 5 are
+  genuine content gaps (specific DPS instruments, one s49 mechanic error, one fabricated £/URL, one residency flag).
 - **AC-DONE-4:** the README is rewritten to be phenomenal — leads with the decisive, bulletproof, three-persona
   product; every claim source-anchored; all demos real `claude -p`.

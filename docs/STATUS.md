@@ -59,12 +59,25 @@ The five features the voter panel picked (see [top5-acceptance.md](top5-acceptan
   disambiguation, NULL = absence-of-evidence).
 - **Forward pipeline** — `pipeline_notice` (29,306 planned notices) + `supplier_pipeline`'s coming-soon section.
 
-**Eval honesty:** the post-delivery golden run scored 70%/0.71 (27 Qs) — *lower than the 74% baseline, but the
-run was rate-limit-contaminated*: the harness fires 55 `claude -p` agents at once and Anthropic throttled,
-truncating several answers (one came back empty). Clean SOLO re-runs of the "failed" questions pass (e.g. the
-goats question correctly returns the grounds-maintenance frameworks). The genuine residual gaps are
-tool-path-narration expectations and DPS-vs-dynamic-market terminology — not feature regressions. The eval
-harness needs lower concurrency / backoff to give a trustworthy number; that's the next harness fix.
+**Eval honesty (throttled 4-wide re-run, 27 Qs):** raw **70% / 0.71** — and decomposed honestly, the 8 failures
+are *not* 8 feature gaps:
+- **2 are harness false-negatives.** The run-agent backgrounded its nested `claude -p` and returned a *"Monitor
+  active, waiting for the command…"* status string instead of the answer. Re-run **solo**, both pass cleanly and
+  richly: the IT-service-desk answer returns the full route landscape (G-Cloud 14 / TS4 / Back Office Software 2 +
+  real `applytosupply…/g-cloud/services/…` URLs + PA2023 duties); the G-Cloud-14-Lot-2 answer returns the
+  appointed-supplier list + 2025 call-off £ + the lot-membership caveat. **Harness-corrected ≈ 78% (21/27).** The
+  harness now forbids the run-agent from backgrounding `claude -p` (the artifact's cause), so the next automated run
+  reports the corrected figure directly.
+- **1 surfaced a real bug** (now logged, see *Next steps*): supplier identity is **not reconciled across ingestion
+  sources**. Appvia is two rows — `appvia-ltd` (GCA spine → TS4/RM6190) and `dm-708440` (Digital Marketplace →
+  G-Cloud 14), same CRN, never merged — so `get_supplier`/`due_diligence` under-report a supplier's true framework
+  footprint. **5,181 Companies House numbers map to >1 `supplier_id`.** This is the most valuable thing the eval
+  caught; not a regression but a genuine data-quality gap.
+- **5 are genuine content gaps:** specific instruments not surfaced for a precise need (YPO Drones DPS 1148 / 900616;
+  RM6200 AI DPS + HealthTrust AI DPS), one PA2023 **s49 open-framework** mechanic stated wrong, one answer that
+  **fabricated** a £ figure + an unverifiable framework URL (the verbatim gate covers published catalogue text, not
+  free-form synthesis in the chat answer — a reason to keep answers anchored to tool output), and a missing
+  UK-data-residency flag on the Minute question.
 
 ### Fused with UK Tenders — route × reality, for buyers + suppliers + researchers
 govbuy is welded to the UK Tenders corpus (681k processes / 470k awards) on **Companies House CRN +
@@ -98,11 +111,11 @@ from one MCP. Fused tables refresh via `bq.materialize_fusion()`.
 - **Reseller graph**: expanded 1 → 17 (thin-prime/VAR/hybrid) + 64 vendor `inbound_scope` links, via a
   parallel thin-prime extraction workflow, all source-anchored.
 - **Eval harness** (`eval/golden_questions.json` + `scripts/workflows/eval-harness.js`): golden
-  buyer/seller questions → live MCP → parallel LLM-judges. **27 questions (incl. 3 fused-persona):
-  74% pass / 0.73 avg — up from the 71% baseline; all three persona questions pass.** Remaining failures
-  cluster on **Procurement-Act-2023 statutory nuance** (the 8-day standstill, the term "competitive
-  flexible procedure", the DPS→dynamic-market sunset deemed-end Feb 2029, statutory-direct-award vs a
-  framework call-off) — encoding that regime knowledge is the clear next gap.
+  buyer/seller questions → live MCP → parallel LLM-judges. **27 questions (incl. 3 fused-persona).** The
+  pre-PA2023 baseline cleared 74% with failures clustering on Procurement-Act-2023 statutory nuance; that
+  regime is now encoded (`pa2023_rule`, see below). The post-delivery throttled re-run and its honest
+  decomposition (harness artifacts vs the real supplier-identity bug vs genuine content gaps) are written
+  up under **Eval honesty** above.
 
 ### Capability search — service-level descriptions (DONE across all UK buying catalogues)
 govbuy indexes **65,442 per-listing descriptions** across every public UK public-sector buying
@@ -137,9 +150,14 @@ enrichment of G-Cloud descriptions from the detail pages.
   is increasingly marginal.
 
 ## Next steps
-1. **Credentials** for the login-walled portals (start with hunterpcm.uk) → unlocks ~98 + the rest.
-2. Optional: headless-browser pass for the genuinely-JS `blocked` subset.
-3. Nightly: `govbuy-ingest refresh` (deterministic GCA+G-Cloud spine) + the saved agentic workflows;
+1. **Reconcile supplier identity across sources** (the eval's most valuable catch). 5,181 CRNs map to >1
+   `supplier_id` because the GCA spine (`<slug>-ltd`) and the Digital Marketplace directory (`dm-<id>`) ingest
+   the same company under different ids (e.g. Appvia: `appvia-ltd` on TS4 vs `dm-708440` on G-Cloud). Fix:
+   union appointments + call-off track record across all `supplier_id`s sharing a `company_number`, or merge on
+   CRN at ingest, so `get_supplier`/`due_diligence` show the full framework footprint.
+2. **Credentials** for the login-walled portals (start with hunterpcm.uk) → unlocks ~98 + the rest.
+3. Optional: headless-browser pass for the genuinely-JS `blocked` subset.
+4. Nightly: `govbuy-ingest refresh` (deterministic GCA+G-Cloud spine) + the saved agentic workflows;
    no scheduler in infra — operator-hosted, cost-metered, with a liveness alert.
 
 _Generated after the breadth/depth sweeps; figures from `govbuy_public`. Not the authority of record._

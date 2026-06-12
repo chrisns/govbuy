@@ -34,8 +34,10 @@ Question: ${item.q}
 
 Do exactly this:
 1. Write the question to a temp file: printf '%s' ${JSON.stringify(item.q)} > /tmp/gq_${i}.txt
-2. Run: claude -p "$(cat /tmp/gq_${i}.txt)" --mcp-config '${MCP}' --allowedTools "${TOOLS}" --output-format text
-3. Return ONLY what that command printed to stdout (the answer). If it errors or is rate-limited, wait 20s and retry once, then return whatever you get.`,
+2. Run, in the FOREGROUND, with a long timeout so it does NOT auto-background:
+   timeout 600 claude -p "$(cat /tmp/gq_${i}.txt)" --mcp-config '${MCP}' --allowedTools "${TOOLS}" --output-format text > /tmp/ga_${i}.txt 2>/tmp/ge_${i}.txt; cat /tmp/ga_${i}.txt
+   The nested claude -p can take 2-3 minutes. DO NOT background this Bash call and DO NOT use the Monitor tool. If the Bash tool auto-backgrounds it, poll /tmp/ga_${i}.txt by Reading the file until the command has finished, then return the file's contents — NEVER return a "Monitor active" / "waiting for the command" status string; that is not the answer.
+3. Return ONLY the assistant answer text from /tmp/ga_${i}.txt. If it is empty or is an API/rate-limit error, wait 20s, retry step 2 once, then return whatever the file holds.`,
     { label: `run#${i}`, model: 'haiku', phase: 'Run' })
   .then((answer) => agent(`You are a STRICT evaluator of a UK public-sector procurement assistant (govbuy). Judge whether the answer materially meets the expectation. If the ANSWER is empty or is an API/rate-limit error, mark pass=false with issues="rate-limited / no answer".
 
