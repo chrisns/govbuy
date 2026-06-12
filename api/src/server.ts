@@ -21,18 +21,37 @@ const NOT_ADVICE = "Candidate route-to-market information, source-anchored. NOT 
 const DISPLAY_GUIDANCE = "Render every URL in this response as a clickable markdown link whose text is the name of the thing it points to — do not just cite names. Specifically: official_url is the framework/instrument's official page; operator_url is the operator's site; each supplier's ch_url is its Companies House record; buying_docs[].url and how_to_apply[].url are the buying/guidance/application documents; and every evidence.source_url is the source a claim is anchored to (link it so the user can verify). When a thing has a URL, present its name as a link to that URL; reserve bare-text mentions for things that genuinely have no URL.";
 
 const CE = tableRef("claim_evidence");
-// Evidence STRUCT from a joined claim_evidence alias.
-const EV = (a: string) => `STRUCT(${a}.source_url, ${a}.source_kind, ${a}.excerpt, ${a}.licence, ${a}.confidence)`;
+// Evidence as a NON-FANNING correlated subquery. A LEFT JOIN on claim_evidence multiplies the parent row
+// by the number of evidence rows sharing an evidence_id (often 5-6), so a top-level join silently duplicates
+// instruments in the result. This picks the single highest-confidence evidence row instead — same struct
+// shape, one row per parent.
+const EV1 = (inst: string) => `(SELECT AS STRUCT ev.source_url, ev.source_kind, ev.excerpt, ev.licence, ev.confidence
+        FROM ${CE} ev WHERE ev.evidence_id = ${inst}.evidence_id ORDER BY ev.confidence DESC LIMIT 1)`;
 
 // Tokenise a free-text need into significant terms (drop stopwords) for ANY-token matching.
 const STOP = new Set(["a", "an", "the", "for", "of", "to", "my", "our", "i", "we", "want", "need", "buy", "buying", "purchase", "procure", "procurement", "product", "products", "solution", "solutions", "service", "services", "shelf", "compliantly"]);
+// Conservative singularisation: a query for "drones"/"gases"/"cameras" should match a framework named
+// "Drone…"/"Gas…"/"Camera…". Strip regular plurals only; leave words that merely end in -s (gas, bus,
+// status, analysis, business) alone. The SQL side ALSO matches an optional plural suffix on the haystack
+// (`(?:es|s)?`), so the singular query token "drone" still matches the plural name "Drones". Both sides
+// together make matching plural-insensitive in either direction.
+function singular(t: string): string {
+  if (t.length > 4 && t.endsWith("ies")) return t.slice(0, -3) + "y";   // companies → company
+  if (t.length > 4 && t.endsWith("ses")) return t.slice(0, -2);          // gases → gas, businesses → business
+  if (t.length > 4 && t.endsWith("es") && /(?:x|ch|sh|z)es$/.test(t)) return t.slice(0, -2); // boxes → box
+  if (t.length > 3 && t.endsWith("s") && !/(?:ss|us|is)$/.test(t)) return t.slice(0, -1);     // drones → drone
+  return t;
+}
 function tokenize(term: string): string[] {
-  return [...new Set((term || "").toLowerCase().split(/[^a-z0-9]+/).filter((t) => t.length > 1 && !STOP.has(t)))];
+  return [...new Set((term || "").toLowerCase().split(/[^a-z0-9]+/).filter((t) => t.length > 1 && !STOP.has(t)).map(singular))];
 }
 
 const LOTS = (a: string) => `ARRAY(SELECT AS STRUCT l.lot_id, l.number, l.title, l.scope FROM ${tableRef("lot")} l WHERE l.instrument_id = ${a}.instrument_id)`;
-const MECHANICS = (a: string) => `ARRAY(SELECT AS STRUCT m.mechanic, m.permitted, m.lot_id, m.conditions, ${EV("ev")} AS evidence FROM ${tableRef("award_mechanic")} m LEFT JOIN ${CE} ev ON ev.evidence_id = m.evidence_id WHERE m.instrument_id = ${a}.instrument_id)`;
-const DOCS = (a: string) => `ARRAY(SELECT AS STRUCT d.doc_type, d.title, d.url, d.required_for_purchase, ${EV("ev")} AS evidence FROM ${tableRef("buying_doc")} d LEFT JOIN ${CE} ev ON ev.evidence_id = d.evidence_id WHERE d.instrument_id = ${a}.instrument_id)`;
+// Evidence is fetched as a non-fanning subquery (EV1), not a LEFT JOIN: a mechanic/doc whose evidence_id
+// has multiple claim_evidence rows would otherwise appear duplicated N times in the array (2,665 mechanics
+// reference such multi-row evidence ids).
+const MECHANICS = (a: string) => `ARRAY(SELECT AS STRUCT m.mechanic, m.permitted, m.lot_id, m.conditions, ${EV1("m")} AS evidence FROM ${tableRef("award_mechanic")} m WHERE m.instrument_id = ${a}.instrument_id)`;
+const DOCS = (a: string) => `ARRAY(SELECT AS STRUCT d.doc_type, d.title, d.url, d.required_for_purchase, ${EV1("d")} AS evidence FROM ${tableRef("buying_doc")} d WHERE d.instrument_id = ${a}.instrument_id)`;
 
 async function paymentCaveats(): Promise<unknown[]> {
   try {
@@ -109,16 +128,21 @@ export function buildServer(): McpServer {
                i.starts_on, i.expires_on, i.category_tags, i.official_url,
                o.name AS operator, o.kind AS operator_kind, o.home_url AS operator_url,
                ${LOTS("i")} AS lots, ${MECHANICS("i")} AS award_mechanics, ${DOCS("i")} AS buying_docs,
-               ${EV("ie")} AS evidence
+               ${EV1("i")} AS evidence,
+               -- relevance: a query token hitting the NAME is worth most, then a category tag, then a lot.
+               -- Without this, ORDER BY name alphabetically buries a specific match (e.g. "Drones DPS") under
+               -- generic ones (every "…Equipment" framework) when a broad token like "equipment" is present.
+               (4 * (SELECT COUNT(1) FROM UNNEST(@toks) tok WHERE REGEXP_CONTAINS(LOWER(i.name), CONCAT(r'\\b', tok, r'(?:es|s)?\\b')))
+                + 2 * (SELECT COUNT(1) FROM UNNEST(i.category_tags) t, UNNEST(@toks) tok WHERE LOWER(t) = tok OR LOWER(t) LIKE CONCAT(tok, '%'))
+                + (SELECT COUNT(1) FROM ${tableRef("lot")} l, UNNEST(@toks) tok WHERE l.instrument_id = i.instrument_id AND (REGEXP_CONTAINS(LOWER(l.title), CONCAT(r'\\b', tok, r'(?:es|s)?\\b')) OR REGEXP_CONTAINS(LOWER(IFNULL(l.scope,'')), CONCAT(r'\\b', tok, r'(?:es|s)?\\b'))))) AS match_score
         FROM ${tableRef("instrument")} i
         JOIN ${tableRef("operator")} o USING (operator_id)
-        LEFT JOIN ${CE} ie ON ie.evidence_id = i.evidence_id
         WHERE i.lifecycle_status = 'live_for_call_off'
           AND (ARRAY_LENGTH(@toks) = 0
-            OR EXISTS (SELECT 1 FROM UNNEST(@toks) tok WHERE REGEXP_CONTAINS(LOWER(i.name), CONCAT(r'\b', tok, r'\b')))
+            OR EXISTS (SELECT 1 FROM UNNEST(@toks) tok WHERE REGEXP_CONTAINS(LOWER(i.name), CONCAT(r'\\b', tok, r'(?:es|s)?\\b')))
             OR EXISTS (SELECT 1 FROM UNNEST(i.category_tags) t, UNNEST(@toks) tok WHERE LOWER(t) = tok OR LOWER(t) LIKE CONCAT(tok, '%'))
-            OR EXISTS (SELECT 1 FROM ${tableRef("lot")} l, UNNEST(@toks) tok WHERE l.instrument_id = i.instrument_id AND (REGEXP_CONTAINS(LOWER(l.title), CONCAT(r'\b', tok, r'\b')) OR REGEXP_CONTAINS(LOWER(IFNULL(l.scope,'')), CONCAT(r'\b', tok, r'\b')))))
-        ORDER BY i.name LIMIT @lim`;
+            OR EXISTS (SELECT 1 FROM ${tableRef("lot")} l, UNNEST(@toks) tok WHERE l.instrument_id = i.instrument_id AND (REGEXP_CONTAINS(LOWER(l.title), CONCAT(r'\\b', tok, r'(?:es|s)?\\b')) OR REGEXP_CONTAINS(LOWER(IFNULL(l.scope,'')), CONCAT(r'\\b', tok, r'(?:es|s)?\\b')))))
+        ORDER BY match_score DESC, i.name LIMIT @lim`;
       const rows = await runQuery(sql, { params: { toks, lim: args.limit }, types: { toks: ["STRING"] } });
       return ok(withFreshness({ count: rows.length, note: NOT_ADVICE, display_guidance: DISPLAY_GUIDANCE, payment_caveats: await paymentCaveats(), routes: rows.map(deep) }, await freshness()));
     }),
@@ -142,10 +166,9 @@ export function buildServer(): McpServer {
                         aps.lot_id, aps.status, aps.appointed_from, aps.last_seen_on, aps.left_on, aps.confidence, aps.conflict
                      FROM ${tableRef("appointed_supplier")} aps JOIN ${tableRef("supplier")} s USING (supplier_id)
                      WHERE aps.instrument_id = i.instrument_id) AS appointed_suppliers,
-               ${EV("ie")} AS evidence
+               ${EV1("i")} AS evidence
         FROM ${tableRef("instrument")} i
         JOIN ${tableRef("operator")} o USING (operator_id)
-        LEFT JOIN ${CE} ie ON ie.evidence_id = i.evidence_id
         WHERE i.instrument_id = @id OR i.rm_reference = @rm
         -- an exact id match wins; then prefer the CANONICAL agreement (the operator that owns the RM
         -- namespace, i.e. GCA) over other operators that merely list it as an access route, so an
@@ -166,28 +189,34 @@ export function buildServer(): McpServer {
     "find_instruments_to_list",
     {
       title: "Find instruments to list on",
-      description: "SELLER. 'Which frameworks can I get onto?' Returns instruments/lots a vendor could be appointed to, with openOnly=true restricting to currently-joinable vehicles (open frameworks / dynamic markets), plus how-to-apply pointers (guidance docs + official URL). Anti-patterns: do not present closed frameworks as immediately joinable; if the vendor can't be appointed directly, flag list_resellers as the alternative. Chain to list_resellers (carry-in) or supplier_pipeline (real spend on those frameworks). Example: product='thermal cameras', openOnly=true.",
+      description: "SELLER. 'Which frameworks can I get onto?' Returns instruments/lots a vendor could be appointed to, with openOnly=true restricting to currently-joinable vehicles — open frameworks, dynamic markets, AND live DPS (a Dynamic Purchasing System stays open to new suppliers throughout its life; legacy PCR2015 DPS run on until they expire or the Feb-2029 sunset) — plus how-to-apply pointers (guidance docs + official URL). Anti-patterns: do not present closed frameworks as immediately joinable; if the vendor can't be appointed directly, flag list_resellers as the alternative. Chain to list_resellers (carry-in) or supplier_pipeline (real spend on those frameworks). Example: product='thermal cameras', openOnly=true.",
       inputSchema: { product: z.string().optional(), category: z.string().optional(), openOnly: z.boolean().default(false), limit: z.number().int().min(1).max(50).default(20) },
     },
     guard(async (args) => {
       const toks = tokenize(args.product || args.category || "");
-      const openClause = args.openOnly ? `i.type IN ('open_framework','dynamic_market')` : `i.lifecycle_status = 'live_for_call_off'`;
+      // A DPS (incl. legacy PCR2015 DPS) is, by definition, continuously open to new suppliers while live —
+      // so a vendor CAN still join one. Excluding legacy_dps here hid 210 joinable vehicles (e.g. the AI DPS
+      // RM6200, the YPO Drones DPS) from sellers. Require live for openOnly so we never suggest a dead DPS.
+      const JOINABLE = `i.type IN ('open_framework','dynamic_market','legacy_dps')`;
+      const openClause = args.openOnly ? `${JOINABLE} AND i.lifecycle_status = 'live_for_call_off'` : `i.lifecycle_status = 'live_for_call_off'`;
       const sql = `
         SELECT i.instrument_id, i.name, i.rm_reference, i.type, i.lifecycle_status, i.expires_on, i.category_tags, i.official_url,
-               o.name AS operator, o.home_url AS operator_url, (i.type IN ('open_framework','dynamic_market')) AS joinable_now,
+               o.name AS operator, o.home_url AS operator_url, (${JOINABLE} AND i.lifecycle_status = 'live_for_call_off') AS joinable_now,
                ${LOTS("i")} AS lots,
                ARRAY(SELECT AS STRUCT d.doc_type, d.title, d.url FROM ${tableRef("buying_doc")} d
                      WHERE d.instrument_id = i.instrument_id AND d.doc_type IN ('buyer_guide','required_documents','order_form')) AS how_to_apply,
-               ${EV("ie")} AS evidence
+               ${EV1("i")} AS evidence,
+               (4 * (SELECT COUNT(1) FROM UNNEST(@toks) tok WHERE REGEXP_CONTAINS(LOWER(i.name), CONCAT(r'\\b', tok, r'(?:es|s)?\\b')))
+                + 2 * (SELECT COUNT(1) FROM UNNEST(i.category_tags) t, UNNEST(@toks) tok WHERE LOWER(t) = tok OR LOWER(t) LIKE CONCAT(tok, '%'))
+                + (SELECT COUNT(1) FROM ${tableRef("lot")} l, UNNEST(@toks) tok WHERE l.instrument_id = i.instrument_id AND (REGEXP_CONTAINS(LOWER(l.title), CONCAT(r'\\b', tok, r'(?:es|s)?\\b')) OR REGEXP_CONTAINS(LOWER(IFNULL(l.scope,'')), CONCAT(r'\\b', tok, r'(?:es|s)?\\b'))))) AS match_score
         FROM ${tableRef("instrument")} i
         JOIN ${tableRef("operator")} o USING (operator_id)
-        LEFT JOIN ${CE} ie ON ie.evidence_id = i.evidence_id
         WHERE ${openClause}
           AND (ARRAY_LENGTH(@toks) = 0
-            OR EXISTS (SELECT 1 FROM UNNEST(@toks) tok WHERE REGEXP_CONTAINS(LOWER(i.name), CONCAT(r'\b', tok, r'\b')))
+            OR EXISTS (SELECT 1 FROM UNNEST(@toks) tok WHERE REGEXP_CONTAINS(LOWER(i.name), CONCAT(r'\\b', tok, r'(?:es|s)?\\b')))
             OR EXISTS (SELECT 1 FROM UNNEST(i.category_tags) t, UNNEST(@toks) tok WHERE LOWER(t) = tok OR LOWER(t) LIKE CONCAT(tok, '%'))
-            OR EXISTS (SELECT 1 FROM ${tableRef("lot")} l, UNNEST(@toks) tok WHERE l.instrument_id = i.instrument_id AND (REGEXP_CONTAINS(LOWER(l.title), CONCAT(r'\b', tok, r'\b')) OR REGEXP_CONTAINS(LOWER(IFNULL(l.scope,'')), CONCAT(r'\b', tok, r'\b')))))
-        ORDER BY joinable_now DESC, i.name LIMIT @lim`;
+            OR EXISTS (SELECT 1 FROM ${tableRef("lot")} l, UNNEST(@toks) tok WHERE l.instrument_id = i.instrument_id AND (REGEXP_CONTAINS(LOWER(l.title), CONCAT(r'\\b', tok, r'(?:es|s)?\\b')) OR REGEXP_CONTAINS(LOWER(IFNULL(l.scope,'')), CONCAT(r'\\b', tok, r'(?:es|s)?\\b')))))
+        ORDER BY joinable_now DESC, match_score DESC, i.name LIMIT @lim`;
       const rows = await runQuery(sql, { params: { toks, lim: args.limit }, types: { toks: ["STRING"] } });
       return ok(withFreshness({ count: rows.length, note: "If you cannot be appointed directly, see list_resellers for thin-primes/VARs that can route you in. " + NOT_ADVICE, display_guidance: DISPLAY_GUIDANCE, instruments: rows.map(deep) }, await freshness()));
     }),
@@ -306,8 +335,8 @@ export function buildServer(): McpServer {
       // Word-boundary token scoring. A token hit in the NAME is worth far more than one buried in the
       // description (so "Teacher's Desk" beats a whiteboard rule that merely says "office"); requiring
       // every token to appear somewhere (allTok) is the strongest signal and dominates the ranking.
-      const nameHits = `(SELECT COUNT(1) FROM UNNEST(@toks) tok WHERE REGEXP_CONTAINS(nm, CONCAT(r'\\b', tok, r'\\b')))`;
-      const anyHits = `(SELECT COUNT(1) FROM UNNEST(@toks) tok WHERE REGEXP_CONTAINS(hay, CONCAT(r'\\b', tok, r'\\b')))`;
+      const nameHits = `(SELECT COUNT(1) FROM UNNEST(@toks) tok WHERE REGEXP_CONTAINS(nm, CONCAT(r'\\b', tok, r'(?:es|s)?\\b')))`;
+      const anyHits = `(SELECT COUNT(1) FROM UNNEST(@toks) tok WHERE REGEXP_CONTAINS(hay, CONCAT(r'\\b', tok, r'(?:es|s)?\\b')))`;
       const allTok = `(${anyHits} = ARRAY_LENGTH(@toks))`;
       const score = `(IF(${allTok}, 1000, 0) + 5 * ${nameHits} + ${anyHits})`;
       // Pull a £ price out of catalogues that embed it in the text.
@@ -595,8 +624,8 @@ export function buildServer(): McpServer {
       const toks = tokenize(args.need);
       if (!toks.length) return toolError("INVALID_QUERY", "Describe the need, e.g. 'cloud hosting for a Django app'.");
       const cpv = args.cpv ?? null; const kw = `%${args.need.toLowerCase()}%`;
-      const nameHits = `(SELECT COUNT(1) FROM UNNEST(@toks) t WHERE REGEXP_CONTAINS(nm, CONCAT(r'\\b', t, r'\\b')))`;
-      const anyHits = `(SELECT COUNT(1) FROM UNNEST(@toks) t WHERE REGEXP_CONTAINS(hay, CONCAT(r'\\b', t, r'\\b')))`;
+      const nameHits = `(SELECT COUNT(1) FROM UNNEST(@toks) t WHERE REGEXP_CONTAINS(nm, CONCAT(r'\\b', t, r'(?:es|s)?\\b')))`;
+      const anyHits = `(SELECT COUNT(1) FROM UNNEST(@toks) t WHERE REGEXP_CONTAINS(hay, CONCAT(r'\\b', t, r'(?:es|s)?\\b')))`;
       const shortlistSql = `
         WITH s AS (
           SELECT sv.service_id, sv.catalogue, sv.name, sv.supplier_name, sv.url, sv.instrument_id, sup.ch_url, sup.company_number,

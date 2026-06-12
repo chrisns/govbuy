@@ -76,10 +76,25 @@ are *not* 8 feature gaps:
   `get_supplier(Appvia)` and the end-to-end eval question now return **both** RM1557.14 and RM6190.
   (`due_diligence`/`find_services`/`plan_buy` already joined track record on CRN, so they were never affected.)
   The most valuable thing the eval caught — and shipped.
-- **5 are genuine content gaps:** specific instruments not surfaced for a precise need (YPO Drones DPS 1148 / 900616;
-  RM6200 AI DPS + HealthTrust AI DPS), one PA2023 **s49 open-framework** mechanic stated wrong, one answer that
-  **fabricated** a £ figure + an unverifiable framework URL (the verbatim gate covers published catalogue text, not
-  free-form synthesis in the chat answer — a reason to keep answers anchored to tool output), and a missing
+- **2 more were surfacing bugs — now FIXED.** The "missing" instruments (YPO Drones DPS 1148, RM6200 AI DPS,
+  HealthTrust AI DPS) were all **present in the data** but unreachable through three real defects in the search tools:
+  1. **Dead word-boundary regex.** `find_routes` / `find_instruments_to_list` built their name/lot regex as
+     `r'\b'` inside a JS *template literal*, where `\b` is the backspace escape (0x08) — so the regex matched a
+     literal backspace and **never fired**. Name & lot matching was effectively dead; only `category_tags` matched.
+     Fixed to `r'\\b'` (a real word boundary). `find_services`/`plan_buy` were already correct.
+  2. **No plural handling.** `\bdrone\b` doesn't match "Drone**s**". Now every search tool matches a plural suffix
+     on the haystack (`(?:es|s)?`) and conservatively singularises query tokens (drones→drone, gases→gas, leaving
+     gas/bus/status/analysis alone) — so a query matches names in either direction.
+  3. **Live DPS hidden from sellers.** `find_instruments_to_list?openOnly=true` allowed only `open_framework` /
+     `dynamic_market`, excluding the 210 `legacy_dps` — but a DPS is *by definition* continuously joinable while
+     live. Now live legacy DPS count as `joinable_now`, so the AI/Drones DPS reach sellers asking "what can I join?".
+  Plus a relevance fix: `find_routes`/`find_instruments_to_list` ranked purely alphabetically, burying a specific
+  match under generic ones; they now rank by a name>tag>lot match score. Verified live: a `drone`/`drones` query
+  returns the Drones DPS 1148 top; `openOnly` surfaces RM6200 as joinable.
+- **3 residual items:** the **s49 open-framework** complaint was a *judge* error, not ours — a PA2023 open framework
+  admits suppliers at defined re-opening points (s.49), it's a *dynamic market* that's continuously open; the answer
+  was right. The remaining two are answer-quality, not data: one answer **fabricated** a £ figure + an unverifiable
+  URL (free-form synthesis the verbatim gate doesn't cover — anchor answers to tool output), and one omitted a
   UK-data-residency flag on the Minute question.
 
 ### Fused with UK Tenders — route × reality, for buyers + suppliers + researchers
