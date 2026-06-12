@@ -241,29 +241,46 @@ export function buildServer(): McpServer {
     "get_supplier",
     {
       title: "Get supplier",
-      description: "BUYER/RESEARCHER. Full profile of one supplier by name or Companies House CRN: the CRN match snapshot (band, status-at-match), an **exclusion alert** (⚠ if dissolved/in liquidation/administration — a PA2023 exclusion ground), channel type (thin-prime/VAR/vendor), instruments/lots appointed to (with membership qualifier + dates), and inbound scope if it resells. Use when you know which supplier you're investigating. Anti-patterns: status_at_match is a snapshot at match time, NOT live Companies House status — always link ch_url for the live record. Chain to due_diligence (delivery track record) or get_instrument (the specific framework).",
+      description: "BUYER/RESEARCHER. Full profile of one supplier by name or Companies House CRN: the CRN match snapshot (band, status-at-match), an **exclusion alert** (⚠ if dissolved/in liquidation/administration — a PA2023 exclusion ground), channel type (thin-prime/VAR/vendor), instruments/lots appointed to (with membership qualifier + dates) — **reconciled across ingestion sources** so the framework footprint is the firm's full set even when the GCA spine and the Digital Marketplace directory hold it under different supplier_ids — and inbound scope if it resells. Use when you know which supplier you're investigating. Anti-patterns: status_at_match is a snapshot at match time, NOT live Companies House status — always link ch_url for the live record. Chain to due_diligence (delivery track record) or get_instrument (the specific framework).",
       inputSchema: { name: z.string().optional(), crn: z.string().optional(), resultMode: RESULT_MODE },
     },
     guard(async (args) => {
       if (!args.name && !args.crn) return toolError("INVALID_QUERY", "Provide name or crn.");
       const name = args.name ? `%${args.name.toLowerCase()}%` : null;
+      // Supplier identity is split across ingestion sources (the GCA spine ingests a company as
+      // `<slug>-ltd`, the Digital Marketplace directory as `dm-<id>`), so the same Companies House
+      // company_number can have >1 supplier_id. Resolve the best-matched record, then UNION its
+      // appointments/channels/scope across every supplier_id sharing that CRN — otherwise we'd
+      // under-report a supplier's framework footprint (e.g. Appvia: TS4 under one id, G-Cloud the other).
       const sql = `
-        SELECT s.supplier_id, s.display_name, s.company_number, s.registered_name, s.match_confidence,
-               s.match_band, s.status_at_match, s.matched_on, s.ch_url, s.publisher_ids,
-               ARRAY(SELECT AS STRUCT rc.channel_type, rc.confidence, rc.evidence_id FROM ${tableRef("reseller_channel")} rc WHERE rc.supplier_id = s.supplier_id) AS channels,
+        WITH matched AS (
+          SELECT s.* FROM ${tableRef("supplier")} s
+          WHERE (@name IS NOT NULL AND LOWER(s.display_name) LIKE @name) OR (@crn IS NOT NULL AND s.company_number = @crn)
+          ORDER BY (s.company_number IS NOT NULL) DESC, s.match_confidence DESC NULLS LAST
+          LIMIT 1),
+        ids AS (
+          SELECT DISTINCT s.supplier_id FROM ${tableRef("supplier")} s, matched m
+          WHERE (m.company_number IS NOT NULL AND s.company_number = m.company_number) OR s.supplier_id = m.supplier_id)
+        SELECT m.supplier_id, m.display_name, m.company_number, m.registered_name, m.match_confidence,
+               m.match_band, m.status_at_match, m.matched_on, m.ch_url, m.publisher_ids,
+               ARRAY(SELECT AS STRUCT rc.channel_type, rc.confidence, rc.evidence_id FROM ${tableRef("reseller_channel")} rc WHERE rc.supplier_id IN (SELECT supplier_id FROM ids)) AS channels,
                ARRAY(SELECT AS STRUCT aps.instrument_id, aps.lot_id, aps.status, aps.last_seen_on, aps.appointed_from, aps.left_on, aps.confidence, aps.conflict
-                     FROM ${tableRef("appointed_supplier")} aps WHERE aps.supplier_id = s.supplier_id) AS appointments,
-               ARRAY(SELECT AS STRUCT isc.vendor_name, isc.vendor_company_number, isc.confidence, isc.evidence_id FROM ${tableRef("inbound_scope")} isc WHERE isc.supplier_id = s.supplier_id) AS inbound_scope
-        FROM ${tableRef("supplier")} s
-        WHERE (@name IS NOT NULL AND LOWER(s.display_name) LIKE @name) OR (@crn IS NOT NULL AND s.company_number = @crn) LIMIT 1`;
+                     FROM ${tableRef("appointed_supplier")} aps WHERE aps.supplier_id IN (SELECT supplier_id FROM ids)) AS appointments,
+               ARRAY(SELECT AS STRUCT isc.vendor_name, isc.vendor_company_number, isc.confidence, isc.evidence_id FROM ${tableRef("inbound_scope")} isc WHERE isc.supplier_id IN (SELECT supplier_id FROM ids)) AS inbound_scope,
+               (SELECT ARRAY_AGG(supplier_id ORDER BY supplier_id) FROM ids) AS reconciled_supplier_ids
+        FROM matched m`;
       const rows = await runQuery(sql, { params: { name, crn: args.crn ?? null }, types: { name: "STRING", crn: "STRING" } });
       if (!rows.length) return toolError("UNKNOWN", `No supplier for '${args.name ?? args.crn}'.`);
       const r = deep(rows[0]) as Record<string, unknown>;
       const appointments = (r.appointments as Record<string, unknown>[]).map((a) => ({ ...a, membership: membership(a) }));
+      const reconciledIds = (r.reconciled_supplier_ids as string[]) ?? [];
       const excluded = ["dissolved", "liquidation", "administration", "closed"].includes(String(r.status_at_match));
       const exclusion = { flagged: excluded, status: excluded ? r.status_at_match : null,
         note: excluded ? `⚠ Exclusion risk: Companies House status was '${r.status_at_match}' at match time — a PA2023 Schedule 6/7 (insolvency/dissolution) ground a contracting authority must consider. Snapshot only; re-check live at ch_url before any award.` : "No Companies-House distress flag on record (snapshot — re-check live before award)." };
-      const payload = await withEvidence({ supplier: { ...r, appointments }, exclusion,
+      const reconciledNote = reconciledIds.length > 1
+        ? `Framework footprint reconciled across ${reconciledIds.length} supplier records sharing this Companies House number (ids: ${reconciledIds.join(", ")}) — the GCA spine and the Digital Marketplace directory ingest the same firm under different ids.`
+        : undefined;
+      const payload = await withEvidence({ supplier: { ...r, appointments, ...(reconciledNote ? { reconciliation: reconciledNote } : {}) }, exclusion,
         display_guidance: "If exclusion.flagged is true, LEAD with the ⚠ warning. Always link ch_url for live status. " + DISPLAY_GUIDANCE });
       return ok(withFreshness(payload, await freshness()));
     }),
