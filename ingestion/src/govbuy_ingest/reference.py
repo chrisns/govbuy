@@ -23,5 +23,14 @@ PAYMENT_MECHANISMS = [
 
 def seed() -> dict:
     from . import bq
+    import json
+    from pathlib import Path
     bq._replace("payment_mechanism", PAYMENT_MECHANISMS)
-    return {"payment_mechanism": len(PAYMENT_MECHANISMS)}
+    out = {"payment_mechanism": len(PAYMENT_MECHANISMS)}
+    # PA2023 statutory rules (reference data shipped in-repo) — powers the precise compliant_path.
+    pa = Path(__file__).resolve().parents[3] / "reference-data" / "pa2023_rules.jsonl"
+    if pa.exists():
+        rules = [json.loads(line) for line in pa.read_text().splitlines() if line.strip()]
+        bq._replace("pa2023_rule", rules)
+        out["pa2023_rule"] = len(rules)
+    return out

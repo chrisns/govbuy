@@ -525,8 +525,22 @@ def materialize_fusion() -> dict:
       WHERE JSON_VALUE(compiled_json,'$.tender.status')='active'
         AND SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', JSON_VALUE(compiled_json,'$.tender.tenderPeriod.endDate')) > CURRENT_TIMESTAMP()
     """).result()
+    c.query(f"""
+      CREATE OR REPLACE TABLE `{config.pub('pipeline_notice')}` CLUSTER BY cpv_division, expected_date AS
+      SELECT ocid, buyer_name, title, cpv_division, value_amount AS estimated_value,
+             COALESCE(
+               SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', JSON_VALUE(compiled_json,'$.tender.tenderPeriod.startDate')),
+               SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', JSON_VALUE(compiled_json,'$.tender.communication.futureNoticeDate')),
+               SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', JSON_VALUE(compiled_json,'$.tender.contractPeriod.startDate')),
+               published_date) AS expected_date,
+             source, official_url,
+             LOWER(CONCAT(IFNULL(title,''),' ',IFNULL(description,''))) AS hay
+      FROM `{config.PROJECT}.{sib}.compiled_process`
+      WHERE JSON_VALUE(compiled_json,'$.tender.status') IN ('planned','planning')
+    """).result()
     return {"tender_award_rows": query(f"SELECT COUNT(*) n FROM `{config.pub('tender_award')}`")[0]["n"],
-            "live_opportunity_rows": query(f"SELECT COUNT(*) n FROM `{config.pub('live_opportunity')}`")[0]["n"]}
+            "live_opportunity_rows": query(f"SELECT COUNT(*) n FROM `{config.pub('live_opportunity')}`")[0]["n"],
+            "pipeline_notice_rows": query(f"SELECT COUNT(*) n FROM `{config.pub('pipeline_notice')}`")[0]["n"]}
 
 
 # ----------------------------------------------------------------- status + run ledger
