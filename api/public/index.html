@@ -54,13 +54,15 @@ code{font-family:var(--font-mono);font-size:.92em}
 
 /* hero */
 .hero{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:56px;align-items:end;padding:60px 0 64px;border-top:1px solid var(--rule)}
+.hero-body,.hero-stats{min-width:0}
 .hero-body{display:flex;flex-direction:column;gap:22px}
+.hero-headline{overflow-wrap:break-word}
 .hero-headline{font-family:var(--font-display);font-weight:900;font-size:clamp(52px,7vw,104px);line-height:.92;letter-spacing:-.035em;margin:0;font-variation-settings:"opsz" 144;text-wrap:balance}
 .hero-headline em{color:var(--pink);font-style:italic;font-weight:700}
 .hero-lede{font-family:var(--font-display);font-style:italic;font-weight:400;font-size:clamp(18px,1.7vw,23px);line-height:1.5;color:var(--ink-2);max-width:60ch;margin:0;text-wrap:pretty}
 .hero-lede em{color:var(--pink-deep);font-style:italic}
-.install{display:flex;align-items:stretch;gap:0;border:1px solid var(--ink);background:var(--bone);max-width:640px;margin-top:4px}
-.install code{padding:14px 16px;font-size:13px;color:var(--ink);overflow-x:auto;white-space:nowrap;flex:1;align-self:center}
+.install{display:flex;align-items:stretch;gap:0;border:1px solid var(--ink);background:var(--bone);max-width:min(640px,100%);margin-top:4px}
+.install code{padding:14px 16px;font-size:13px;color:var(--ink);overflow-x:auto;white-space:nowrap;flex:1 1 0;min-width:0;align-self:center}
 .copy-btn{font-family:var(--font-body);font-weight:600;font-size:13px;border:0;border-left:1px solid var(--ink);background:var(--ink);color:var(--bone);padding:0 20px;cursor:pointer;transition:background .2s}
 .copy-btn:hover{background:var(--pink)}.copy-btn.done{background:var(--pink-deep)}
 .hero-fine{font-size:13px;color:var(--ink-3);margin:0}
