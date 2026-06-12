@@ -44,6 +44,28 @@ Extraction workflows run on **Haiku** (gate-protected, cheap); re-discovery on S
 The page and any linked user-guide PDF don't state direct-award vs further-competition. Inferring a
 route would be fabrication (the gate forbids it). PDF user guides were the big unlock (44% → 71%).
 
+### Five more — awesome enhancements (DELIVERED)
+Five further enhancements (ACs in [awesome5-acceptance.md](awesome5-acceptance.md)), all live + verified:
+- **Two-limb, live exclusion gate.** `get_supplier`/`due_diligence` now check BOTH PA2023 exclusion limbs:
+  insolvency (Sch 6/7) via a **live Companies House status lookup at query time** (`exclusion.insolvency.source
+  = live_companies_house`, CH key wired to Cloud Run) and the **s.62 debarment register** (published by gov.uk;
+  currently blank, so the gate states *not debarred* with a source — and any future entry flows through
+  token-free via `reference-data/debarment_list.jsonl`). Debarment flag also on `find_services`/`plan_buy`.
+  Verified: Softcat → live status `active`, debarment checked.
+- **Award-mining backfill.** `observed_membership` (3,910 supplier×framework edges) + `observed_mechanic` (428
+  RMs) mined from the 658k awards. `get_instrument.observed_from_awards` backfills who's *really* won call-offs
+  on a framework + the observed direct-vs-competed mix where the official list/mechanic is missing (verified:
+  RM6200, no official list, now shows 4 observed suppliers + mechanic mix); `get_supplier.frameworks_evidenced_by_awards`
+  shows the RMs a firm has actually transacted on. Labelled inferred-not-official.
+- **`compare_routes`** — a head-to-head decision matrix: speed (direct vs further competition) × supplier depth
+  (official + observed) × expiry runway × real median £, with a per-route rationale. Verified: "cloud hosting" → 6 ranked routes.
+- **`contract_expiry_radar`** — real contracts ending within a horizon by cpv/keyword/supplier; buyer = re-procurement
+  deadlines, seller = displacement windows. Verified: CPV-72 → 20 expiring contracts.
+- **Canonical CRN + coverage/freshness.** `supplier_crn_canonical` collapses the 5,181 split identities at the
+  data layer (`get_supplier` resolves membership from it); `coverage` struct on `find_routes`/`get_instrument`
+  makes record-completeness explicit; `get_status` reports per-table freshness (fused awards, observed edges,
+  reconciled identities, debarment entries). All materialisations re-runnable token-free via `bq.materialize_observed()`.
+
 ### Decisive & bulletproof — the top-5 voter-tournament winners (DELIVERED)
 The five features the voter panel picked (see [top5-acceptance.md](top5-acceptance.md)), all live + verified:
 - **PA2023 regime engine** — `compliant_path` is now statutorily precise (15 sourced rules in `pa2023_rule`):
