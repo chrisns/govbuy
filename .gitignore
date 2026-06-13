@@ -17,6 +17,9 @@ node_modules/
 dist/
 build/
 
+# og-card brand-font cache (downloaded at build time; the generated public/og.png IS committed)
+api/scripts/.ogfonts/
+
 # terraform
 .terraform/
 *.tfstate

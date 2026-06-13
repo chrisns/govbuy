@@ -3,9 +3,10 @@
 // HTML file in the cns.me editorial design system (Fraunces / Hanken Grotesk / JetBrains Mono).
 //   run:  node api/scripts/build-site.mjs   (needs ADC; uses the api/ @google-cloud/bigquery dep)
 import { BigQuery } from "@google-cloud/bigquery";
-import { writeFileSync, mkdirSync } from "node:fs";
+import { writeFileSync, mkdirSync, rmSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { execFileSync } from "node:child_process";
 
 const PROJECT = process.env.GCP_PROJECT || "govreposcrape";
 const bq = new BigQuery({ projectId: PROJECT });
@@ -151,6 +152,20 @@ await Promise.all([...chatStems].map(async (st) => {
 mkdirSync(OUT, { recursive: true });
 writeFileSync(join(OUT, "index.html"), renderHtml(data));
 console.error(`wrote ${join(OUT, "index.html")} — ${data.head.fused_awards.toLocaleString()} awards, data as of ${data.generated}`);
+
+// Social share card (1200x630) in the brand fonts, with live stats baked in. Best-effort: needs
+// python3 + Pillow + the cached brand fonts (scripts/.ogfonts). If anything's missing we keep the
+// committed og.png — the build never fails on it.
+try {
+  const ogStats = { frameworks: cnum(data.head.frameworks), listings: cnum(data.head.listings), fused_awards: cnum(data.head.fused_awards), awarded: gbp(data.channels.reduce((a, c) => a + c.gbp, 0)), generated: data.generated };
+  const tmp = join(OUT, ".ogstats.json");
+  writeFileSync(tmp, JSON.stringify(ogStats));
+  execFileSync("python3", [join(__dir, "og-card.py"), tmp, join(OUT, "og.png")], { stdio: "pipe" });
+  rmSync(tmp, { force: true });
+  console.error("wrote og.png + og.jpg share card");
+} catch (e) {
+  console.error("og-card skipped (keeping committed image):", String(e.message || e).split("\n")[0]);
+}
 }
 
 // ----------------------------------------------------------------------------- rendering helpers
@@ -402,19 +417,44 @@ function renderHtml(d) {
       <div class="conn-foot"><span>${esc(c.note)}</span>${extLink(c.docs, "Docs →", "conn-docs")}</div>
     </article>`).join("");
 
+  // Social share metadata — punchy, with live numbers; the card image is cache-busted by build date.
+  const ogTitle = "govbuy — the UK public-procurement co-pilot";
+  const ogDesc = `Ask your AI assistant how to buy across the UK public sector, where to sell as a vendor, or how public money flows — source-anchored across ${cnum(d.head.frameworks)} frameworks, ${cnum(d.head.listings)} catalogue listings and ${cnum(d.head.fused_awards)} real awards. A free MCP server by cns.me.`;
+  const ogImg = `https://govbuy.run.cns.me/og.png?v=${d.generated.replace(/-/g, "")}`;
+
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>govbuy — the UK public-procurement co-pilot</title>
-<meta name="description" content="Ask your AI assistant how to buy across the UK public sector, where to sell, or how public money flows — source-anchored across ${cnum(d.head.frameworks)} frameworks, ${cnum(d.head.listings)} catalogue listings and ${cnum(d.head.fused_awards)} real awards. An MCP server by cns.me." />
+<meta name="description" content="${esc(ogDesc)}" />
+<meta name="author" content="cns.me" />
 <meta name="theme-color" content="#F4EFE7" />
+<link rel="canonical" href="https://govbuy.run.cns.me/" />
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23F4EFE7'/%3E%3Ccircle cx='16' cy='17' r='7' fill='%23E5197F'/%3E%3C/svg%3E" />
+<link rel="apple-touch-icon" href="${ogImg}" />
+<!-- Open Graph -->
 <meta property="og:type" content="website" />
+<meta property="og:site_name" content="cns.me · govbuy" />
+<meta property="og:locale" content="en_GB" />
 <meta property="og:url" content="https://govbuy.run.cns.me/" />
-<meta property="og:title" content="govbuy — the UK public-procurement co-pilot" />
-<meta property="og:description" content="Route × reality × statute for UK public procurement — for buyers, suppliers and researchers. An MCP server by cns.me." />
+<meta property="og:title" content="${esc(ogTitle)}" />
+<meta property="og:description" content="${esc(ogDesc)}" />
+<meta property="og:image" content="${ogImg}" />
+<meta property="og:image:secure_url" content="${ogImg}" />
+<meta property="og:image:type" content="image/png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:image:alt" content="govbuy — the UK public-procurement co-pilot. ${cnum(d.head.frameworks)} frameworks, ${cnum(d.head.listings)} catalogue listings, ${cnum(d.head.fused_awards)} real awards fused in." />
+<!-- Twitter / X -->
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="${esc(ogTitle)}" />
+<meta name="twitter:description" content="${esc(ogDesc)}" />
+<meta name="twitter:image" content="${ogImg}" />
+<meta name="twitter:image:alt" content="govbuy — route × reality × statute for UK public procurement." />
+<meta name="twitter:label1" content="Frameworks & markets" /><meta name="twitter:data1" content="${cnum(d.head.frameworks)}" />
+<meta name="twitter:label2" content="Real awards fused in" /><meta name="twitter:data2" content="${cnum(d.head.fused_awards)}" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;0,9..144,800;0,9..144,900;1,9..144,400;1,9..144,500;1,9..144,600&family=Hanken+Grotesk:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
