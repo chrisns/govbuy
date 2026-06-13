@@ -20,6 +20,18 @@ source URL. Route × reality × statute, for buyers, suppliers and researchers a
 claude mcp add --transport http govbuy https://govbuy.run.cns.me/mcp
 ```
 
+…and there's a website that explains the whole thing, with **explorable dashboards built from live
+BigQuery at build time** (never from memory) — at **[govbuy.run.cns.me](https://govbuy.run.cns.me/)**:
+
+[![govbuy.run.cns.me — the explorable site](govbuy-full.jpeg)](https://govbuy.run.cns.me/)
+
+<table>
+<tr>
+<td width="50%"><a href="https://govbuy.run.cns.me/"><img src="govbuy-connect.jpeg" alt="Set it up in your assistant — Claude Code, Claude Desktop, Copilot, Gemini, Cursor recipes"></a><br><sub><b>Set it up in a minute</b> — copy-paste recipes for Claude Code, Claude Desktop, GitHub Copilot, Gemini CLI, Cursor & any MCP client, each linking its official docs.</sub></td>
+<td width="50%"><a href="https://govbuy.run.cns.me/"><img src="govbuy-mobile.jpeg" alt="govbuy site on mobile"></a><br><sub><b>Responsive</b> — the same source-anchored numbers and dashboards on mobile.</sub></td>
+</tr>
+</table>
+
 > *"I want Appvia to build me a landing zone. How can I contract them?"* →
 > [Appvia](https://find-and-update.company-information.service.gov.uk/company/10653692) (CRN 10653692,
 > Companies House auto-matched) is appointed to
