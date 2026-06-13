@@ -104,19 +104,25 @@ CRN, so it serves buyers, suppliers *and* researchers from one place. It **docum
 [CONTEXT.md](CONTEXT.md), the [fusion acceptance criteria](docs/fusion-acceptance.md) and the
 [marketplace inventory](docs/marketplaces.md).
 
-## Tools — five verbs, the way you think
+## Tools — seven verbs, the way you think
 
-The surface is **five intent verbs**, not a database of knobs — so any MCP client (and you) routes by what
-you're actually trying to do. Each takes `depth: "brief" | "full"`. Behind them sit the deduped capability
-functions the verbs compose.
+The surface is **seven intent verbs**, not a database of knobs — so any MCP client (and you) routes by what
+you're actually trying to do. The action verbs take `depth: "brief" | "full"`. Behind them sit the deduped
+capability functions the verbs compose. (It also exposes MCP **prompts** — `compliant-buy`, `due-diligence`,
+`market-entry` — and **resources** — `govbuy://glossary`, `govbuy://guide`.)
 
 | Verb | What it does |
 |------|--------------|
 | `buy({need, cpv?, budget_gbp?, depth?})` | **Buyer — "how do I buy X?"** One opinionated, source-anchored brief: recommended route + PA2023-correct call-off mechanic, a ranked shortlist of real catalogue listings (each with CRN delivery record + a two-limb exclusion check), an indicative market price, forward-pipeline notices, **alternative routes** (a decision matrix on speed / competition / supplier-depth / expiry-runway / real price), and a compliance checklist. Falls back to a route-first brief for DPS/framework-only needs with no catalogue listing. `depth:"full"` adds the candidate-route list, the by-channel price distribution, and the PA2023 mechanic detail. |
 | `sell({product, cpv?, open_only?, depth?})` | **Seller — "how do I sell X / get on a framework?"** Frameworks & live DPS you can JOIN, frameworks ranked by REAL call-off spend, LIVE + FORWARD opportunities, incumbents to displace (contract-end windows), and resellers/thin-primes who can carry you in. |
-| `supplier({query, depth?})` | **Buyer/Researcher — one firm** by name or CRN: a **two-limb PA2023 exclusion check** (a **live Companies House** insolvency status + the **s.62 debarment register**), the canonical-reconciled framework footprint, `frameworks_evidenced_by_awards`, and the CRN-matched delivery record (call-off £, concentration, competitive-vs-direct mix, CPV footprint, contract-ends). |
-| `framework({id?, rm_reference?, depth?})` | **One instrument:** lots, lifecycle, appointed suppliers, `observed_from_awards` backfill (who's really won call-offs where the official list is absent — labelled inferred), a `coverage` signal, AND the PA2023-precise call-off path (permitted mechanics + the statutory rules; a call-off is **not** a statutory direct award). RM lookups return the canonical GCA agreement. |
-| `research({sql?, cpv?, schema?, status?})` | **Researcher — the power surface:** a single read-only BigQuery `SELECT`/`WITH` over `govbuy_public` (byte-capped); or a **spend & competition x-ray** for a CPV division (channel mix + top-5 concentration); or the `schema` / freshness + `status`. |
+| `supplier({query, depth?})` | **Buyer/Researcher — one firm** by name or CRN: a **two-limb PA2023 exclusion check** (a **live Companies House** insolvency status + the **s.62 debarment register**), the canonical-reconciled framework footprint, `frameworks_evidenced_by_awards`, the CRN-matched delivery record (call-off £, concentration, competitive-vs-direct mix, CPV footprint, contract-ends), and a **size/locality lens** (SME signal from filed-accounts category, SIC, registered-office region — from the same live CH call). |
+| `framework({id?, rm_reference?, depth?})` | **One instrument:** lots, lifecycle, appointed suppliers (incl. **per-lot membership**, `suppliers_by_lot`), `observed_from_awards` backfill (who's really won call-offs where the official list is absent — labelled inferred), a `coverage` signal, AND the PA2023-precise call-off path (permitted mechanics + the statutory rules; a call-off is **not** a statutory direct award). RM lookups return the canonical GCA agreement. |
+| `research({sql?, cpv?, schema?, status?})` | **Researcher — the power surface:** a single read-only BigQuery `SELECT`/`WITH` over `govbuy_public` (byte-capped); or a **spend & competition x-ray** for a CPV division (channel mix + top-5 concentration); or the `schema` / freshness + `status` (now with an explicit freshness SLA). |
+| `draft({need?, rm_reference?, route?, depth?})` | **Buyer — "help me actually run this."** Editable **scaffolding** to start the procurement: a real-dated timetable (working days from today), a MEAT evaluation-matrix skeleton, a specification outline, the route-correct PA2023 compliance steps, and — for a statutory direct award — a **Schedule 5** justification scaffold + **s.44** transparency-notice fields. NOT legal advice and NOT the documents; complete every `<<placeholder>>`. |
+| `watch({what, cpv?, keyword?, supplier?, horizon_months?})` | **Buyer/Seller — "tell me when X changes."** The current matches (contract expiries or the forward pipeline) **plus a re-runnable `saved_query`** — the exact args to re-run and how to diff against last time. MCP is request/response, so it's a saved query to poll, not a push subscription. |
+
+Every asserted claim ships its `evidence.source_url` **and** an `archived_url` (a Wayback snapshot) so the
+citation survives the live page changing.
 
 **Everything links out.** Every response carries the *actual URLs*, not just names: the framework's
 `official_url`, the operator's `operator_url`, each supplier's `ch_url` (its Companies House record),

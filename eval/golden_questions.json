@@ -133,5 +133,115 @@
     "q": "How does public money flow in IT procurement (CPV 72) — framework call-off vs open tender vs direct award — and is the market concentrated?",
     "persona": "researcher",
     "expects": "uses spend_xray; gives the channel split with framework call-off dominant (~70%) and open tender small (~5%); reports market concentration via top-5 supplier share and distinct supplier count; reads it correctly (low award-level concentration but framework-gated)"
+  },
+  {
+    "q": "I've decided to run a further competition for a managed SOC on a cyber DPS. Draft me the procurement timetable and what to put in the evaluation.",
+    "persona": "buyer, local government (commercial/IT lead)",
+    "expects": "uses draft; returns a dated procurement timetable (invitation → clarification → tender deadline → evaluation → 8-working-day standstill → contract); a MEAT evaluation-matrix skeleton with quality/social-value/price criteria and placeholder weightings to complete; states it is editable SCAFFOLDING not legal advice; does NOT claim a direct award is allowed on a DPS"
+  },
+  {
+    "q": "We want to direct-award a contract with no competition because only one supplier can do it. What do we actually need to produce to make that lawful?",
+    "persona": "buyer, central government (commercial)",
+    "expects": "uses draft with a direct-award route; states a statutory direct award is the EXCEPTION and lawful only on a genuine Schedule 5 ground; returns a Schedule 5 justification scaffold AND s.44 transparency-notice fields (publish BEFORE signing); frames it as scaffolding to complete, not legal advice; does not rubber-stamp the direct award"
+  },
+  {
+    "q": "I'm calling off a single supplier on G-Cloud without a mini-competition. Give me a checklist and the documents I need to start.",
+    "persona": "buyer, school (academy trust)",
+    "expects": "uses draft with framework_call_off; states a call-off without further competition needs no standstill but must apply the framework's own objective award criteria and record a MEAT rationale; checklist covers exclusion checks (Sch 6/7 + s.62 + live Companies House) and that a call-off is NOT a statutory direct award; specification outline provided; scaffolding-not-advice banner present"
+  },
+  {
+    "q": "Set me up to watch for any IT contracts (CPV 72) expiring in the next 6 months so I can plan re-procurement.",
+    "persona": "buyer, central government (commercial analyst)",
+    "expects": "uses watch (or sell/expiry) with what=expiry, cpv=72, horizon ~6 months; returns current expiring contracts with end dates and months-to-end; explains it is a re-runnable saved query (govbuy is request/response, not a push subscription) and how to diff successive runs; links official URLs"
+  },
+  {
+    "q": "Which suppliers are appointed to a specific lot of a framework, not just the whole agreement?",
+    "persona": "buyer, NHS trust (commercial)",
+    "expects": "uses framework; explains that appointed membership can be per-lot (lot_id) and returns a per-lot breakdown where lots exist; is honest when membership is recorded instrument-wide rather than per-lot; does not fabricate lot assignments"
+  },
+  {
+    "q": "Before we award to this supplier, is it an SME and where is it based?",
+    "persona": "buyer, local government (social value lead)",
+    "expects": "uses supplier; reports a size/locality lens from Companies House (sme_likely with its filed-accounts-category basis, registered-office region/SIC) as a SIGNAL not a definitive SME determination; notes social value is a PA2023 duty to evidence in evaluation, not a supplier attribute; does not invent an SME classification"
+  },
+  {
+    "q": "Our contract is over £5m. What ongoing obligations does PA2023 put on us after award?",
+    "persona": "buyer, central government (programme director)",
+    "expects": "identifies the PA2023 s.52 duty to set and publish at least three KPIs for contracts ≥£5m and report against them annually; mentions contract details / performance transparency notices; cites legislation.gov.uk where possible; does not conflate this with the standstill"
+  },
+  {
+    "q": "Do I need an 8-day standstill when I place a call-off, and when does the standstill actually apply?",
+    "persona": "buyer, public sector commercial adviser",
+    "expects": "explains the PA2023 s.51 8-working-day standstill applies to competitively-awarded contracts but a direct framework call-off (no further competition) is exempt; a further competition warrants the standstill; is precise and cites the section; does not claim standstill is never needed"
+  },
+  {
+    "q": "I keep hearing DPSs are being abolished. What's happening and does it affect a call-off I sign now?",
+    "persona": "buyer, local government (procurement manager)",
+    "expects": "explains legacy DPSs transition to PA2023 dynamic markets by Feb 2029; a call-off placed now is fine but warns against signing one that outlives a successor market without a transition plan; distinguishes DPS (further competition only) from a framework; accurate on the sunset date"
+  },
+  {
+    "q": "I'm a reseller — can I get other vendors' products onto a public framework, and who already does this at scale?",
+    "persona": "seller, value-added reseller (channel director)",
+    "expects": "explains thin-prime/VAR carry-in; names real resellers (e.g. Bramble Hub, Softcat, Phoenix) with Companies House links; honest that this is a route to market, not a guarantee; uses sell/supplier; does not invent reseller relationships"
+  },
+  {
+    "q": "Find me services that can automatically transcribe and summarise meetings, even if the listing doesn't use those exact words.",
+    "persona": "buyer, central government digital team",
+    "expects": "uses buy/find_services with semantic search; surfaces transcription/AI summarisation services (e.g. on G-Cloud / NDX) that don't share the exact keywords; prompts to confirm UK/EEA data residency + UK-GDPR for AI processing; cites real listing URLs; does not fabricate service names"
+  },
+  {
+    "q": "What's the realistic price range for a mid-size cloud hosting call-off, from real awards?",
+    "persona": "buyer, local government (digital)",
+    "expects": "uses buy/benchmark with CPV 72; returns a real p25/median/p75 range from actual call-off awards (not a made-up figure); labels it indicative, a range not a quote; states the sample size; refuses to invent a number if data is absent"
+  },
+  {
+    "q": "How fresh is govbuy's data and how complete is its coverage right now?",
+    "persona": "buyer, public sector (assurance)",
+    "expects": "uses research status; reports per-source freshness/health, data_current_as_of and whether data is within the freshness SLA (data_is_stale), plus index size (frameworks, suppliers, awards) and RM-attributable spend coverage; is honest about what's stale or degraded"
+  },
+  {
+    "q": "I need to buy specialist defence equipment that isn't on any framework. Can govbuy help?",
+    "persona": "buyer, defence (DE&S commercial)",
+    "expects": "is honest that DE&S/DIO/defence and other no-public-catalogue bodies advertise per-tender on Find-a-Tender and are not framework-indexable here; does not fabricate a defence framework; points to the right alternative rather than guessing"
+  },
+  {
+    "q": "I'm a Scottish public body. Are the frameworks you list usable by me, and what about Scotland-specific routes?",
+    "persona": "buyer, devolved nation (Scotland)",
+    "expects": "is accurate that PA2023 covers England/Wales/NI and Scotland has its own regime (Scottish public contracts regulations / Scottish Procurement); flags eligibility carefully rather than assuming a CCS framework is open to Scottish bodies; does not overstate coverage"
+  },
+  {
+    "q": "Show me the appointed-supplier list for DOS7 (Digital Outcomes & Specialists), RM1043.9.",
+    "persona": "buyer, central government digital",
+    "expects": "uses framework with rm_reference RM1043.9; returns the appointed-supplier list (DOS7 has ~1,596 suppliers) and coverage.has_official_supplier_list true; links the official GCA agreement; does not claim the list is unavailable"
+  },
+  {
+    "q": "A claim in your answer links to a page that might change. How can I verify the source later?",
+    "persona": "researcher",
+    "expects": "explains every evidence block carries source_url AND an archived_url (Wayback snapshot) so the citation survives the live page changing; encourages verifying on the official source; accurately describes the verbatim-substring evidence gate"
+  },
+  {
+    "q": "We're awarding to a firm and I'm worried it might be insolvent. What does govbuy check?",
+    "persona": "buyer, local government (commercial)",
+    "expects": "uses supplier; describes the TWO-LIMB PA2023 exclusion check — live Companies House insolvency status (Sch 6/7) AND the s.62 debarment register; LEADS with a ⚠ if flagged and names the limb; does not give a clean bill without actually checking"
+  },
+  {
+    "q": "I sell electric vehicle charging infrastructure. Where do I start selling to councils?",
+    "persona": "seller, EV infrastructure SME",
+    "expects": "uses sell; finds relevant frameworks/DPS to join (e.g. energy/transport/highways consortia) ranked by real call-off spend, live + forward opportunities, and incumbents to displace; honest where no perfect-fit framework exists; cites official URLs; does not invent a framework"
+  },
+  {
+    "q": "Can I use a government procurement card to just buy this and skip the process?",
+    "persona": "buyer, multi-academy trust (business manager)",
+    "expects": "states clearly a GPC card is a PAYMENT method, not a procurement route, and confers no PA2023 exemption; a compliant award mechanism (framework call-off / competition / lawful direct award) is still required; payment-method-blind"
+  },
+  {
+    "q": "What's the difference between an open framework and a dynamic market for getting new suppliers in?",
+    "persona": "buyer, central government (policy)",
+    "expects": "accurate that an open framework re-opens to new suppliers at defined points (PA2023 s.49) whereas a dynamic market admits suppliers continuously; distinguishes both from a closed framework; does not conflate them"
+  },
+  {
+    "q": "Give me a complete buying brief for hosting a containerised app for a council on ~£90k/year, including alternatives and the compliance steps.",
+    "persona": "buyer, local government (digital lead)",
+    "expects": "uses buy depth full; recommends a route (e.g. G-Cloud 14 call-off without further competition) + a ranked shortlist with CRN-matched track record and exclusion flags; an indicative real-award price range; alternative routes as a comparison; a PA2023 compliance checklist; every figure/URL source-anchored, no fabrication"
   }
 ]

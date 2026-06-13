@@ -130,8 +130,14 @@ export async function freshness(): Promise<unknown> {
     return v && String(v) < String(acc) ? v : acc;
   }, null);
   const degraded = shaped.filter((s) => s.health !== "green").map((s) => s.source_id);
+  // Explicit freshness SLA: the oldest source must have refreshed within the liveness window.
+  const slaHours = Number(process.env.GOVBUY_FRESHNESS_SLA_HOURS || process.env.GOVBUY_LIVENESS_MAX_HOURS || 36);
+  const worstAgeHours = worst ? (Date.now() - new Date(String(worst)).getTime()) / 3.6e6 : null;
+  const dataIsStale = worstAgeHours == null ? true : worstAgeHours > slaHours;
   const data = {
     data_current_as_of: worst,
+    data_is_stale: dataIsStale,
+    freshness_sla: { threshold_hours: slaHours, oldest_source_age_hours: worstAgeHours == null ? null : Math.round(worstAgeHours), within_sla: !dataIsStale, note: dataIsStale ? "⚠ At least one source is older than the freshness SLA — treat figures as potentially stale and re-run ingestion." : "All sources refreshed within the freshness SLA." },
     degraded_or_excluded_sources: degraded,
     sources: shaped,
     last_run: lastRun

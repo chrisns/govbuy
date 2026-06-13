@@ -31,6 +31,7 @@ def main(argv: list[str] | None = None) -> int:
     gsc = sub.add_parser("gcloud-services-shard"); gsc.add_argument("--lots", required=True); gsc.add_argument("--pages", required=True); gsc.add_argument("--out", required=True); gsc.add_argument("--no-detail", action="store_true")
     gsb = sub.add_parser("gcloud-services-bundle"); gsb.add_argument("--glob", required=True); gsb.add_argument("--out", required=True)
     cat = sub.add_parser("catalogues-sync"); cat.add_argument("--only", default="ndx,nhsbc")
+    cw = sub.add_parser("credentialed-sync"); cw.add_argument("--only", default=None)
     args = ap.parse_args(argv)
 
     from . import bq, config
@@ -132,6 +133,15 @@ def main(argv: list[str] | None = None) -> int:
         counts = bq.rebuild_public()
         print(json.dumps({"catalogues": out, "public_service_rows": counts.get("service")}, indent=2, default=str))
         return 0
+    if args.mode == "credentialed-sync":
+        # Pull appointed-supplier lists from login-walled portals we hold credentials for, then gate+load
+        # them through the same path as the official-appointments manifest. No creds → safe no-op.
+        from . import login_walled
+        only = set(x.strip() for x in args.only.split(",")) if args.only else None
+        rows, report = login_walled.sync(only)
+        loaded = bq.materialize_official_appointments(rows) if rows else {"official_appointment_rows": 0}
+        counts = bq.rebuild_public() if rows else {}
+        print(json.dumps({"portals": report, "loaded": loaded, "public": counts}, indent=2, default=str)); return 0
     if args.mode == "gcloud-services-bundle":
         import glob
         from .gcloud_services import to_bundle

@@ -1,6 +1,6 @@
 export const meta = {
   name: 'govbuy-eval-harness',
-  description: 'Run 24 golden buyer/seller questions through the live govbuy MCP and adversarially judge each answer; report a baseline pass rate',
+  description: 'Run the golden buyer/seller/researcher question set through the live govbuy MCP and adversarially judge each answer; report a pass rate + release gate',
   phases: [
     { title: 'Load', detail: 'read golden question set' },
     { title: 'Run', detail: 'each question through the live MCP via claude -p (parallel)' },
@@ -9,7 +9,10 @@ export const meta = {
 }
 
 const MCP = '{"mcpServers":{"govbuy":{"type":"http","url":"https://govbuy.run.cns.me/mcp"}}}'
-const TOOLS = "mcp__govbuy__find_routes,mcp__govbuy__find_services,mcp__govbuy__compliant_path,mcp__govbuy__get_instrument,mcp__govbuy__find_instruments_to_list,mcp__govbuy__list_resellers,mcp__govbuy__get_supplier,mcp__govbuy__query_sql,mcp__govbuy__get_schema,mcp__govbuy__get_status,mcp__govbuy__supplier_pipeline,mcp__govbuy__benchmark_price,mcp__govbuy__due_diligence,mcp__govbuy__spend_xray,mcp__govbuy__plan_buy"
+// The seven consolidated verbs (the 17 legacy tools were collapsed into these). Keep in sync with server.ts.
+const TOOLS = "mcp__govbuy__buy,mcp__govbuy__sell,mcp__govbuy__supplier,mcp__govbuy__framework,mcp__govbuy__research,mcp__govbuy__draft,mcp__govbuy__watch"
+// Release gate: the run FAILS (gate=false) if the pass rate drops below this floor. Override with GOVBUY_EVAL_FLOOR.
+const PASS_FLOOR = Number(process.env.GOVBUY_EVAL_FLOOR || 70)
 
 const QLIST = { type:'object', additionalProperties:false, properties: {
   questions: { type:'array', items: { type:'object', additionalProperties:false,
@@ -62,10 +65,15 @@ for (let i = 0; i < Q.length; i += CHUNK) {
 const ok = verdicts.filter(Boolean)
 const passed = ok.filter(v => v.pass).length
 const avg = ok.length ? ok.reduce((a,v)=>a+(v.score||0),0)/ok.length : 0
+const pass_rate = ok.length ? Math.round(100*passed/ok.length) : 0
+const gate = pass_rate >= PASS_FLOOR
+log(`eval complete: ${passed}/${ok.length} passed (${pass_rate}%); gate floor ${PASS_FLOOR}% → ${gate ? 'PASS' : 'FAIL'}`)
 return {
   total: ok.length,
   passed,
-  pass_rate: ok.length ? Math.round(100*passed/ok.length) : 0,
+  pass_rate,
   avg_score: Math.round(avg*100)/100,
+  gate,            // false ⇒ a release gate should block the deploy
+  pass_floor: PASS_FLOOR,
   failures: ok.filter(v=>!v.pass).map(v=>({ q: v.q, issues: v.issues })),
 }

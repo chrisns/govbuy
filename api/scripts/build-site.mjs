@@ -355,6 +355,8 @@ function renderHtml(d) {
     { p: "buyer", q: "Does govbuy give legal or procurement advice?", a: `No. It <b>documents routes</b> and links the official source for every claim — frameworks, mechanics, ${A(L.pa2023, "PA2023")} duties — but it doesn't assemble the purchase or sign off compliance. You run the assessment on the sources it cites.` },
     { p: "seller", q: "What's the fastest compliant way onto a framework if I'm a new SME?", a: `Target the routes that admit suppliers continuously — live <b>dynamic markets and DPSs</b> (e.g. ${A(L.rm6200, "RM6200")}) — rather than waiting for a closed framework to re-tender. The <code>sell</code> verb ranks the ones you can join now by real call-off spend.` },
     { p: "researcher", q: "What exactly is govbuy, and what can it answer?", a: `An MCP server that welds <b>route × reality × statute</b> for UK public procurement: ${cnum(d.head.frameworks)} frameworks, ${cnum(d.head.listings)} catalogue listings and ${cnum(d.head.fused_awards)} real awards in one place — so your AI assistant answers buyer, seller and researcher questions with sources. ${extLink(REPO, "See the code")}.` },
+    { p: "buyer", q: "I've picked my route — now draft me the procurement timetable and evaluation.", a: `The <code>draft</code> verb returns editable <b>scaffolding</b>: a real-dated timetable (invitation → tender → evaluation → <b>8-working-day standstill</b> → signature), a MEAT evaluation-matrix skeleton, a spec outline, and the route-correct ${A(L.pa2023, "PA2023")} compliance steps — for a statutory direct award, a Schedule 5 + ${A(L.sch5, "s.44")} stub. Scaffolding to complete, never legal advice.` },
+    { p: "seller", q: "Tell me when IT contracts are about to expire so I can time my pitch.", a: `The <code>watch</code> verb returns the contracts ending within your horizon (the incumbent's displacement window) plus a <b>re-runnable saved query</b> — govbuy is request/response, so you diff successive runs to catch what's newly expiring.` },
   ];
 
   // Weave the four streams round-robin for persona variety, then cap at 50.
@@ -379,11 +381,13 @@ function renderHtml(d) {
   const tools = [
     ["Buyer", [
       ["buy", "one opinionated brief: route + PA2023 mechanic + ranked shortlist (track record + exclusion) + price + alternative routes + compliance checklist"],
-      ["supplier", "is this firm safe? a two-limb live exclusion check + its full framework footprint + CRN-matched delivery record"],
-      ["framework", "one instrument: lots, appointed + observed-from-awards suppliers, coverage, and the PA2023-precise call-off path"],
+      ["supplier", "is this firm safe? a two-limb live exclusion check + framework footprint + CRN-matched delivery record + an SME/locality lens"],
+      ["framework", "one instrument: lots, appointed suppliers (incl. per-lot), observed-from-awards, coverage, and the PA2023-precise call-off path"],
+      ["draft", "scaffolding to START the procurement: a real-dated timetable, a MEAT matrix skeleton, a spec outline, the compliance steps, a Schedule 5 / s.44 stub"],
     ]],
     ["Seller", [
       ["sell", "your route to market: frameworks & live DPS you can join, ranked by REAL call-off spend, live + forward opportunities, incumbents to displace, and resellers who can carry you in"],
+      ["watch", "a re-runnable saved query for contract expiries or the forward pipeline — diff successive runs to spot what changed"],
     ]],
     ["Researcher", [
       ["research", "the power surface: read-only BigQuery SQL over the whole corpus, a spend & competition x-ray by CPV, or the schema / freshness & coverage"],
@@ -587,13 +591,13 @@ ${MASTHEAD}
 </section>
 
 <section class="tools" id="tools">
-  ${sectionHeader("5 verbs, 3 personas", "Ask the way you think — buy, sell, research")}
+  ${sectionHeader("7 verbs, 3 personas", "Ask the way you think — buy, sell, draft, research")}
   <div class="tool-grid">${toolCols}</div>
 </section>
 
 <section class="connect" id="connect">
   ${sectionHeader("Connect it", "Set it up in your assistant — in a minute")}
-  <p class="section-lede">govbuy is a remote <a href="https://modelcontextprotocol.io" target="_blank" rel="noopener">Model-Context-Protocol</a> server at <code>${esc(URL_MCP)}</code> — streamable HTTP, free, unauthenticated, no API key. Add the URL to any MCP-capable client and the five verbs appear. Recipes (current as of <span class="numeral">${d.generated}</span> — each links its official docs):</p>
+  <p class="section-lede">govbuy is a remote <a href="https://modelcontextprotocol.io" target="_blank" rel="noopener">Model-Context-Protocol</a> server at <code>${esc(URL_MCP)}</code> — streamable HTTP, free, unauthenticated, no API key. Add the URL to any MCP-capable client and the seven verbs appear. Recipes (current as of <span class="numeral">${d.generated}</span> — each links its official docs):</p>
   <div class="conn-grid">${connectCards}</div>
 </section>
 

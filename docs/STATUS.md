@@ -29,18 +29,31 @@ is the anti-fabrication anchor: a supplier/framework name not present in the arc
 quarantined, never published. Companies House matching is incremental + crash/429-resilient.
 Extraction workflows run on **Haiku** (gate-protected, cheap); re-discovery on Sonnet.
 
-## Surface: five intent verbs (CONSOLIDATED from 17 tools)
-The MCP exposes **5 verbs** mirroring how people ask — `buy`, `sell`, `supplier`, `framework`, `research`
-(each with a `depth: brief|full` knob) — over the same deduped capability functions. Fewer, well-named
-verbs route far better than 17 near-synonyms, and the depth lives behind fewer doors. ACs in
-[verbs-acceptance.md](verbs-acceptance.md). Nothing was lost; the mapping:
+## Surface: seven intent verbs (CONSOLIDATED from 17 tools, + two new)
+The MCP exposes **7 verbs** mirroring how people ask — `buy`, `sell`, `supplier`, `framework`, `research`,
+`draft`, `watch` (the action ones take a `depth: brief|full` knob) — over the same deduped capability
+functions. Fewer, well-named verbs route far better than 17 near-synonyms. ACs in
+[verbs-acceptance.md](verbs-acceptance.md); the later additions in [improvements-acceptance.md](improvements-acceptance.md).
+Nothing was lost; the mapping:
 - **buy** ← find_routes + find_services + compliant_path + plan_buy + compare_routes + benchmark_price
   (one brief: route + mechanic + shortlist + price + **alternative routes** + checklist; route-first fallback
   for DPS/framework-only needs with no catalogue listing).
 - **sell** ← find_instruments_to_list + supplier_pipeline + list_resellers + contract_expiry_radar.
-- **supplier** ← get_supplier + due_diligence (one CRN; the two-limb exclusion is computed once).
-- **framework** ← get_instrument + compliant_path.
-- **research** ← query_sql + spend_xray + get_schema + get_status.
+- **supplier** ← get_supplier + due_diligence (one CRN; the two-limb exclusion is computed once) + an
+  **SME/locality lens** (SIC / company type / registered-office region / filed-accounts-category SME signal,
+  read off the same live Companies House call as the exclusion gate — no new crawl).
+- **framework** ← get_instrument + compliant_path, now with **per-lot supplier membership** (`suppliers_by_lot`).
+- **research** ← query_sql + spend_xray + get_schema + get_status (status now emits an explicit freshness SLA).
+- **draft** *(new)* — turns a chosen route into editable **scaffolding**: a real-dated procurement timetable,
+  a MEAT evaluation-matrix skeleton, a spec outline, the route-correct PA2023 compliance steps, and a
+  Schedule 5 / s.44 transparency-notice stub for statutory direct awards. Scaffolding, not legal advice.
+- **watch** *(new)* — a re-runnable saved query for contract expiries or the forward pipeline (govbuy is
+  request/response; diff successive runs to spot change).
+
+Also new: **MCP prompts** (`compliant-buy`, `due-diligence`, `market-entry`) + **resources** (`govbuy://glossary`,
+`govbuy://guide`); **Wayback `archived_url`** on every evidence block (citations survive 404s); a TTL cache on
+static reference reads; and the eval is now a **release gate** ([release-gate.sh](../scripts/release-gate.sh),
+golden set 27→49, harness corrected to the seven verbs).
 
 Sections below describe capabilities by their original names; each is now reached through the verb above.
 Two real bugs were fixed in the refactor: **(1)** `runQuery` passed `{autoPaginate:false}`, which returned the
