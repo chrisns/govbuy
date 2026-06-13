@@ -49,8 +49,10 @@ const [head, channels, premium, frameworks, resellers, expiry, catalogue, observ
        (SELECT COUNT(*) FROM govbuy_public.service) AS listings,
        (SELECT COUNT(*) FROM govbuy_public.tender_award) AS fused_awards,
        (SELECT COUNT(*) FROM govbuy_public.appointed_supplier) AS appointed_edges,
-       (SELECT COUNT(*) FROM govbuy_public.pipeline_notice) AS pipeline,
-       (SELECT COUNT(DISTINCT supplier_crn) FROM govbuy_public.observed_membership) AS observed_suppliers`),
+       (SELECT COUNTIF(expected_date >= CURRENT_TIMESTAMP()) FROM govbuy_public.pipeline_notice) AS pipeline,
+       (SELECT COUNT(DISTINCT supplier_crn) FROM govbuy_public.observed_membership) AS observed_suppliers,
+       (SELECT COUNT(DISTINCT catalogue) FROM govbuy_public.service) AS catalogues,
+       (SELECT COUNTIF(i.lifecycle_status='live_for_call_off' AND NOT EXISTS(SELECT 1 FROM govbuy_public.appointed_supplier a WHERE a.instrument_id=i.instrument_id)) FROM govbuy_public.instrument i) AS no_supplier_list`),
   q(`SELECT channel, COUNT(*) awards, ROUND(SUM(award_amount)) gbp
      FROM govbuy_public.tender_award WHERE award_amount BETWEEN 0 AND 100000000 GROUP BY channel ORDER BY gbp DESC`),
   q(`WITH base AS (SELECT cpv_division, channel, award_amount FROM govbuy_public.tender_award WHERE award_amount BETWEEN 1000 AND 100000000 AND cpv_division IS NOT NULL),
@@ -64,12 +66,12 @@ const [head, channels, premium, frameworks, resellers, expiry, catalogue, observ
   q(`WITH t AS (SELECT rm_reference, ROUND(SUM(award_amount)) gbp, COUNT(*) n, COUNT(DISTINCT supplier_crn) suppliers
         FROM govbuy_public.tender_award WHERE rm_reference IS NOT NULL AND channel IN ('framework_call_off','dps_call_off') AND award_amount BETWEEN 0 AND 100000000
         GROUP BY rm_reference ORDER BY gbp DESC LIMIT 12),
-     nm AS (SELECT rm_reference, ANY_VALUE(name) name,
-              ANY_VALUE(official_url) official_url,
+     nm AS (SELECT REGEXP_EXTRACT(UPPER(rm_reference), r'RM[0-9]+') AS stem,
+              ARRAY_AGG(name ORDER BY IF(operator_id='gca',0,1), LENGTH(name) DESC)[SAFE_OFFSET(0)] name,
               ARRAY_AGG(official_url IGNORE NULLS ORDER BY IF(operator_id='gca',0,1))[SAFE_OFFSET(0)] gca_url
-            FROM govbuy_public.instrument WHERE rm_reference IS NOT NULL GROUP BY rm_reference)
-     SELECT t.rm_reference, COALESCE(nm.name, t.rm_reference) name, COALESCE(nm.gca_url, nm.official_url) official_url, t.gbp, t.n, t.suppliers
-     FROM t LEFT JOIN nm USING(rm_reference) ORDER BY t.gbp DESC`),
+            FROM govbuy_public.instrument WHERE rm_reference IS NOT NULL AND name NOT LIKE 'RM%' GROUP BY stem)
+     SELECT t.rm_reference, nm.name AS name, nm.gca_url AS official_url, t.gbp, t.n, t.suppliers
+     FROM t LEFT JOIN nm ON nm.stem = REGEXP_EXTRACT(UPPER(t.rm_reference), r'RM[0-9]+') ORDER BY t.gbp DESC`),
   q(`SELECT s.display_name, s.company_number, ANY_VALUE(rc.channel_type) channel_type, ct.calloff_gbp gbp, ct.calloff_count n
      FROM govbuy_public.reseller_channel rc JOIN govbuy_public.supplier s ON s.supplier_id=rc.supplier_id
      JOIN govbuy_public.supplier_calloff_total ct ON ct.supplier_crn=s.company_number
@@ -150,7 +152,7 @@ function renderHtml(d) {
   const fwRows = d.frameworks.map((f, i) => `
     <tr data-gbp="${f.gbp}" data-n="${f.n}" data-suppliers="${f.suppliers}">
       <td class="fw-rank numeral">${i + 1}</td>
-      <td class="fw-name">${extLink(fwUrl(f), `<span class="fw-rm numeral">${esc(f.rm)}</span> ${esc(f.name)}`, "fw-link")}</td>
+      <td class="fw-name">${extLink(fwUrl(f), f.name ? `${esc(f.name)} <span class="fw-rm numeral">(${esc(f.rm)})</span>` : `<span class="fw-rm numeral">${esc(f.rm)}</span>`, "fw-link")}</td>
       <td class="fw-bar"><div class="mini-track"><div class="mini-fill" style="width:${(f.gbp / fwMax * 100).toFixed(1)}%"></div></div></td>
       <td class="fw-gbp numeral">${gbp(f.gbp)}</td>
       <td class="fw-n numeral">${cnum(f.n)}</td>
@@ -200,15 +202,18 @@ function renderHtml(d) {
     pa2023: "https://www.legislation.gov.uk/ukpga/2023/54/contents",
   };
   const tool = (t) => extLink(REPO + "#tools", `<code>${t}</code>`);
+  // Numbers used in the example questions are derived from the live query results, never hard-coded.
+  const it = d.premium.find((p) => p.d === "72") || { fw: 0, open: 0 };
+  const itPct = it.open ? Math.round(Math.abs(it.fw / it.open - 1) * 100) : 0;
   const questions = [
-    { p: "buyer", q: "I'm a council. I need to host a containerised web app for ~£80k/year. Just tell me how to buy it.", o: `${tool("buy")} → ${A(L.gc14, "G-Cloud 14")} call-off, a ranked shortlist with real delivery records, the £176k median, alternative routes, and the PA2023 steps — one brief.` },
+    { p: "buyer", q: "I'm a council. I need to host a containerised web app for ~£80k/year. Just tell me how to buy it.", o: `${tool("buy")} → ${A(L.gc14, "G-Cloud 14")} call-off, a ranked shortlist with real delivery records, the ~${gbp(it.fw)} IT median, alternative routes, and the PA2023 steps — one brief.` },
     { p: "buyer", q: "A fire service needs drone thermal-imaging kit fast and compliantly — is a direct award allowed?", o: `${A(L.drones, "YPO Drones DPS 1148")} — <b>further competition only</b>, no direct award; the ${A(L.sch5, "Schedule 5")} urgency route explained, with the Feb-2029 DPS sunset flagged.` },
     { p: "buyer", q: "We're about to award to a supplier in liquidation — should we?", o: `The exclusion gate <b>stops you</b>: a live ${A(L.ch, "Companies House")} check + the ${A(L.s62, "s.62 debarment register")}, both PA2023 limbs.` },
     { p: "buyer", q: "Which of the viable routes is best for a managed SOC — and why?", o: `${tool("buy")} returns alternative routes ranking ${A(L.css3, "Cyber Security 3 DPS")} vs ${A(L.ts4, "TS4")} vs ${A(L.ns3, "Network Services 3")} on speed × depth × runway × real price.` },
     { p: "seller", q: "I've built an AI triage tool but I'm on no framework. How do I get in front of the NHS this quarter?", o: `Get admitted to an AI dynamic market (${A(L.rm6200, "RM6200")} / ${A(L.ht, "HealthTrust")}) — continuous joining; plus where NHS commissioners actually shop.` },
     { p: "seller", q: "Find me an incumbent on a big contract that's expiring, and how to compete.", o: `${tool("sell")} surfaces the displacement window — incumbents whose contracts are ending, value, end date, the route to re-bid.` },
     { p: "seller", q: "I rent out goats that clear invasive scrub. How do I sell conservation grazing to the public sector?", o: "An honest answer: no grazing framework exists; the money flows via grounds-maintenance primes — subcontract, and chase sub-threshold local notices." },
-    { p: "researcher", q: "Is the public sector overpaying by buying IT through framework call-offs instead of open competition?", o: "In IT the median call-off (£183k) runs <b>above</b> open tender (£140k) — a real convenience premium; every other sector inverts." },
+    { p: "researcher", q: "Is the public sector overpaying by buying IT through framework call-offs instead of open competition?", o: `In IT the median call-off (${gbp(it.fw)}) runs <b>above</b> open tender (${gbp(it.open)}) — a ~${itPct}% convenience premium; every other sector inverts.` },
     { p: "researcher", q: "Map the 'thin-prime' economy — who fronts other firms onto public frameworks, and how much flows there?", o: `${gbp(resellerTotal)} of call-off spend traced to the reseller layer — ${A(L.softcat, "Softcat")}, ${A(L.phoenix, "Phoenix")}, ${A(L.cdw, "CDW")}, ${A(L.bramble, "Bramble Hub")}…` },
     { p: "researcher", q: "Which 'live' tech frameworks are dead paper — appointed suppliers but no real spend?", o: "It tells you what it can prove <i>and what it can't</i> — separating genuinely-idle frameworks from attribution gaps." },
   ];
@@ -267,7 +272,7 @@ function renderHtml(d) {
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>govbuy — the UK public-procurement co-pilot</title>
-<meta name="description" content="Ask your AI assistant how to buy across the UK public sector, where to sell, or how public money flows — source-anchored across 3,200 frameworks, 117k catalogue listings and 658k real awards. An MCP server by cns.me." />
+<meta name="description" content="Ask your AI assistant how to buy across the UK public sector, where to sell, or how public money flows — source-anchored across ${cnum(d.head.frameworks)} frameworks, ${cnum(d.head.listings)} catalogue listings and ${cnum(d.head.fused_awards)} real awards. An MCP server by cns.me." />
 <meta name="theme-color" content="#F4EFE7" />
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23F4EFE7'/%3E%3Ccircle cx='16' cy='17' r='7' fill='%23E5197F'/%3E%3C/svg%3E" />
 <meta property="og:type" content="website" />
@@ -315,7 +320,7 @@ ${MASTHEAD}
     <article class="layer">
       <span class="layer-no numeral">02</span>
       <h3>Reality</h3>
-      <p><b class="numeral">${cnum(d.head.fused_awards)}</b> real tender awards joined on ${A(L.ch, "Companies House")} CRN: who actually wins the work, what buyers really pay, what's live, what's <i>coming</i> (<b class="numeral">${cnum(d.head.pipeline)}</b> pipeline notices) and what's <i>expiring</i>.</p>
+      <p><b class="numeral">${cnum(d.head.fused_awards)}</b> real tender awards joined on ${A(L.ch, "Companies House")} CRN: who actually wins the work, what buyers really pay, what's live, what's <i>coming</i> (<b class="numeral">${cnum(d.head.pipeline)}</b> planned procurements still ahead) and what's <i>expiring</i>.</p>
     </article>
     <article class="layer">
       <span class="layer-no numeral">03</span>
@@ -372,7 +377,7 @@ ${MASTHEAD}
       <div class="cols">${expiryBars}</div>
     </div>
     <div class="dash">
-      <div class="dash-head"><span class="eyebrow">${cnum(d.head.listings)} listings · 6 catalogues</span><h3>What's actually on the shelves</h3><p class="dash-note">Per-listing descriptions across every public UK buying catalogue, searchable by capability — token-free re-crawled.</p></div>
+      <div class="dash-head"><span class="eyebrow">${cnum(d.head.listings)} listings · ${d.head.catalogues} catalogues</span><h3>What's actually on the shelves</h3><p class="dash-note">Per-listing descriptions across every public UK buying catalogue, searchable by capability — token-free re-crawled.</p></div>
       <div class="bars">${catBars}</div>
     </div>
   </div>
@@ -400,7 +405,7 @@ ${MASTHEAD}
   <div class="honest-grid">
     <p>Credibility is in the candour. govbuy never fabricates: every supplier, framework and £ comes from a source that literally states it, behind a verbatim-substring gate.</p>
     <ul>
-      <li><b>Login-walled supplier lists.</b> ~328 frameworks publish membership only behind a portal login — govbuy says so rather than guessing.</li>
+      <li><b>No published supplier list.</b> <b class="numeral">${cnum(d.head.no_supplier_list)}</b> of <b class="numeral">${cnum(d.head.live_frameworks)}</b> live frameworks publish no member list (login-walled portals, or DPS/neutral-vendor models that don't publish membership) — govbuy says so rather than guessing.</li>
       <li><b>Attribution gaps.</b> Most awards carry no framework reference, so a flagship showing low spend is often an attribution gap, <i>not</i> dead paper — and it tells you which.</li>
       <li><b>Backfilled, labelled.</b> Where an official list is missing, <b class="numeral">${cnum(d.observed.edges)}</b> supplier×framework edges are inferred from real awards — clearly marked observed-not-official.</li>
       <li><b>Not legal advice.</b> It documents routes; it doesn't assemble the purchase or sign off compliance. Confirm on the official source it links.</li>
