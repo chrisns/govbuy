@@ -309,7 +309,7 @@ code{font-family:var(--font-mono);font-size:.92em}
     <div class="rule strong"></div>
     <div class="sh-row"><span class="eyebrow">Explore the data</span><h2 class="sh-title">Real numbers from the corpus — not a brochure</h2></div>
   </header>
-  <p class="section-lede">Every figure below is live from <code>govbuy_public</code> as of <span class="numeral">2026-06-12</span> — the same data your assistant reasons over.</p>
+  <p class="section-lede">Every figure below is live from <code>govbuy_public</code> as of <span class="numeral">2026-06-13</span> — the same data your assistant reasons over.</p>
   <p class="dash-method"><b>Method, plainly:</b> figures are over <b>award records</b> (one per award&times;supplier line, 658,625 of them across 57,190 appointed-supplier edges) from the fused UK-Tenders corpus. Framework-ceiling outliers (&gt;£100m) are removed so medians aren't distorted; the price explorer uses awards &ge;£1,000. Totals are sums over award records and are not de-duplicated across multi-supplier awards, so they read as gross awarded value, not net spend. Reseller £ come from a curated reseller-graph join across every CPV a firm operates in. Dirty upstream dates are bounded by each chart's window. Counts of <code>instrument</code>/<code>service</code> are exact. Nothing here is hand-entered — re-run <code>scripts/build-site.mjs</code> to reproduce.</p>
 
   <div class="dash dash-explorer" id="explorer">
@@ -521,9 +521,9 @@ code{font-family:var(--font-mono);font-size:.92em}
 
   <div class="dash-grid">
     <div class="dash">
-      <div class="dash-head"><span class="eyebrow">£250bn re-procurement wave</span><h3>Contracts expiring — the next 18 months</h3><p class="dash-note">Every bar is real contract-end value. For buyers: re-procurement deadlines. For sellers: displacement windows.</p></div>
-      <div class="cols"><div class="col" title="2026-06: £7.4bn across 2,498 contracts">
-      <div class="col-bar" style="height:26.3%"></div>
+      <div class="dash-head"><span class="eyebrow">£249bn re-procurement wave</span><h3>Contracts expiring — the next 18 months</h3><p class="dash-note">Every bar is real contract-end value. For buyers: re-procurement deadlines. For sellers: displacement windows.</p></div>
+      <div class="cols"><div class="col" title="2026-06: £6.8bn across 2,420 contracts">
+      <div class="col-bar" style="height:24.1%"></div>
       <div class="col-x">Jun</div>
     </div><div class="col" title="2026-07: £12bn across 5,173 contracts">
       <div class="col-bar" style="height:41.1%"></div>
@@ -576,8 +576,8 @@ code{font-family:var(--font-mono);font-size:.92em}
     </div><div class="col" title="2027-11: £8.7bn across 1,404 contracts">
       <div class="col-bar" style="height:30.6%"></div>
       <div class="col-x">Nov</div>
-    </div><div class="col" title="2027-12: £4.9bn across 380 contracts">
-      <div class="col-bar" style="height:17.4%"></div>
+    </div><div class="col" title="2027-12: £5.0bn across 427 contracts">
+      <div class="col-bar" style="height:17.6%"></div>
       <div class="col-x">Dec</div>
     </div></div>
     </div>
@@ -628,7 +628,7 @@ code{font-family:var(--font-mono);font-size:.92em}
     <article class="q-card q-buyer">
       <span class="q-persona">Buyer</span>
       <p class="q-q">I'm a council. I need to host a containerised web app for ~£80k/year. Just tell me how to buy it.</p>
-      <p class="q-o"><a href="https://github.com/chrisns/govbuy#tools" target="_blank" rel="noopener"><code>plan_buy</code></a> → <a href="https://www.gca.gov.uk/agreements/RM1557.14" target="_blank" rel="noopener">G-Cloud 14</a> call-off, a 3-supplier shortlist with real delivery records, the £176k median, and the PA2023 steps — one brief.</p>
+      <p class="q-o"><a href="https://github.com/chrisns/govbuy#tools" target="_blank" rel="noopener"><code>buy</code></a> → <a href="https://www.gca.gov.uk/agreements/RM1557.14" target="_blank" rel="noopener">G-Cloud 14</a> call-off, a ranked shortlist with real delivery records, the £176k median, alternative routes, and the PA2023 steps — one brief.</p>
     </article>
     <article class="q-card q-buyer">
       <span class="q-persona">Buyer</span>
@@ -643,7 +643,7 @@ code{font-family:var(--font-mono);font-size:.92em}
     <article class="q-card q-buyer">
       <span class="q-persona">Buyer</span>
       <p class="q-q">Which of the viable routes is best for a managed SOC — and why?</p>
-      <p class="q-o"><a href="https://github.com/chrisns/govbuy#tools" target="_blank" rel="noopener"><code>compare_routes</code></a> ranks <a href="https://www.gca.gov.uk/agreements/RM3764.3" target="_blank" rel="noopener">Cyber Security 3 DPS</a> vs <a href="https://www.gca.gov.uk/agreements/RM6190" target="_blank" rel="noopener">TS4</a> vs <a href="https://www.gca.gov.uk/agreements/RM6116" target="_blank" rel="noopener">Network Services 3</a> on speed × depth × runway × real price.</p>
+      <p class="q-o"><a href="https://github.com/chrisns/govbuy#tools" target="_blank" rel="noopener"><code>buy</code></a> returns alternative routes ranking <a href="https://www.gca.gov.uk/agreements/RM3764.3" target="_blank" rel="noopener">Cyber Security 3 DPS</a> vs <a href="https://www.gca.gov.uk/agreements/RM6190" target="_blank" rel="noopener">TS4</a> vs <a href="https://www.gca.gov.uk/agreements/RM6116" target="_blank" rel="noopener">Network Services 3</a> on speed × depth × runway × real price.</p>
     </article>
     <article class="q-card q-seller">
       <span class="q-persona">Seller</span>
@@ -653,7 +653,7 @@ code{font-family:var(--font-mono);font-size:.92em}
     <article class="q-card q-seller">
       <span class="q-persona">Seller</span>
       <p class="q-q">Find me an incumbent on a big contract that's expiring, and how to compete.</p>
-      <p class="q-o"><a href="https://github.com/chrisns/govbuy#tools" target="_blank" rel="noopener"><code>contract_expiry_radar</code></a> surfaces the displacement window — incumbent, value, end date, the route to re-bid.</p>
+      <p class="q-o"><a href="https://github.com/chrisns/govbuy#tools" target="_blank" rel="noopener"><code>sell</code></a> surfaces the displacement window — incumbents whose contracts are ending, value, end date, the route to re-bid.</p>
     </article>
     <article class="q-card q-seller">
       <span class="q-persona">Seller</span>
@@ -680,25 +680,25 @@ code{font-family:var(--font-mono);font-size:.92em}
 <section class="tools" id="tools">
   <header class="section-header">
     <div class="rule strong"></div>
-    <div class="sh-row"><span class="eyebrow">17 tools, 3 personas</span><h2 class="sh-title">One MCP server, three jobs</h2></div>
+    <div class="sh-row"><span class="eyebrow">5 verbs, 3 personas</span><h2 class="sh-title">Ask the way you think — buy, sell, research</h2></div>
   </header>
   <div class="tool-grid">
     <div class="tool-col">
       <h3 class="tool-persona"><span class="eyebrow">Buyer</span></h3>
       <ul class="tool-list">
-        <li><a href="https://github.com/chrisns/govbuy#tools" target="_blank" rel="noopener" class="tool-link"><code>find_routes</code></a><span>frameworks that fit a need + permitted mechanics</span></li><li><a href="https://github.com/chrisns/govbuy#tools" target="_blank" rel="noopener" class="tool-link"><code>find_services</code></a><span>the catalogue listing that does it — semantic + proof-of-delivery</span></li><li><a href="https://github.com/chrisns/govbuy#tools" target="_blank" rel="noopener" class="tool-link"><code>compliant_path</code></a><span>how to call it off — Procurement-Act-2023-precise</span></li><li><a href="https://github.com/chrisns/govbuy#tools" target="_blank" rel="noopener" class="tool-link"><code>plan_buy</code></a><span>one opinionated brief: route + shortlist + price + exclusion + checklist</span></li><li><a href="https://github.com/chrisns/govbuy#tools" target="_blank" rel="noopener" class="tool-link"><code>compare_routes</code></a><span>a decision matrix: speed × competition × depth × runway × price</span></li><li><a href="https://github.com/chrisns/govbuy#tools" target="_blank" rel="noopener" class="tool-link"><code>benchmark_price</code></a><span>what the public sector really paid (median / p25–p75)</span></li><li><a href="https://github.com/chrisns/govbuy#tools" target="_blank" rel="noopener" class="tool-link"><code>due_diligence</code></a><span>is this supplier safe? two-limb live exclusion + delivery record</span></li><li><a href="https://github.com/chrisns/govbuy#tools" target="_blank" rel="noopener" class="tool-link"><code>get_supplier</code></a><span>one supplier — exclusion, full framework footprint, evidence</span></li>
+        <li><a href="https://github.com/chrisns/govbuy#tools" target="_blank" rel="noopener" class="tool-link"><code>buy</code></a><span>one opinionated brief: route + PA2023 mechanic + ranked shortlist (track record + exclusion) + price + alternative routes + compliance checklist</span></li><li><a href="https://github.com/chrisns/govbuy#tools" target="_blank" rel="noopener" class="tool-link"><code>supplier</code></a><span>is this firm safe? a two-limb live exclusion check + its full framework footprint + CRN-matched delivery record</span></li><li><a href="https://github.com/chrisns/govbuy#tools" target="_blank" rel="noopener" class="tool-link"><code>framework</code></a><span>one instrument: lots, appointed + observed-from-awards suppliers, coverage, and the PA2023-precise call-off path</span></li>
       </ul>
     </div>
     <div class="tool-col">
       <h3 class="tool-persona"><span class="eyebrow">Seller</span></h3>
       <ul class="tool-list">
-        <li><a href="https://github.com/chrisns/govbuy#tools" target="_blank" rel="noopener" class="tool-link"><code>find_instruments_to_list</code></a><span>frameworks &amp; live DPS you can still join</span></li><li><a href="https://github.com/chrisns/govbuy#tools" target="_blank" rel="noopener" class="tool-link"><code>supplier_pipeline</code></a><span>live + forward opportunities, incumbents to displace, resellers</span></li><li><a href="https://github.com/chrisns/govbuy#tools" target="_blank" rel="noopener" class="tool-link"><code>contract_expiry_radar</code></a><span>incumbents whose contracts are running out</span></li><li><a href="https://github.com/chrisns/govbuy#tools" target="_blank" rel="noopener" class="tool-link"><code>list_resellers</code></a><span>thin-primes &amp; VARs that can carry you in</span></li>
+        <li><a href="https://github.com/chrisns/govbuy#tools" target="_blank" rel="noopener" class="tool-link"><code>sell</code></a><span>your route to market: frameworks &amp; live DPS you can join, ranked by REAL call-off spend, live + forward opportunities, incumbents to displace, and resellers who can carry you in</span></li>
       </ul>
     </div>
     <div class="tool-col">
       <h3 class="tool-persona"><span class="eyebrow">Researcher</span></h3>
       <ul class="tool-list">
-        <li><a href="https://github.com/chrisns/govbuy#tools" target="_blank" rel="noopener" class="tool-link"><code>spend_xray</code></a><span>how money flows by channel + market concentration</span></li><li><a href="https://github.com/chrisns/govbuy#tools" target="_blank" rel="noopener" class="tool-link"><code>get_instrument</code></a><span>one framework — suppliers, mechanics, observed-from-awards backfill</span></li><li><a href="https://github.com/chrisns/govbuy#tools" target="_blank" rel="noopener" class="tool-link"><code>query_sql</code></a><span>read-only BigQuery over the whole corpus</span></li><li><a href="https://github.com/chrisns/govbuy#tools" target="_blank" rel="noopener" class="tool-link"><code>get_schema / get_status</code></a><span>the schema + per-table freshness &amp; coverage</span></li>
+        <li><a href="https://github.com/chrisns/govbuy#tools" target="_blank" rel="noopener" class="tool-link"><code>research</code></a><span>the power surface: read-only BigQuery SQL over the whole corpus, a spend &amp; competition x-ray by CPV, or the schema / freshness &amp; coverage</span></li>
       </ul>
     </div></div>
 </section>
@@ -708,7 +708,7 @@ code{font-family:var(--font-mono);font-size:.92em}
     <div class="rule strong"></div>
     <div class="sh-row"><span class="eyebrow">Connect it</span><h2 class="sh-title">Set it up in your assistant — in a minute</h2></div>
   </header>
-  <p class="section-lede">govbuy is a remote <a href="https://modelcontextprotocol.io" target="_blank" rel="noopener">Model-Context-Protocol</a> server at <code>https://govbuy.run.cns.me/mcp</code> — streamable HTTP, free, unauthenticated, no API key. Add the URL to any MCP-capable client and the 17 tools appear. Recipes (current as of <span class="numeral">2026-06-12</span> — each links its official docs):</p>
+  <p class="section-lede">govbuy is a remote <a href="https://modelcontextprotocol.io" target="_blank" rel="noopener">Model-Context-Protocol</a> server at <code>https://govbuy.run.cns.me/mcp</code> — streamable HTTP, free, unauthenticated, no API key. Add the URL to any MCP-capable client and the five verbs appear. Recipes (current as of <span class="numeral">2026-06-13</span> — each links its official docs):</p>
   <div class="conn-grid">
     <article class="conn-card">
       <div class="conn-head"><h3>Claude Code</h3><span class="conn-kind">Terminal — one command</span></div>
@@ -829,7 +829,7 @@ code{font-family:var(--font-mono);font-size:.92em}
       <h4 class="cl-h">The corpus</h4>
       <ul class="cl-list">
         <li class="numeral">3,207 frameworks</li><li class="numeral">658,625 awards</li>
-        <li class="numeral">28,272 suppliers</li><li>data as of <span class="numeral">2026-06-12</span></li>
+        <li class="numeral">28,272 suppliers</li><li>data as of <span class="numeral">2026-06-13</span></li>
       </ul>
     </div>
   </div>

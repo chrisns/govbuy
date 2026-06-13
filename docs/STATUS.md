@@ -28,6 +28,26 @@ is the anti-fabrication anchor: a supplier/framework name not present in the arc
 quarantined, never published. Companies House matching is incremental + crash/429-resilient.
 Extraction workflows run on **Haiku** (gate-protected, cheap); re-discovery on Sonnet.
 
+## Surface: five intent verbs (CONSOLIDATED from 17 tools)
+The MCP exposes **5 verbs** mirroring how people ask — `buy`, `sell`, `supplier`, `framework`, `research`
+(each with a `depth: brief|full` knob) — over the same deduped capability functions. Fewer, well-named
+verbs route far better than 17 near-synonyms, and the depth lives behind fewer doors. ACs in
+[verbs-acceptance.md](verbs-acceptance.md). Nothing was lost; the mapping:
+- **buy** ← find_routes + find_services + compliant_path + plan_buy + compare_routes + benchmark_price
+  (one brief: route + mechanic + shortlist + price + **alternative routes** + checklist; route-first fallback
+  for DPS/framework-only needs with no catalogue listing).
+- **sell** ← find_instruments_to_list + supplier_pipeline + list_resellers + contract_expiry_radar.
+- **supplier** ← get_supplier + due_diligence (one CRN; the two-limb exclusion is computed once).
+- **framework** ← get_instrument + compliant_path.
+- **research** ← query_sql + spend_xray + get_schema + get_status.
+
+Sections below describe capabilities by their original names; each is now reached through the verb above.
+Two real bugs were fixed in the refactor: **(1)** `runQuery` passed `{autoPaginate:false}`, which returned the
+first results page even when the job was still running (`jobComplete:false` → **zero rows**) — so a slow query,
+or one of the ~6 a single `buy` fires in parallel, intermittently came back empty; now `bq.query()` waits for
+completion. **(2)** route relevance now **demotes generic domain words** (equipment/imaging/services…) so a
+specific token (e.g. `drone`) ranks its framework top instead of being buried.
+
 ## What's missing (and why)
 
 ### Supplier lists — 752 of 3,207 frameworks still have none, by reason ([details](access-barriers.md))

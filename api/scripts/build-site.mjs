@@ -201,12 +201,12 @@ function renderHtml(d) {
   };
   const tool = (t) => extLink(REPO + "#tools", `<code>${t}</code>`);
   const questions = [
-    { p: "buyer", q: "I'm a council. I need to host a containerised web app for ~£80k/year. Just tell me how to buy it.", o: `${tool("plan_buy")} → ${A(L.gc14, "G-Cloud 14")} call-off, a 3-supplier shortlist with real delivery records, the £176k median, and the PA2023 steps — one brief.` },
+    { p: "buyer", q: "I'm a council. I need to host a containerised web app for ~£80k/year. Just tell me how to buy it.", o: `${tool("buy")} → ${A(L.gc14, "G-Cloud 14")} call-off, a ranked shortlist with real delivery records, the £176k median, alternative routes, and the PA2023 steps — one brief.` },
     { p: "buyer", q: "A fire service needs drone thermal-imaging kit fast and compliantly — is a direct award allowed?", o: `${A(L.drones, "YPO Drones DPS 1148")} — <b>further competition only</b>, no direct award; the ${A(L.sch5, "Schedule 5")} urgency route explained, with the Feb-2029 DPS sunset flagged.` },
     { p: "buyer", q: "We're about to award to a supplier in liquidation — should we?", o: `The exclusion gate <b>stops you</b>: a live ${A(L.ch, "Companies House")} check + the ${A(L.s62, "s.62 debarment register")}, both PA2023 limbs.` },
-    { p: "buyer", q: "Which of the viable routes is best for a managed SOC — and why?", o: `${tool("compare_routes")} ranks ${A(L.css3, "Cyber Security 3 DPS")} vs ${A(L.ts4, "TS4")} vs ${A(L.ns3, "Network Services 3")} on speed × depth × runway × real price.` },
+    { p: "buyer", q: "Which of the viable routes is best for a managed SOC — and why?", o: `${tool("buy")} returns alternative routes ranking ${A(L.css3, "Cyber Security 3 DPS")} vs ${A(L.ts4, "TS4")} vs ${A(L.ns3, "Network Services 3")} on speed × depth × runway × real price.` },
     { p: "seller", q: "I've built an AI triage tool but I'm on no framework. How do I get in front of the NHS this quarter?", o: `Get admitted to an AI dynamic market (${A(L.rm6200, "RM6200")} / ${A(L.ht, "HealthTrust")}) — continuous joining; plus where NHS commissioners actually shop.` },
-    { p: "seller", q: "Find me an incumbent on a big contract that's expiring, and how to compete.", o: `${tool("contract_expiry_radar")} surfaces the displacement window — incumbent, value, end date, the route to re-bid.` },
+    { p: "seller", q: "Find me an incumbent on a big contract that's expiring, and how to compete.", o: `${tool("sell")} surfaces the displacement window — incumbents whose contracts are ending, value, end date, the route to re-bid.` },
     { p: "seller", q: "I rent out goats that clear invasive scrub. How do I sell conservation grazing to the public sector?", o: "An honest answer: no grazing framework exists; the money flows via grounds-maintenance primes — subcontract, and chase sub-threshold local notices." },
     { p: "researcher", q: "Is the public sector overpaying by buying IT through framework call-offs instead of open competition?", o: "In IT the median call-off (£183k) runs <b>above</b> open tender (£140k) — a real convenience premium; every other sector inverts." },
     { p: "researcher", q: "Map the 'thin-prime' economy — who fronts other firms onto public frameworks, and how much flows there?", o: `${gbp(resellerTotal)} of call-off spend traced to the reseller layer — ${A(L.softcat, "Softcat")}, ${A(L.phoenix, "Phoenix")}, ${A(L.cdw, "CDW")}, ${A(L.bramble, "Bramble Hub")}…` },
@@ -222,26 +222,15 @@ function renderHtml(d) {
 
   const tools = [
     ["Buyer", [
-      ["find_routes", "frameworks that fit a need + permitted mechanics"],
-      ["find_services", "the catalogue listing that does it — semantic + proof-of-delivery"],
-      ["compliant_path", "how to call it off — Procurement-Act-2023-precise"],
-      ["plan_buy", "one opinionated brief: route + shortlist + price + exclusion + checklist"],
-      ["compare_routes", "a decision matrix: speed × competition × depth × runway × price"],
-      ["benchmark_price", "what the public sector really paid (median / p25–p75)"],
-      ["due_diligence", "is this supplier safe? two-limb live exclusion + delivery record"],
-      ["get_supplier", "one supplier — exclusion, full framework footprint, evidence"],
+      ["buy", "one opinionated brief: route + PA2023 mechanic + ranked shortlist (track record + exclusion) + price + alternative routes + compliance checklist"],
+      ["supplier", "is this firm safe? a two-limb live exclusion check + its full framework footprint + CRN-matched delivery record"],
+      ["framework", "one instrument: lots, appointed + observed-from-awards suppliers, coverage, and the PA2023-precise call-off path"],
     ]],
     ["Seller", [
-      ["find_instruments_to_list", "frameworks & live DPS you can still join"],
-      ["supplier_pipeline", "live + forward opportunities, incumbents to displace, resellers"],
-      ["contract_expiry_radar", "incumbents whose contracts are running out"],
-      ["list_resellers", "thin-primes & VARs that can carry you in"],
+      ["sell", "your route to market: frameworks & live DPS you can join, ranked by REAL call-off spend, live + forward opportunities, incumbents to displace, and resellers who can carry you in"],
     ]],
     ["Researcher", [
-      ["spend_xray", "how money flows by channel + market concentration"],
-      ["get_instrument", "one framework — suppliers, mechanics, observed-from-awards backfill"],
-      ["query_sql", "read-only BigQuery over the whole corpus"],
-      ["get_schema / get_status", "the schema + per-table freshness & coverage"],
+      ["research", "the power surface: read-only BigQuery SQL over the whole corpus, a spend & competition x-ray by CPV, or the schema / freshness & coverage"],
     ]],
   ];
   const toolCols = tools.map(([persona, list]) => `
@@ -396,13 +385,13 @@ ${MASTHEAD}
 </section>
 
 <section class="tools" id="tools">
-  ${sectionHeader("17 tools, 3 personas", "One MCP server, three jobs")}
+  ${sectionHeader("5 verbs, 3 personas", "Ask the way you think — buy, sell, research")}
   <div class="tool-grid">${toolCols}</div>
 </section>
 
 <section class="connect" id="connect">
   ${sectionHeader("Connect it", "Set it up in your assistant — in a minute")}
-  <p class="section-lede">govbuy is a remote <a href="https://modelcontextprotocol.io" target="_blank" rel="noopener">Model-Context-Protocol</a> server at <code>${esc(URL_MCP)}</code> — streamable HTTP, free, unauthenticated, no API key. Add the URL to any MCP-capable client and the 17 tools appear. Recipes (current as of <span class="numeral">${d.generated}</span> — each links its official docs):</p>
+  <p class="section-lede">govbuy is a remote <a href="https://modelcontextprotocol.io" target="_blank" rel="noopener">Model-Context-Protocol</a> server at <code>${esc(URL_MCP)}</code> — streamable HTTP, free, unauthenticated, no API key. Add the URL to any MCP-capable client and the five verbs appear. Recipes (current as of <span class="numeral">${d.generated}</span> — each links its official docs):</p>
   <div class="conn-grid">${connectCards}</div>
 </section>
 
