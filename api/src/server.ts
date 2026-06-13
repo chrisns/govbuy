@@ -26,7 +26,7 @@ const CE = tableRef("claim_evidence");
 // `(SELECT … ORDER BY confidence LIMIT 1)` fixes the duplication but BigQuery can't de-correlate it across
 // tables (runtime error). So we pre-group claim_evidence to ONE highest-confidence row per evidence_id and
 // LEFT JOIN that — one row per parent, and a plain de-correlatable join: `LEFT JOIN ${EVAGG} x` → `x.ev`.
-const EVAGG = `(SELECT evidence_id, ARRAY_AGG(STRUCT(source_url, source_kind, excerpt, licence, confidence)
+const EVAGG = `(SELECT evidence_id, ARRAY_AGG(STRUCT(source_url, CONCAT('https://web.archive.org/web/2/', source_url) AS archived_url, source_kind, excerpt, licence, confidence)
         ORDER BY confidence DESC LIMIT 1)[OFFSET(0)] AS ev FROM ${CE} GROUP BY evidence_id)`;
 
 // Tokenise a free-text need into significant terms (drop stopwords) for ANY-token matching.
@@ -59,6 +59,37 @@ function dataResidencyNote(text: string): string | undefined {
   return undefined;
 }
 
+// Tiny in-process TTL memo for static REFERENCE data (PA2023 rules, payment caveats, schema) that every
+// buy/framework call re-reads. Read-only analytics; staleness within the TTL is harmless and it cuts both
+// BigQuery cost and latency. NOT used for anything supplier/award-specific. (Rate limiting lives in index.ts.)
+const _memo = new Map<string, { at: number; v: unknown }>();
+async function memo<T>(key: string, ttlMs: number, fn: () => Promise<T>): Promise<T> {
+  const hit = _memo.get(key);
+  if (hit && Date.now() - hit.at < ttlMs) return hit.v as T;
+  const v = await fn();
+  _memo.set(key, { at: Date.now(), v });
+  return v;
+}
+
+// A Wayback "latest snapshot" link for a source URL, so a citation survives the live page changing/404ing.
+// Deterministic (no fetch); resolves to the newest capture if one exists, else Wayback's not-archived page.
+function waybackUrl(u: unknown): string | null {
+  return typeof u === "string" && /^https?:\/\//.test(u) ? `https://web.archive.org/web/2/${u}` : null;
+}
+
+// Working-day date arithmetic (UK), for the draft timetable. Skips Sat/Sun (bank holidays are flagged in
+// prose, not modelled). Returns an ISO date string N working days after `from`.
+function addWorkingDays(from: Date, n: number): string {
+  const d = new Date(from.getTime());
+  let added = 0;
+  while (added < n) {
+    d.setUTCDate(d.getUTCDate() + 1);
+    const day = d.getUTCDay();
+    if (day !== 0 && day !== 6) added++;
+  }
+  return d.toISOString().slice(0, 10);
+}
+
 const LOTS = (a: string) => `ARRAY(SELECT AS STRUCT l.lot_id, l.number, l.title, l.scope FROM ${tableRef("lot")} l WHERE l.instrument_id = ${a}.instrument_id)`;
 // Evidence is attached via a LEFT JOIN to the pre-grouped EVAGG (one row per evidence_id), NOT a raw join
 // onto claim_evidence: a mechanic/doc whose evidence_id has multiple claim_evidence rows would otherwise
@@ -67,6 +98,9 @@ const MECHANICS = (a: string) => `ARRAY(SELECT AS STRUCT m.mechanic, m.permitted
 const DOCS = (a: string) => `ARRAY(SELECT AS STRUCT d.doc_type, d.title, d.url, d.required_for_purchase, dev.ev AS evidence FROM ${tableRef("buying_doc")} d LEFT JOIN ${EVAGG} dev ON dev.evidence_id = d.evidence_id WHERE d.instrument_id = ${a}.instrument_id)`;
 
 async function paymentCaveats(): Promise<unknown[]> {
+  return memo("payment_caveats", 600_000, _paymentCaveats);
+}
+async function _paymentCaveats(): Promise<unknown[]> {
   try {
     const rows = await runQuery(`SELECT mechanism, permitted_for_procurement, notes FROM ${tableRef("payment_mechanism")} WHERE is_route = FALSE ORDER BY mechanism`);
     if (rows.length) return rows.map((r) => ({ mechanism: r.mechanism, is_route: false, permitted_for_procurement: r.permitted_for_procurement, notes: r.notes }));
@@ -82,9 +116,21 @@ const DEBARMENT_SRC = "https://www.gov.uk/government/publications/debarment-list
 const DISTRESS = new Set(["dissolved", "liquidation", "administration", "closed", "receivership",
   "insolvency-proceedings", "voluntary-arrangement", "converted-closed", "in-administration"]);
 
-// Live Companies House status for one CRN (the supplier you're about to award). Returns null when the
+// Live Companies House profile for one CRN (the supplier you're about to award). Returns null when the
 // service has no CH key, or on any error/timeout — callers fall back to the ingest-time snapshot.
-async function liveChStatus(crn: string | null | undefined): Promise<{ status: string; checked_at: string } | null> {
+// The SAME /company/{crn} response carries size/locality signals (SIC, accounts category, registered
+// office), so we derive an SME/region lens here with no extra crawl. `status` powers the exclusion gate.
+interface ChProfile {
+  status: string;
+  checked_at: string;
+  sic_codes: string[];
+  company_type: string | null;
+  incorporated_on: string | null;
+  registered_office_region: string | null;
+  registered_office_postcode_area: string | null;
+  accounts_category: string | null;
+}
+async function liveChProfile(crn: string | null | undefined): Promise<ChProfile | null> {
   const key = process.env.COMPANIES_HOUSE_API;
   if (!key || !crn) return null;
   try {
@@ -94,10 +140,49 @@ async function liveChStatus(crn: string | null | undefined): Promise<{ status: s
       { headers: { Authorization: `Basic ${Buffer.from(key + ":").toString("base64")}` }, signal: ctrl.signal });
     clearTimeout(t);
     if (!res.ok) return null;
-    const j = (await res.json()) as { company_status?: string };
+    const j = (await res.json()) as {
+      company_status?: string; sic_codes?: string[]; type?: string; date_of_creation?: string;
+      registered_office_address?: { region?: string; locality?: string; postal_code?: string };
+      accounts?: { last_accounts?: { type?: string } };
+    };
     if (!j.company_status) return null;
-    return { status: j.company_status, checked_at: new Date().toISOString() };
+    const office = j.registered_office_address ?? {};
+    return {
+      status: j.company_status,
+      checked_at: new Date().toISOString(),
+      sic_codes: Array.isArray(j.sic_codes) ? j.sic_codes : [],
+      company_type: j.type ?? null,
+      incorporated_on: j.date_of_creation ?? null,
+      registered_office_region: office.region ?? office.locality ?? null,
+      registered_office_postcode_area: (office.postal_code ?? "").trim().split(/\s+/)[0] || null,
+      accounts_category: j.accounts?.last_accounts?.type ?? null,
+    };
   } catch { return null; }
+}
+
+// Size / locality lens for one firm, from the live CH profile (Companies House only — never invented).
+// SME likelihood is read off the filed-accounts category (micro/small file abbreviated accounts); social
+// value isn't a CH field, so we surface the statutory DUTY (PA2023) rather than a fabricated score.
+function procurementLens(p: ChProfile | null): Record<string, unknown> | null {
+  if (!p) return null;
+  const cat = (p.accounts_category ?? "").toLowerCase();
+  const smeLikely = ["micro-entity", "micro", "small", "dormant", "total-exemption-small", "total-exemption-full"].some((c) => cat.includes(c));
+  const largeLikely = ["medium", "full", "group", "audited-abridged"].some((c) => cat.includes(c));
+  return {
+    source: "live_companies_house",
+    checked_at: p.checked_at,
+    company_type: p.company_type,
+    incorporated_on: p.incorporated_on,
+    sic_codes: p.sic_codes,
+    registered_office_region: p.registered_office_region,
+    registered_office_postcode_area: p.registered_office_postcode_area,
+    accounts_category: p.accounts_category,
+    sme_likely: smeLikely ? true : largeLikely ? false : null,
+    sme_basis: p.accounts_category
+      ? `Inferred from the filed-accounts category '${p.accounts_category}' (a CH signal, not a definitive SME determination — confirm against the PA2023/Companies Act size thresholds: turnover, balance-sheet, headcount).`
+      : "No filed-accounts category on the live Companies House record to infer size from.",
+    social_value_note: "Social value is not a Companies House field. Under PA2023 a contracting authority must have regard to its procurement objectives (incl. SME participation and the National Procurement Policy Statement / social-value priorities) — evidence this in the evaluation, don't infer it from the supplier record.",
+  };
 }
 
 // Is this CRN on the s.62 debarment register? (Register is currently blank; this still lets us state
@@ -113,8 +198,11 @@ async function debarmentEntry(crn: string | null | undefined): Promise<Record<st
 
 // Assemble the full exclusion verdict for a CRN: live-or-snapshot insolvency status + debarment, naming
 // both PA2023 limbs. `snapshot` is the ingest-time status_at_match (used when live is unavailable).
-async function exclusionFor(crn: string | null | undefined, snapshot: string | null | undefined) {
-  const [live, deb] = await Promise.all([liveChStatus(crn), debarmentEntry(crn)]);
+async function exclusionFor(crn: string | null | undefined, snapshot: string | null | undefined, prefetched?: ChProfile | null) {
+  const [live, deb] = await Promise.all([
+    prefetched !== undefined ? Promise.resolve(prefetched) : liveChProfile(crn),
+    debarmentEntry(crn),
+  ]);
   const effective = (live?.status ?? snapshot ?? "").toString();
   const insolvent = DISTRESS.has(effective);
   const debarred = !!deb;
@@ -161,7 +249,7 @@ async function withEvidence<T>(payload: T): Promise<T> {
   if (ids.size) {
     const rows = await runQuery(`SELECT evidence_id, source_url, source_kind, excerpt, licence, confidence FROM ${CE} WHERE evidence_id IN UNNEST(@ids)`, { params: { ids: [...ids] }, types: { ids: ["STRING"] } });
     const map: Record<string, unknown> = {};
-    for (const r of rows) map[r.evidence_id as string] = deep({ source_url: r.source_url, source_kind: r.source_kind, excerpt: r.excerpt, licence: r.licence, confidence: r.confidence });
+    for (const r of rows) map[r.evidence_id as string] = deep({ source_url: r.source_url, archived_url: waybackUrl(r.source_url), source_kind: r.source_kind, excerpt: r.excerpt, licence: r.licence, confidence: r.confidence });
     attachEv(payload, map);
   }
   return payload;
@@ -188,7 +276,8 @@ const RM_WHERE = `(ARRAY_LENGTH(@toks) = 0
    OR EXISTS (SELECT 1 FROM ${tableRef("lot")} l, UNNEST(@toks) tok WHERE l.instrument_id = i.instrument_id AND (REGEXP_CONTAINS(LOWER(l.title), CONCAT(r'\\b', tok, r'(?:es|s)?\\b')) OR REGEXP_CONTAINS(LOWER(IFNULL(l.scope,'')), CONCAT(r'\\b', tok, r'(?:es|s)?\\b')))))`;
 
 async function pa2023Rules() {
-  return (await runQuery(`SELECT topic, statement, source_url FROM ${tableRef("pa2023_rule")} ORDER BY topic`)).map((r) => deep(r));
+  return memo("pa2023_rules", 600_000, async () =>
+    (await runQuery(`SELECT topic, statement, source_url FROM ${tableRef("pa2023_rule")} ORDER BY topic`)).map((r) => deep(r)));
 }
 
 // ── capability functions (the deduped guts; verbs compose these) ──────────────────────────────────
@@ -326,6 +415,131 @@ async function capCompliantPath(a: A) {
       summary: "PA2023 (in force 24 Feb 2025) governs covered procurement in England/Wales/NI. A framework call-off (direct selection under the framework's objective mechanism, or further competition) is NOT a statutory direct award — ss.41/43 cannot be used for call-offs. Direct award without competition is lawful only on a Schedule 5 ground (+ a transparency notice). A competitive award needs an 8-working-day standstill after the contract award notice before signing. The regime is payment-method-blind — a GPC/purchase card confers no exemption.",
       rules: pa2023,
     },
+  };
+}
+
+// DRAFT: turn a chosen route into the SCAFFOLDING a buyer has to author — a real-dated procurement
+// timetable, a MEAT evaluation-matrix skeleton, a specification outline, the statutory compliance steps,
+// and (for a statutory direct award) a Schedule 5 / s.44 transparency-notice stub. Reuses the PA2023-precise
+// mechanic from capCompliantPath; pure templating + working-day date maths. Explicitly NOT the document.
+async function capDraft(a: A) {
+  // Resolve the route: explicit rm/instrument, else infer the top route for the need.
+  let rm = a.rm_reference as string | undefined;
+  let iid = a.instrument_id as string | undefined;
+  if (!rm && !iid) {
+    if (!tokenize(a.need || "").length) throw new BadInput("INVALID_QUERY", "Provide a need (e.g. 'managed SOC'), or an rm_reference / instrument_id.");
+    const cmp = await capCompare({ need: a.need, cpv: a.cpv, limit: 1 }).catch(() => null);
+    const top = (cmp?.routes ?? [])[0] as A | undefined;
+    if (!top) throw new BadInput("UNKNOWN", `No route matched '${a.need}'. Use buy({need}) to explore routes first.`);
+    rm = top.rm_reference ?? undefined;
+  }
+  const cp = await capCompliantPath({ instrument_id: iid, rm_reference: rm });
+  const inst = cp.instrument as Record<string, unknown>;
+  const mechs = (cp.award_mechanics as Record<string, unknown>[]) ?? [];
+  const permitted = mechs.filter((m) => m.permitted);
+  const hasDirectCalloff = permitted.some((m) => m.mechanic === "call_off_no_further_competition");
+  const hasFurtherComp = permitted.some((m) => m.mechanic === "further_competition");
+  // Choose the route: caller override, else fastest permitted call-off, else further competition.
+  const route: string = a.route ?? (hasDirectCalloff ? "framework_call_off" : hasFurtherComp ? "further_competition" : "further_competition");
+  const today = new Date();
+  const D = (n: number) => addWorkingDays(today, n);
+
+  const exclusionStep = "Run exclusion checks on each candidate: PA2023 Schedule 6 (mandatory) & 7 (discretionary) grounds, the s.62 debarment register, and each supplier's LIVE Companies House status (use supplier({query})).";
+  const kpiStep = "If the contract value is ≥ £5m, set and publish at least three KPIs and report against them annually (PA2023 s.52).";
+  const socialValueStep = "Have regard to the National Procurement Policy Statement and your procurement objectives (incl. SME participation and social value) — build them into the award criteria, and record the rationale (PA2023 ss.12–13).";
+
+  let timetable: { step: string; target_date: string; basis: string }[];
+  let evaluation_matrix: unknown;
+  let specification_outline: string[];
+  let route_specific: Record<string, unknown> = {};
+  const compliance_checklist: string[] = [];
+
+  if (route === "direct_award") {
+    timetable = [
+      { step: "Confirm a lawful Schedule 5 direct-award ground applies and document the justification", target_date: D(0), basis: "PA2023 s.41 + Schedule 5" },
+      { step: exclusionStep.replace("each candidate", "the supplier"), target_date: D(3), basis: "PA2023 Sch 6/7 + s.62" },
+      { step: "Publish a transparency notice BEFORE entering the contract", target_date: D(5), basis: "PA2023 s.44 transparency notice" },
+      { step: "Voluntary standstill (good practice for a direct award, not mandatory) — 8 working days", target_date: D(13), basis: "PA2023 s.51 (mandatory only for competitive awards)" },
+      { step: "Enter the contract; publish a contract details notice within 30 days", target_date: D(14), basis: "PA2023 s.53" },
+    ];
+    evaluation_matrix = { note: "A direct award is by exception and not competed, so there is no comparative evaluation matrix — instead evidence the Schedule 5 ground and value-for-money below." };
+    specification_outline = ["Statement of requirement", "Why a Schedule 5 ground applies (the facts)", "Value-for-money assessment (how the price was tested without competition)", "Contract terms & duration", "KPIs (if ≥ £5m)"];
+    route_specific = {
+      schedule5_justification_scaffold: {
+        instructions: "Complete ONE qualifying ground with the supporting facts. A direct award is lawful only if a Schedule 5 ground is genuinely met — do not retrofit one.",
+        candidate_grounds: ["No suitable tenders / no requests to participate received in a prior competition", "Only one supplier can deliver (technical reasons / exclusive rights / IP)", "Extreme urgency from unforeseeable events not attributable to the authority", "Additional/repeat goods or services from the original supplier where switching is disproportionate"],
+        ground_relied_on: "<<state the Schedule 5 ground>>", supporting_facts: "<<the evidence that the ground is met>>", value_for_money_basis: "<<how price/terms were assured without competition>>",
+      },
+      s44_transparency_notice_fields: { contracting_authority: "<<name>>", supplier: "<<name + CRN>>", contract_subject: "<<short description>>", estimated_value_gbp: a.budget_gbp ?? "<<value>>", legal_basis: "PA2023 s.41 direct award, Schedule 5 ground: <<ground>>", publish_before: D(5) },
+    };
+    compliance_checklist.push(
+      "A direct award is the exception, not the default — it is lawful ONLY on a genuine Schedule 5 ground.",
+      "Publish the s.44 transparency notice BEFORE signing.",
+      exclusionStep.replace("each candidate", "the supplier"), kpiStep, socialValueStep,
+      "Confirm this is genuinely a statutory direct award and NOT a framework call-off (call-offs use the framework's own mechanism, not Schedule 5).",
+    );
+  } else if (route === "framework_call_off") {
+    timetable = [
+      { step: "Confirm the framework is live, your organisation is an eligible buyer, and the requirement is within lot scope", target_date: D(0), basis: `${inst.name ?? "framework"} ${inst.expires_on ? "(expires " + inst.expires_on + ")" : ""}` },
+      { step: "Apply the framework's objective call-off award criteria and record the MEAT rationale for the chosen supplier", target_date: D(2), basis: "framework call-off (no further competition)" },
+      { step: exclusionStep, target_date: D(3), basis: "PA2023 Sch 6/7 + s.62" },
+      { step: "Place the call-off using the framework's order form / call-off contract", target_date: D(4), basis: "framework terms" },
+      { step: "Publish a contract details notice within 30 days if above threshold", target_date: D(5), basis: "PA2023 s.53" },
+    ];
+    evaluation_matrix = {
+      note: "Direct call-off uses the framework's OWN objective award criteria — apply them to select without a fresh competition. Template weighting to complete:",
+      criteria: [{ criterion: "Technical / quality fit to requirement", weighting_pct: "<<e.g. 60>>" }, { criterion: "Social value", weighting_pct: "<<e.g. 10>>" }, { criterion: "Price / whole-life cost", weighting_pct: "<<e.g. 30>>" }],
+      rule: "Weightings and sub-criteria must match the framework's permitted call-off criteria — check the framework's call-off guidance.",
+    };
+    specification_outline = ["Statement of requirement / outcomes", "Scope & deliverables", "Service levels / KPIs", "Selection basis against the framework's call-off criteria", "Call-off term, options & exit", "Pricing approach"];
+    compliance_checklist.push(
+      "A framework call-off is NOT a statutory direct award — apply the framework's objective mechanism, not Schedule 5.",
+      "No standstill is required for a direct call-off without further competition.",
+      exclusionStep, kpiStep, socialValueStep,
+      "A GPC card / marketplace billing is a settlement mechanism, never the route, and confers no exemption.",
+    );
+  } else {
+    // further competition (the default for DPS / dynamic markets and competed framework call-offs)
+    timetable = [
+      { step: "Confirm all appointed suppliers in scope are invited (no pre-exclusion); finalise the invitation pack & evaluation model", target_date: D(0), basis: "equal-treatment duty; framework further-competition rules" },
+      { step: "Issue the invitation to submit tenders to the appointed suppliers", target_date: D(1), basis: "framework further competition" },
+      { step: "Clarification-question deadline", target_date: D(6), basis: "fair & reasonable response window" },
+      { step: "Tender submission deadline", target_date: D(16), basis: "proportionate to complexity (set your own period)" },
+      { step: "Evaluate against the published award criteria; moderate & record scores", target_date: D(26), basis: "MEAT evaluation" },
+      { step: "Issue award decision notices to all bidders, then observe an 8-working-day standstill", target_date: D(28), basis: "PA2023 s.51 standstill (recommended for call-offs; mandatory for competitive awards)" },
+      { step: "Enter the contract; publish a contract details notice within 30 days", target_date: D(40), basis: "PA2023 s.53" },
+    ];
+    evaluation_matrix = {
+      note: "MEAT (most economically advantageous tender) skeleton — set weightings and sub-criteria to your requirement and publish them in the invitation. Placeholder weightings to complete:",
+      criteria: [
+        { criterion: "Quality / technical merit", weighting_pct: "<<e.g. 50>>", sub_criteria: ["<<approach>>", "<<team / capability>>", "<<service levels>>"] },
+        { criterion: "Social value", weighting_pct: "<<e.g. 10>>", sub_criteria: ["<<NPPS priority outcomes>>"] },
+        { criterion: "Price / whole-life cost", weighting_pct: "<<e.g. 40>>", sub_criteria: ["<<pricing model>>"] },
+      ],
+      scoring_scale: "Define a scale (e.g. 0–5) with descriptors per score, and the price↔quality trade-off (e.g. lowest-price-per-quality-point or weighted scoring).",
+    };
+    specification_outline = ["Background & objectives", "Scope & detailed requirements / outcomes", "Service levels & KPIs", "Award criteria & weightings (publish in the ITT)", "Form of contract & duration", "Pricing schedule / response format", "Implementation & exit"];
+    compliance_checklist.push(
+      "Invite all in-scope appointed suppliers and treat them equally; publish the award criteria and weightings up front.",
+      "Observe an 8-working-day standstill after issuing award decision notices before signing (PA2023 s.51).",
+      exclusionStep, kpiStep, socialValueStep,
+      "On a DPS / dynamic market you CANNOT direct-award — a further competition is required.",
+      "A GPC card / marketplace billing is a settlement mechanism, never the route.",
+    );
+  }
+
+  return {
+    scaffolding_only: "⚠ This is editable SCAFFOLDING to help you START the procurement documents — NOT the documents themselves, NOT legal advice, and NOT the authority of record. Every <<placeholder>> must be completed and reviewed by the responsible commercial/legal owner against the framework's own call-off rules and PA2023. Dates are working-day estimates from today and exclude bank holidays — adjust to your timetable.",
+    requirement: a.need ?? null,
+    chosen_route: route,
+    route_options_available: { direct_call_off_no_further_competition: hasDirectCalloff, further_competition: hasFurtherComp },
+    instrument: { name: inst.name, rm_reference: inst.rm_reference, lifecycle_status: inst.lifecycle_status, expires_on: inst.expires_on, official_url: inst.official_url },
+    procurement_timetable: timetable,
+    evaluation_matrix,
+    specification_outline,
+    ...route_specific,
+    compliance_checklist,
+    procurement_act_2023: cp.procurement_act_2023,
   };
 }
 
@@ -477,8 +691,30 @@ async function capInstrument(a: A) {
                    FROM ${tableRef("observed_mechanic")} WHERE rm_reference = @rm LIMIT 1`, { params: { rm }, types: { rm: "STRING" } }) : Promise.resolve([]),
   ]);
   const observedSuppliers = (obsSup as Record<string, unknown>[]).map(deep);
+  // Per-lot supplier membership: appointed_supplier carries lot_id, so roll the appointed list up by lot
+  // (joined to the instrument's lots). Lets a buyer see exactly who's appointed to Lot 2, not just the
+  // framework as a whole. Suppliers with a NULL lot_id are appointed instrument-wide.
+  const lots = (r.lots as Record<string, unknown>[]) ?? [];
+  const lotName = new Map(lots.map((l) => [String(l.lot_id), l]));
+  const byLot = new Map<string, Record<string, unknown>[]>();
+  for (const s of suppliers) {
+    const lid = (s as Record<string, unknown>).lot_id;
+    const key = lid == null ? "__instrument_wide__" : String(lid);
+    (byLot.get(key) ?? byLot.set(key, []).get(key)!).push(s as Record<string, unknown>);
+  }
+  const suppliersByLot = [...byLot.entries()].map(([lid, sups]) => {
+    const l = lid === "__instrument_wide__" ? null : lotName.get(lid);
+    return {
+      lot_id: lid === "__instrument_wide__" ? null : lid,
+      lot_number: l ? l.number ?? null : null,
+      lot_title: l ? l.title ?? null : (lid === "__instrument_wide__" ? "Appointed instrument-wide (no lot specified)" : lid),
+      supplier_count: sups.length,
+      suppliers: sups.map((s) => ({ display_name: s.display_name, company_number: s.company_number, ch_url: s.ch_url, membership: s.membership })),
+    };
+  }).sort((x, y) => y.supplier_count - x.supplier_count);
   return {
     instrument: { ...r, appointed_suppliers: suppliers },
+    suppliers_by_lot: suppliersByLot.length > 1 || (suppliersByLot[0] && suppliersByLot[0].lot_id) ? suppliersByLot : [],
     observed_from_awards: {
       note: "INFERRED from real award notices (658k awards) citing this RM reference — evidence a supplier has actually transacted on it, NOT official appointed-membership. Useful where the official list/mechanic is absent.",
       suppliers: observedSuppliers,
@@ -694,10 +930,12 @@ async function capSpendXray(a: A) {
 }
 
 async function capSchema() {
-  const rows = await runQuery(`SELECT table_name, column_name, data_type FROM \`${config.project}.${config.publicDataset}.INFORMATION_SCHEMA.COLUMNS\` ORDER BY table_name, ordinal_position`);
-  const tables: Record<string, { column: unknown; type: unknown }[]> = {};
-  for (const r of rows) (tables[r.table_name as string] ??= []).push({ column: r.column_name, type: r.data_type });
-  return { dataset: `${config.project}.${config.publicDataset}`, max_bytes_per_query: config.maxBytesHuman, tables };
+  return memo("schema", 600_000, async () => {
+    const rows = await runQuery(`SELECT table_name, column_name, data_type FROM \`${config.project}.${config.publicDataset}.INFORMATION_SCHEMA.COLUMNS\` ORDER BY table_name, ordinal_position`);
+    const tables: Record<string, { column: unknown; type: unknown }[]> = {};
+    for (const r of rows) (tables[r.table_name as string] ??= []).push({ column: r.column_name, type: r.data_type });
+    return { dataset: `${config.project}.${config.publicDataset}`, max_bytes_per_query: config.maxBytesHuman, tables };
+  });
 }
 
 // ──────────────────────────────────────────────────────────────────────────────────────────────────
@@ -707,12 +945,14 @@ export function buildServer(): McpServer {
     {
       instructions:
         "govbuy answers, in plain English, how to BUY / SELL / understand anything in UK public procurement — fusing 3,200 frameworks & dynamic markets + 117k catalogue listings with 658k real tender awards (Companies House CRN) and the Procurement Act 2023. " +
-        "FIVE verbs mirror how people ask: " +
+        "SEVEN verbs mirror how people ask: " +
         "• buy({need, cpv?, budget_gbp?, depth?}) — an opinionated BUYER brief: recommended route + PA2023 mechanic, a ranked shortlist of real listings (CRN delivery record + two-limb exclusion), indicative price, forward pipeline, ALTERNATIVE routes (decision matrix on speed/competition/supplier-depth/runway), and a compliance checklist. " +
         "• sell({product, cpv?, open_only?, depth?}) — a SELLER's go-to-market: frameworks/live DPS you can join, frameworks ranked by REAL call-off spend, live + forward opportunities, incumbents to displace (contract-end windows), and resellers who can carry you in. " +
         "• supplier({query, depth?}) — one firm by name or CRN: a TWO-LIMB PA2023 exclusion check (a LIVE Companies House status + the s.62 debarment register), the canonical-reconciled framework footprint, award-evidenced frameworks, and the CRN-matched delivery record. " +
         "• framework({id? , rm_reference?, depth?}) — one instrument: lots, lifecycle, appointed suppliers, observed-from-awards backfill, coverage, AND the PA2023-precise permitted award mechanics + statutory rules. " +
         "• research({sql?, cpv?, schema?, status?}) — read-only BigQuery SQL (the escape hatch), or a spend x-ray for a CPV division (channel mix + concentration), or the schema / freshness+status. " +
+        "• draft({need?|rm_reference?, route?}) — editable SCAFFOLDING to START the procurement: a real-dated timetable, a MEAT evaluation-matrix skeleton, a spec outline, the route-correct PA2023 compliance steps, and (for a direct award) a Schedule 5 / s.44 stub. Not the documents, not legal advice — complete every placeholder. " +
+        "• watch({what, cpv?, keyword?}) — a re-runnable saved query for contract expiries or the forward pipeline (govbuy is request/response; diff successive runs to spot change). " +
         "depth:'full' on buy/sell/supplier/framework widens the payload (more candidates, full price distribution, deeper detail); default 'brief'. " +
         "STEERING: surface every URL as a clickable markdown link with the thing's name as the link text (framework official_url, supplier ch_url = Companies House, evidence.source_url). If an exclusion is flagged, LEAD with the ⚠ and name the limb (insolvency Sch 6/7 vs s.62 debarment); exclusion.insolvency.source tells you if the Companies House status is a LIVE check or an ingest snapshot. A framework call-off is NOT a statutory direct award. A NULL track record is absence of evidence, not incapacity. Where an official supplier list/mechanic is missing, observed-from-awards backfills it — label it inferred, not official. When the need processes data (AI/ML, transcription, hosting, personal/sensitive content), prompt the buyer to confirm UK/EEA data residency + UK-GDPR. " +
         "GROUNDING (critical): every specific £ figure, framework/RM reference, supplier name and URL you give MUST come verbatim from a tool result — never invent, estimate, or infer one; if govbuy doesn't return it, say so or call research/sql. govbuy documents routes; it does not assemble the purchase or give legal advice — confirm on the official source it links.",
@@ -818,18 +1058,22 @@ export function buildServer(): McpServer {
       const looksCrn = /^[A-Z]{0,2}[0-9]{6,8}$/i.test(a.query.trim());
       const profile = await capSupplierProfile(looksCrn ? { crn: a.query.trim() } : { name: a.query });
       const crn = (profile as A)._crn as string | null;
+      // One live Companies House read, shared by the exclusion gate and the size/locality lens.
+      const live = await liveChProfile(crn);
       const [exclusion, delivery] = await Promise.all([
-        exclusionFor(crn, (profile as A)._status as string | null),
+        exclusionFor(crn, (profile as A)._status as string | null, live),
         crn || !looksCrn ? capDeliveryRecord(crn ? { crn } : { supplier: a.query }).catch(() => ({ profile: {}, sinfo: {} })) : Promise.resolve({ profile: {}, sinfo: {} }),
       ]);
       const p = { ...profile } as Record<string, unknown>;
       delete p._crn; delete p._status;
+      const lens = procurementLens(live);
       return ok(withFreshness({
         ...p,
         exclusion,
+        ...(lens ? { size_and_locality: lens } : {}),
         delivery_record: (delivery as A).profile,
         note: "One supplier: a two-limb PA2023 exclusion check (live Companies House insolvency + s.62 debarment), the canonical-reconciled framework footprint, award-evidenced frameworks, and the CRN-matched delivery record (call-off channels, £ ceiling outliers removed). top_buyer_pct_of_calloff >50% = single-customer risk; high pct_direct_award = wins by direct award not competition. NULL/absent = no matched awards, not proof of incapacity. " + NOT_ADVICE,
-        display_guidance: "If exclusion.flagged, LEAD with the ⚠ and state the limb (insolvency Sch 6/7 vs s.62 debarment); exclusion.insolvency.source = live_companies_house means checked live just now, else re-check. Then the framework footprint + frameworks_evidenced_by_awards (RMs really won), then the delivery record (£ won, concentration, competitive-vs-direct). Always link ch_url. " + DISPLAY_GUIDANCE,
+        display_guidance: "If exclusion.flagged, LEAD with the ⚠ and state the limb (insolvency Sch 6/7 vs s.62 debarment); exclusion.insolvency.source = live_companies_house means checked live just now, else re-check. Then the framework footprint + frameworks_evidenced_by_awards (RMs really won), then the delivery record (£ won, concentration, competitive-vs-direct). When size_and_locality is present, report sme_likely (with its accounts-category basis) and the registered-office region as Companies-House signals — never assert SME status definitively, and treat social value as a PA2023 duty to evidence, not a supplier attribute. Always link ch_url. " + DISPLAY_GUIDANCE,
       }, await freshness()));
     }),
   );
@@ -884,5 +1128,104 @@ export function buildServer(): McpServer {
     }),
   );
 
+  server.registerTool(
+    "draft",
+    {
+      title: "Draft — scaffolding for the procurement documents",
+      description:
+        "BUYER. 'Help me actually run this.' Turns a chosen route into editable SCAFFOLDING you start from: a real-dated procurement timetable (working days from today), a MEAT evaluation-matrix skeleton (criteria + placeholder weightings), a specification outline, the route-correct PA2023 compliance checklist, and — for a statutory direct award — a Schedule 5 justification scaffold + s.44 transparency-notice fields. Give a `need` (it picks the fitting route) or an `rm_reference`/`instrument_id`; optionally force `route` ('framework_call_off' = direct call-off, 'further_competition', or 'direct_award'). It composes the same PA2023-precise mechanic as framework(). NOT legal advice and NOT the documents — every <<placeholder>> must be completed and reviewed; dates exclude bank holidays. Anti-patterns: never present a direct award as the default; never call a framework call-off a statutory direct award; keep the scaffolding_only banner.",
+      inputSchema: { need: z.string().optional(), rm_reference: z.string().optional(), instrument_id: z.string().optional(), route: z.enum(["framework_call_off", "further_competition", "direct_award"]).optional(), budget_gbp: z.number().optional(), depth: z.enum(["brief", "full"]).default("brief") },
+    },
+    guard(async (a) => {
+      const draft = await capDraft(a);
+      return ok(withFreshness({
+        ...draft,
+        note: "Editable scaffolding to START the procurement, composed from the framework's PA2023-precise mechanic + statutory rules. " + NOT_ADVICE,
+        display_guidance: "LEAD with the scaffolding_only banner and the chosen_route. Present the timetable as a dated list, the evaluation_matrix as a table (flag every <<placeholder>>), then the specification outline and the compliance checklist verbatim. For a direct award, foreground the Schedule 5 justification scaffold and that it's the exception. Link the instrument's official_url. " + DISPLAY_GUIDANCE,
+      }, await freshness()));
+    }),
+  );
+
+  server.registerTool(
+    "watch",
+    {
+      title: "Watch — a re-runnable saved query for changes",
+      description:
+        "BUYER/SELLER. 'Tell me when X changes.' Returns the CURRENT matches plus a `saved_query` block — the exact verb + arguments to re-run on a schedule, and what to diff against last time — so an assistant can poll it. `what:'expiry'` = contracts ending within a horizon (re-procurement deadlines / displacement windows); `what:'pipeline'` = forward planned-procurement notices. Filter by `cpv` (2-digit division), `keyword`, `supplier`, `horizon_months`. MCP is request/response, so this is a saved query to re-run, not a push subscription.",
+      inputSchema: { what: z.enum(["expiry", "pipeline"]), cpv: z.string().optional(), keyword: z.string().optional(), supplier: z.string().optional(), horizon_months: z.number().int().min(1).max(36).optional() },
+    },
+    guard(async (a) => {
+      const horizon = a.horizon_months ?? 12;
+      const results = a.what === "expiry"
+        ? await capExpiry({ cpv: a.cpv, keyword: a.keyword, supplier: a.supplier, horizon_months: horizon, limit: 30 })
+        : (await capPipeline({ cpv: a.cpv, need: a.keyword, limit: 30 })).coming_soon_pipeline;
+      return ok(withFreshness({
+        what: a.what,
+        current_matches: results,
+        match_count: Array.isArray(results) ? results.length : 0,
+        saved_query: {
+          rerun_tool: a.what === "expiry" ? "sell or watch" : "sell or watch",
+          rerun_with: { tool: "watch", arguments: { what: a.what, cpv: a.cpv ?? null, keyword: a.keyword ?? null, supplier: a.supplier ?? null, horizon_months: horizon } },
+          how_to_detect_change: a.what === "expiry"
+            ? "Re-run on a cadence (e.g. weekly). New rows that weren't present last time are newly-surfaced expiries; rows whose months_to_end has dropped are getting urgent."
+            : "Re-run on a cadence. New buyer_name/title rows are freshly-published planned procurements to prepare a bid for.",
+          cadence_suggestion: a.what === "expiry" ? "weekly" : "fortnightly",
+        },
+        note: "A saved, re-runnable query (govbuy is request/response — there is no push). Compare successive runs to spot what changed. " + NOT_ADVICE,
+        display_guidance: "Show the current matches (link each official_url), then state the saved_query plainly so the user can re-run it on the suggested cadence. " + DISPLAY_GUIDANCE,
+      }, await freshness()));
+    }),
+  );
+
+  // ── MCP prompts: curated, one-click workflows the host can surface to users ──
+  server.registerPrompt("compliant-buy",
+    { title: "Compliant buy brief", description: "Produce a full, source-anchored buying brief for a need: route, mechanic, shortlist, price, exclusions, alternatives, compliance.", argsSchema: { need: z.string(), cpv: z.string().optional() } },
+    ({ need, cpv }) => ({ messages: [{ role: "user", content: { type: "text", text: `Using the govbuy tools, give me a compliant buying brief for: "${need}".${cpv ? ` Use CPV division ${cpv}.` : ""} Call buy({need${cpv ? ", cpv" : ""}, depth:"full"}); LEAD with the recommended route + PA2023 mechanic, then the ranked shortlist (link each listing + Companies House URL, show the CRN-matched track record, and LEAD any exclusion ⚠), the indicative price range, the alternative routes as a comparison, the forward pipeline, and the compliance checklist verbatim. Then offer to draft({need}) the procurement scaffolding. Every £/RM/supplier/URL must come verbatim from a tool result.` } }] }),
+  );
+  server.registerPrompt("due-diligence",
+    { title: "Supplier due diligence", description: "Run the two-limb PA2023 exclusion check + delivery record + size/locality lens on a supplier before award.", argsSchema: { supplier: z.string() } },
+    ({ supplier }) => ({ messages: [{ role: "user", content: { type: "text", text: `Run pre-award due diligence on "${supplier}" using the govbuy supplier() tool. If exclusion.flagged, LEAD with the ⚠ and name the limb (insolvency Sch 6/7 vs s.62 debarment). Then report the canonical framework footprint, the frameworks evidenced by real awards, the CRN-matched delivery record (call-off £, customer concentration, competitive-vs-direct mix), and the size_and_locality lens (sme_likely with its basis, registered-office region) — as Companies House signals, never a definitive SME claim. Link the Companies House record.` } }] }),
+  );
+  server.registerPrompt("market-entry",
+    { title: "Seller market-entry plan", description: "For a vendor: which frameworks/DPS to join, what pays, live + forward opportunities, incumbents to displace, resellers to carry you in.", argsSchema: { product: z.string(), cpv: z.string().optional() } },
+    ({ product, cpv }) => ({ messages: [{ role: "user", content: { type: "text", text: `I sell "${product}". Using govbuy sell({product${cpv ? ", cpv" : ""}, depth:"full"})${cpv ? ` with CPV division ${cpv}` : ""}, build my route-to-market: the frameworks & live DPS I can JOIN now, the frameworks ranked by REAL call-off spend (where the money actually flows), live opportunities + the forward pipeline to prepare bids for, incumbents whose contracts are ending (my displacement window), and resellers/thin-primes who could carry me in. Verify each opportunity on its official_url.` } }] }),
+  );
+
+  // ── MCP resources: reference material the host can read directly ──
+  server.registerResource("glossary", "govbuy://glossary",
+    { title: "govbuy glossary", description: "Plain-English definitions of the UK public-procurement terms govbuy uses.", mimeType: "text/markdown" },
+    (uri) => ({ contents: [{ uri: uri.href, mimeType: "text/markdown", text: GLOSSARY_MD }] }),
+  );
+  server.registerResource("guide", "govbuy://guide",
+    { title: "govbuy verb guide", description: "What each govbuy verb does and when to reach for it.", mimeType: "text/markdown" },
+    (uri) => ({ contents: [{ uri: uri.href, mimeType: "text/markdown", text: GUIDE_MD }] }),
+  );
+
   return server;
 }
+
+const GLOSSARY_MD = `# govbuy glossary
+
+- **Framework agreement** — a pre-competed agreement with appointed suppliers a public buyer can *call off* from without running a full tender.
+- **Call-off** — placing an order under a framework, either *without further competition* (direct selection on the framework's objective criteria) or via a *further competition* among the appointed suppliers. A call-off is **not** a statutory direct award.
+- **DPS / dynamic market** — a list suppliers can join *throughout its life*; you must run a further competition to award (no direct call-off). Legacy DPSs sunset into PA2023 dynamic markets by **Feb 2029**.
+- **Statutory direct award** — awarding with **no competition**, lawful only on a **Schedule 5** ground (+ a s.44 transparency notice). The exception, not the default.
+- **Standstill** — an **8-working-day** pause after award decision notices before signing a competitively-awarded contract (PA2023 s.51).
+- **Exclusion (two limbs)** — (1) insolvency / dissolution etc. (Schedule 6 mandatory, 7 discretionary), checked via live Companies House status; (2) the **s.62 central debarment register**.
+- **MEAT** — *most economically advantageous tender*: the weighted quality × social-value × price scoring used to award.
+- **CPV** — *Common Procurement Vocabulary*; govbuy filters by the 2-digit **division** (e.g. 72 = IT services, 48 = software, 45 = construction, 85 = health).
+- **RM reference** — the Crown Commercial Service agreement number (e.g. **RM1557.14** = G-Cloud 14).
+- **Observed-from-awards** — supplier/mechanic membership *inferred* from 658k real award notices where the official list is absent — labelled inferred, never official.
+- **GPC** — Government Procurement Card: a **payment method, never a route**; confers no PA2023 exemption.`;
+
+const GUIDE_MD = `# govbuy verbs — when to use which
+
+- **buy({need, cpv?, depth?})** — a buyer's opinionated brief: route + PA2023 mechanic + ranked shortlist (CRN track record + exclusion) + price + alternative routes + checklist.
+- **sell({product, cpv?, depth?})** — a vendor's route to market: frameworks/DPS to join, what pays, live + forward opportunities, incumbents to displace, resellers to carry you in.
+- **supplier({query, depth?})** — one firm by name/CRN: two-limb exclusion check (live Companies House + s.62 debarment), framework footprint, delivery record, size/locality lens.
+- **framework({id?|rm_reference?})** — one instrument: lots, appointed suppliers (incl. per-lot membership), observed-from-awards backfill, coverage, and the PA2023-precise call-off path.
+- **draft({need?|rm_reference?, route?})** — scaffolding to START the procurement: dated timetable, MEAT matrix skeleton, spec outline, compliance steps, Schedule 5 / s.44 stub. Not legal advice; complete every placeholder.
+- **watch({what, cpv?, keyword?})** — a re-runnable saved query for contract expiries or the forward pipeline; diff successive runs to spot change.
+- **research({sql?|cpv?|schema?|status?})** — read-only BigQuery SQL, a spend x-ray for a CPV, the schema, or per-source freshness & coverage.
+
+Grounding: every £ figure, RM reference, supplier name and URL must come verbatim from a tool result. govbuy documents routes; it does not assemble the purchase or give legal advice.`;
