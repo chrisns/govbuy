@@ -40,8 +40,10 @@ Nothing was lost; the mapping:
   for DPS/framework-only needs with no catalogue listing).
 - **sell** ← find_instruments_to_list + supplier_pipeline + list_resellers + contract_expiry_radar.
 - **supplier** ← get_supplier + due_diligence (one CRN; the two-limb exclusion is computed once) + an
-  **SME/locality lens** (SIC / company type / registered-office region / filed-accounts-category SME signal,
-  read off the same live Companies House call as the exclusion gate — no new crawl).
+  **SME/locality lens** (SIC / company type / registered-office region / filed-accounts-category SME signal).
+  Backed by the free, credential-free **Companies House bulk Company Data Product** — `company_profile`
+  enriches **41,381** of govbuy's suppliers (26,506 SME-likely, 40,707 with region) with no API key or rate
+  limit (`ingestion/ch_bulk.py` + `ch-bulk-sync`); the live CH call is preferred for freshness, bulk fills the rest.
 - **framework** ← get_instrument + compliant_path, now with **per-lot supplier membership** (`suppliers_by_lot`).
 - **research** ← query_sql + spend_xray + get_schema + get_status (status now emits an explicit freshness SLA).
 - **draft** *(new)* — turns a chosen route into editable **scaffolding**: a real-dated procurement timetable,

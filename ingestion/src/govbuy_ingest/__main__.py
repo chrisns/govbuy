@@ -32,6 +32,7 @@ def main(argv: list[str] | None = None) -> int:
     gsb = sub.add_parser("gcloud-services-bundle"); gsb.add_argument("--glob", required=True); gsb.add_argument("--out", required=True)
     cat = sub.add_parser("catalogues-sync"); cat.add_argument("--only", default="ndx,nhsbc")
     cw = sub.add_parser("credentialed-sync"); cw.add_argument("--only", default=None)
+    cb = sub.add_parser("ch-bulk-sync"); cb.add_argument("--date", default=None); cb.add_argument("--keep", action="store_true")
     args = ap.parse_args(argv)
 
     from . import bq, config
@@ -133,6 +134,11 @@ def main(argv: list[str] | None = None) -> int:
         counts = bq.rebuild_public()
         print(json.dumps({"catalogues": out, "public_service_rows": counts.get("service")}, indent=2, default=str))
         return 0
+    if args.mode == "ch-bulk-sync":
+        # Credential-free: download the CH bulk Company Data Product, filter to govbuy's CRNs, materialize
+        # company_profile (SME / region / SIC). No API key, no rate limit, whole-population.
+        from . import ch_bulk
+        print(json.dumps(ch_bulk.sync(date=args.date, keep=args.keep), indent=2, default=str)); return 0
     if args.mode == "credentialed-sync":
         # Pull appointed-supplier lists from login-walled portals we hold credentials for, then gate+load
         # them through the same path as the official-appointments manifest. No creds → safe no-op.

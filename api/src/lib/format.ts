@@ -110,7 +110,8 @@ export async function freshness(): Promise<unknown> {
               (SELECT COUNT(DISTINCT rm_reference) FROM ${tableRef("observed_membership")}) AS frameworks_with_observed_members,
               (SELECT COUNT(*) FROM ${tableRef("observed_mechanic")}) AS frameworks_with_observed_mechanics,
               (SELECT COUNT(*) FROM ${tableRef("pipeline_notice")}) AS forward_pipeline_notices,
-              (SELECT COUNT(*) FROM ${tableRef("debarment_list")}) AS debarment_list_entries`,
+              (SELECT COUNT(*) FROM ${tableRef("debarment_list")}) AS debarment_list_entries,
+              (SELECT COUNT(*) FROM ${tableRef("company_profile")}) AS company_profiles_sme_region`,
     );
     indexSize = s[0] ? Object.fromEntries(Object.entries(s[0]).map(([k, v]) => [k, p(v)])) : null;
   } catch { indexSize = null; }

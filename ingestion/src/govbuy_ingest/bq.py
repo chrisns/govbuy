@@ -596,6 +596,28 @@ def materialize_debarment(rows: list[dict]) -> int:
     return len(rows)
 
 
+def materialize_company_profile(ndjson_path: str) -> dict:
+    """Load the CH bulk per-supplier profile NDJSON (produced by ch_bulk) into a staging table, then derive
+    the public company_profile with an SME signal off the filed-accounts category. Credential-free."""
+    c = client()
+    stg = config.pub("company_profile_stg")
+    with open(ndjson_path, "rb") as f:
+        c.load_table_from_file(f, stg, job_config=bigquery.LoadJobConfig(
+            source_format="NEWLINE_DELIMITED_JSON", autodetect=True, write_disposition="WRITE_TRUNCATE")).result()
+    c.query(f"""
+      CREATE OR REPLACE TABLE `{config.pub('company_profile')}` CLUSTER BY company_number AS
+      SELECT company_number, company_category, company_status_bulk, country_of_origin, incorporated_on,
+             accounts_category, region, post_town, postcode_area, sic_codes, sic_text,
+             CASE
+               WHEN UPPER(accounts_category) IN ('MICRO ENTITY','SMALL','DORMANT','TOTAL EXEMPTION FULL','TOTAL EXEMPTION SMALL','ACCOUNTS TYPE NOT AVAILABLE') THEN TRUE
+               WHEN UPPER(accounts_category) IN ('MEDIUM','FULL','GROUP','AUDITED ABRIDGED','AUDIT EXEMPTION SUBSIDIARY') THEN FALSE
+               ELSE NULL END AS sme_likely
+      FROM `{stg}`
+    """).result()
+    n = query(f"SELECT COUNT(*) AS n FROM `{config.pub('company_profile')}`")[0]["n"]
+    return {"company_profile_rows": n}
+
+
 def materialize_official_appointments(rows: list[dict]) -> dict:
     """Backfill appointed-supplier lists for frameworks govbuy held as routes-without-members, from PUBLIC
     official sources the coverage audit found (DOS7's GCA ODS, GCA /suppliers pages, the Cabinet Office DPS

@@ -160,29 +160,56 @@ async function liveChProfile(crn: string | null | undefined): Promise<ChProfile 
   } catch { return null; }
 }
 
-// Size / locality lens for one firm, from the live CH profile (Companies House only — never invented).
-// SME likelihood is read off the filed-accounts category (micro/small file abbreviated accounts); social
-// value isn't a CH field, so we surface the statutory DUTY (PA2023) rather than a fabricated score.
-function procurementLens(p: ChProfile | null): Record<string, unknown> | null {
-  if (!p) return null;
-  const cat = (p.accounts_category ?? "").toLowerCase();
-  const smeLikely = ["micro-entity", "micro", "small", "dormant", "total-exemption-small", "total-exemption-full"].some((c) => cat.includes(c));
-  const largeLikely = ["medium", "full", "group", "audited-abridged"].some((c) => cat.includes(c));
+// Bulk CH profile (govbuy_public.company_profile, from the free whole-population Company Data Product —
+// no API key). Covers the whole supplier base; used as the lens when a live call is unavailable, and to
+// fill fields the live call lacks.
+interface BulkProfile {
+  company_category: string | null; company_status_bulk: string | null; incorporated_on: string | null;
+  accounts_category: string | null; region: string | null; postcode_area: string | null;
+  sic_codes: string[]; sme_likely: boolean | null;
+}
+async function bulkProfile(crn: string | null | undefined): Promise<BulkProfile | null> {
+  if (!crn) return null;
+  try {
+    const rows = await runQuery<BulkProfile>(`SELECT company_category, company_status_bulk, incorporated_on,
+        accounts_category, region, postcode_area, sic_codes, sme_likely
+      FROM ${tableRef("company_profile")} WHERE company_number = @crn LIMIT 1`, { params: { crn }, types: { crn: "STRING" } });
+    return rows.length ? (deep(rows[0]) as BulkProfile) : null;
+  } catch { return null; }
+}
+
+// Size / locality lens for one firm, from Companies House only (never invented). Prefers the LIVE call for
+// freshness, falls back to the bulk Company Data Product (whole-population, no key) for everything the live
+// call lacks or when there's no live key. SME likelihood is read off the filed-accounts category — a signal,
+// not a determination. Social value isn't a CH field, so we surface the PA2023 DUTY, not a fabricated score.
+function procurementLens(live: ChProfile | null, bulk: BulkProfile | null): Record<string, unknown> | null {
+  if (!live && !bulk) return null;
+  const sme = live ? smeFromAccounts(live.accounts_category) : null;
+  const smeLikely = (sme === null && bulk) ? bulk.sme_likely : sme;
+  const accounts = live?.accounts_category ?? bulk?.accounts_category ?? null;
+  const region = live?.registered_office_region ?? bulk?.region ?? null;
+  const sics = (live && live.sic_codes.length) ? live.sic_codes : (bulk?.sic_codes ?? []);
   return {
-    source: "live_companies_house",
-    checked_at: p.checked_at,
-    company_type: p.company_type,
-    incorporated_on: p.incorporated_on,
-    sic_codes: p.sic_codes,
-    registered_office_region: p.registered_office_region,
-    registered_office_postcode_area: p.registered_office_postcode_area,
-    accounts_category: p.accounts_category,
-    sme_likely: smeLikely ? true : largeLikely ? false : null,
-    sme_basis: p.accounts_category
-      ? `Inferred from the filed-accounts category '${p.accounts_category}' (a CH signal, not a definitive SME determination — confirm against the PA2023/Companies Act size thresholds: turnover, balance-sheet, headcount).`
-      : "No filed-accounts category on the live Companies House record to infer size from.",
+    source: live ? "live_companies_house" : "companies_house_bulk",
+    checked_at: live?.checked_at ?? null,
+    company_type: live?.company_type ?? bulk?.company_category ?? null,
+    incorporated_on: live?.incorporated_on ?? bulk?.incorporated_on ?? null,
+    sic_codes: sics,
+    registered_office_region: region,
+    registered_office_postcode_area: live?.registered_office_postcode_area ?? bulk?.postcode_area ?? null,
+    accounts_category: accounts,
+    sme_likely: smeLikely,
+    sme_basis: accounts
+      ? `Inferred from the filed-accounts category '${accounts}' (${live ? "live" : "bulk"} Companies House — a signal, not a definitive SME determination; confirm against the Companies Act size thresholds: turnover, balance-sheet, headcount).`
+      : "No filed-accounts category on the Companies House record to infer size from.",
     social_value_note: "Social value is not a Companies House field. Under PA2023 a contracting authority must have regard to its procurement objectives (incl. SME participation and the National Procurement Policy Statement / social-value priorities) — evidence this in the evaluation, don't infer it from the supplier record.",
   };
+}
+function smeFromAccounts(cat: string | null): boolean | null {
+  const c = (cat ?? "").toLowerCase();
+  if (["micro-entity", "micro", "small", "dormant", "total-exemption-small", "total-exemption-full"].some((x) => c.includes(x))) return true;
+  if (["medium", "full", "group", "audited-abridged"].some((x) => c.includes(x))) return false;
+  return null;
 }
 
 // Is this CRN on the s.62 debarment register? (Register is currently blank; this still lets us state
@@ -1058,15 +1085,16 @@ export function buildServer(): McpServer {
       const looksCrn = /^[A-Z]{0,2}[0-9]{6,8}$/i.test(a.query.trim());
       const profile = await capSupplierProfile(looksCrn ? { crn: a.query.trim() } : { name: a.query });
       const crn = (profile as A)._crn as string | null;
-      // One live Companies House read, shared by the exclusion gate and the size/locality lens.
-      const live = await liveChProfile(crn);
+      // One live Companies House read (shared by the exclusion gate + lens) and the credential-free bulk
+      // profile (whole-population), so the size/locality lens works even without a live key.
+      const [live, bulk] = await Promise.all([liveChProfile(crn), bulkProfile(crn)]);
       const [exclusion, delivery] = await Promise.all([
         exclusionFor(crn, (profile as A)._status as string | null, live),
         crn || !looksCrn ? capDeliveryRecord(crn ? { crn } : { supplier: a.query }).catch(() => ({ profile: {}, sinfo: {} })) : Promise.resolve({ profile: {}, sinfo: {} }),
       ]);
       const p = { ...profile } as Record<string, unknown>;
       delete p._crn; delete p._status;
-      const lens = procurementLens(live);
+      const lens = procurementLens(live, bulk);
       return ok(withFreshness({
         ...p,
         exclusion,

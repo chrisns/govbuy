@@ -33,14 +33,16 @@ Harness now returns a `gate` (pass-rate vs a `PASS_FLOOR`, default 70%); `script
 the result JSON and exits non-zero on regression (tested both ways). `freshness()` now emits `data_is_stale`
 + `freshness_sla{threshold_hours, oldest_source_age_hours, within_sla}`.
 
-## 4. Canonical identity at ingest + corporate-group rollups 🟡
+## 4. Canonical identity at ingest + corporate-group rollups 🟡 (group rollups: PSC feed identified, credential-free, next)
 **AC:** one canonical `supplier_id` per `company_number` resolved at ingest; "how much has the whole group won"
 rolls subsidiaries up to a parent.
 **Status:** Canonical CRN reconciliation already exists (`supplier_crn_canonical`) and the read path UNIONs
 across split identities, so answers are correct *today*. Pushing the dedup into the projection is a low-marginal,
-higher-risk refactor — deferred deliberately. **Parent-group rollups are blocked on data we don't hold:** the
-Companies House capture is snapshot-only (ADR-0001 — CRN + status, no corporate-structure/PSC), so a true
-parent→subsidiary rollup needs a new CH corporate-structure feed. Not faked.
+higher-risk refactor — deferred deliberately. **Parent-group rollups** need ownership data; the **free,
+credential-free Companies House PSC (persons-with-significant-control) snapshot** is the source (same host as
+the bulk Company Data Product we now ingest). The bulk-profile pipeline (`ch_bulk.py`) is the template; a PSC
+sibling would build the ownership graph (>25% control, corporate PSC → parent CRN). Not yet built — it's the
+remaining credential-free data item. (No fabricated ownership in the meantime.)
 
 ## 5. Credentialed ingest for the login-walled lists 🟡 (path ready; ⛔ on credentials)
 **AC:** a fetch path that authenticates to portals (hunterpcm.uk → ~98 HE frameworks, then Pagabo/YPO/NHS LPP)
@@ -52,14 +54,18 @@ creds it's a safe no-op. **Blocked:** entering credentials / completing each por
 account keys (operator-supplied) — I won't enter credentials on anyone's behalf. The per-portal `_fetch_*` is a
 documented stub until then.
 
-## 6. SME / social-value / regional lens ✅ (per-supplier; aggregate is follow-on)
+## 6. SME / social-value / regional lens ✅ (per-supplier + whole-base bulk)
 **AC:** surface whether a supplier is an SME and where it's based, and treat social value correctly.
-**Status:** Shipped with **no new crawl** — the *same* live Companies House call the exclusion gate already
-makes now also yields SIC codes, company type, registered-office region and filed-accounts category. `supplier()`
-emits a `size_and_locality` lens (`sme_likely` with its accounts-category basis, region, SIC) as a CH *signal*,
-never a definitive SME determination; social value is framed as a PA2023 duty to evidence, not a fabricated
-score. Verified live (Softcat → plc, group accounts, Buckinghamshire). *Follow-on:* aggregate regional/SME spend
-analytics need bulk size data (a CH bulk feed), out of scope here.
+**Status:** Shipped twice over. (a) The live Companies House call the exclusion gate already makes now also
+yields SIC / type / registered-office region / accounts category — a per-supplier lens. (b) **Now backed by
+the free, credential-free CH bulk Company Data Product** (whole population, no API key, no rate limit):
+`ingestion/ch_bulk.py` + `ch-bulk-sync` downloads it, filters to govbuy's 55,643 CRNs, and materialises
+`govbuy_public.company_profile` — **41,381 companies enriched (26,506 SME-likely, 40,707 with region, 40,162
+with SIC)**. `supplier()` prefers the live call for freshness and falls back to the bulk profile, so the lens
+works for the whole base even without a live key. SME is read off the filed-accounts category as a *signal*,
+never a determination; social value is framed as a PA2023 duty. Verified live (Softcat → group/large/Bucks;
+Appvia, Bramble Hub → SME/London). *Follow-on:* aggregate regional/SME spend dashboards (the data is now in
+`company_profile`, joinable to `tender_award` via the research SQL escape hatch).
 
 ## 7. Archived source snapshots ✅
 **AC:** every citation survives the live page changing/404ing.
