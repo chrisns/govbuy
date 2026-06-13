@@ -16,7 +16,18 @@ export function toolError(code: string, message: string, hint?: string): ToolRes
   };
 }
 
+// Thrown by capability functions for caller-input problems (missing/invalid args, no match). The guard
+// maps it to a clean tool error rather than a generic INTERNAL — so verbs can compose caps and let
+// validation bubble up.
+export class BadInput extends Error {
+  constructor(public code: string, message: string, public hint?: string) {
+    super(message);
+    this.name = "BadInput";
+  }
+}
+
 export function fromException(err: unknown): ToolResult {
+  if (err instanceof BadInput) return toolError(err.code, err.message, err.hint);
   const msg = err instanceof Error ? err.message : String(err);
   if (/exceed.*maximum.*billed|bytesBilled|would be billed|bytes billed/i.test(msg)) {
     return toolError("CAP_EXCEEDED", "Query would scan more than the allowed byte cap.", "Add filters or aggregate to reduce scanned bytes.");

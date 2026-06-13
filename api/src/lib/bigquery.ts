@@ -17,21 +17,23 @@ export async function runQuery<T = Record<string, unknown>>(
   sql: string,
   opts: QueryOpts = {},
 ): Promise<T[]> {
-  const [rows] = await bq.query(
-    {
-      query: sql,
-      params: opts.params,
-      types: opts.types,
-      location: config.location,
-      // Unqualified table names resolve to govbuy_public (nicer query_sql UX; the raw tier is a
-      // separate dataset the SA can't reach anyway, so this doesn't widen access).
-      defaultDataset: { datasetId: config.publicDataset, projectId: config.project },
-      maximumBytesBilled: opts.maxBytes ?? config.maxBytesBilled,
-      maxResults: opts.maxResults ?? 1000,
-      jobTimeoutMs: Number(config.jobTimeoutMs),
-    },
-    { autoPaginate: false },
-  );
+  // IMPORTANT: do NOT pass { autoPaginate: false }. That returned the first results page even when the job
+  // was still running (jobComplete:false → ZERO rows), so a freshly-run / slower query (e.g. one of the ~6
+  // a single `buy` fires) intermittently came back empty — a non-deterministic "no results" bug. Default
+  // bq.query() polls until the job completes, so results are reliable. maxResults caps the page; every
+  // query carries its own LIMIT.
+  const [rows] = await bq.query({
+    query: sql,
+    params: opts.params,
+    types: opts.types,
+    location: config.location,
+    // Unqualified table names resolve to govbuy_public (nicer query UX; the raw tier is a separate
+    // dataset the SA can't reach anyway, so this doesn't widen access).
+    defaultDataset: { datasetId: config.publicDataset, projectId: config.project },
+    maximumBytesBilled: opts.maxBytes ?? config.maxBytesBilled,
+    maxResults: opts.maxResults ?? 1000,
+    jobTimeoutMs: Number(config.jobTimeoutMs),
+  });
   return rows as T[];
 }
 
