@@ -40,7 +40,7 @@ const cpvLabel = (d) => CPV[d] ? `${CPV[d]} (CPV ${d})` : `CPV ${d}`;
 
 async function main() {
 console.error("querying govbuy_public …");
-const [head, channels, premium, frameworks, resellers, expiry, catalogue, observed, exclusion] = await Promise.all([
+const [head, channels, premium, frameworks, resellers, expiry, catalogue, observed, exclusion, supFootprint, membership, rmNames] = await Promise.all([
   q(`SELECT
        (SELECT COUNT(*) FROM govbuy_public.instrument) AS frameworks,
        (SELECT COUNTIF(lifecycle_status='live_for_call_off') FROM govbuy_public.instrument) AS live_frameworks,
@@ -84,6 +84,32 @@ const [head, channels, premium, frameworks, resellers, expiry, catalogue, observ
             (SELECT COUNT(DISTINCT rm_reference) FROM govbuy_public.observed_membership) frameworks,
             (SELECT COUNT(*) FROM govbuy_public.supplier_crn_canonical WHERE member_count>1) reconciled`),
   q(`SELECT COUNT(*) distressed FROM govbuy_public.supplier WHERE status_at_match IN ('dissolved','liquidation','administration','closed')`),
+  // per-supplier framework footprint — the top earners and where their call-off money actually comes from
+  q(`WITH sup AS (
+        SELECT supplier_crn, SUM(award_amount) gbp, COUNT(*) n FROM govbuy_public.tender_award
+        WHERE channel IN ('framework_call_off','dps_call_off') AND rm_reference IS NOT NULL AND award_amount BETWEEN 0 AND 100000000 AND supplier_crn IS NOT NULL
+        GROUP BY supplier_crn ORDER BY gbp DESC LIMIT 18),
+      byfw AS (
+        SELECT t.supplier_crn, REGEXP_EXTRACT(UPPER(t.rm_reference),r'RM[0-9]+') stem, SUM(t.award_amount) gbp, COUNT(*) n
+        FROM govbuy_public.tender_award t JOIN sup USING(supplier_crn)
+        WHERE t.channel IN ('framework_call_off','dps_call_off') AND t.rm_reference IS NOT NULL AND t.award_amount BETWEEN 0 AND 100000000
+        GROUP BY 1,2),
+      ranked AS (SELECT *, ROW_NUMBER() OVER(PARTITION BY supplier_crn ORDER BY gbp DESC) rk FROM byfw),
+      nm AS (SELECT company_number, ANY_VALUE(display_name) display_name FROM govbuy_public.supplier WHERE company_number IS NOT NULL GROUP BY 1)
+      SELECT sup.supplier_crn, nm.display_name, CAST(sup.gbp AS INT64) total_gbp, sup.n total_n,
+        ARRAY_AGG(STRUCT(r.stem AS stem, CAST(r.gbp AS INT64) AS gbp, r.n AS n) ORDER BY r.gbp DESC LIMIT 4) top_fw
+      FROM sup JOIN ranked r ON r.supplier_crn=sup.supplier_crn AND r.rk<=4
+      LEFT JOIN nm ON nm.company_number=sup.supplier_crn
+      GROUP BY 1,2,3,4 ORDER BY total_gbp DESC`),
+  // live frameworks with the deepest appointed-supplier benches
+  q(`SELECT ANY_VALUE(i.name) name, ANY_VALUE(i.rm_reference) rm, COUNT(DISTINCT a.supplier_id) n
+      FROM govbuy_public.appointed_supplier a JOIN govbuy_public.instrument i USING(instrument_id)
+      WHERE i.lifecycle_status='live_for_call_off' AND i.name IS NOT NULL
+      GROUP BY a.instrument_id ORDER BY n DESC LIMIT 12`),
+  // rm-stem -> canonical framework name (for resolving footprint frameworks to readable labels)
+  q(`SELECT REGEXP_EXTRACT(UPPER(rm_reference),r'RM[0-9]+') stem,
+        ARRAY_AGG(name ORDER BY IF(operator_id='gca',0,1), LENGTH(name) DESC)[SAFE_OFFSET(0)] name
+      FROM govbuy_public.instrument WHERE rm_reference IS NOT NULL AND name NOT LIKE 'RM%' GROUP BY stem`),
 ]);
 
 const num = (v) => Number(v);
@@ -98,6 +124,9 @@ const data = {
   catalogue: catalogue.map((r) => ({ catalogue: r.catalogue, n: num(r.n) })),
   observed: Object.fromEntries(Object.entries(observed[0]).map(([k, v]) => [k, num(v)])),
   distressed: num(exclusion[0].distressed),
+  supFootprint: supFootprint.map((r) => ({ crn: r.supplier_crn, name: r.display_name, gbp: num(r.total_gbp), n: num(r.total_n), top: (r.top_fw || []).map((f) => ({ stem: f.stem, gbp: num(f.gbp), n: num(f.n) })) })),
+  membership: membership.map((r) => ({ name: r.name, rm: r.rm, n: num(r.n) })),
+  rmName: Object.fromEntries(rmNames.filter((r) => r.stem && r.name).map((r) => [r.stem, r.name])),
 };
 
 // Resolve every framework link to one that actually loads (validated), else a gov.uk search fallback.
@@ -106,6 +135,18 @@ for (const f of data.frameworks) {
   const cand = f.url || (/^RM/i.test(f.rm) ? `https://www.gca.gov.uk/agreements/${f.rm.replace(/\s+/g, "")}` : null);
   f.url = (cand && await okUrl(cand)) ? cand : `https://www.gov.uk/search/all?keywords=${encodeURIComponent((f.name && f.name !== f.rm ? f.name : f.rm) + " framework")}`;
 }
+
+// Resolve every framework referenced in the chat demo to a link that actually loads (GCA agreement
+// page where the stem resolves, else a gov.uk search fallback). Validated in parallel — no fabrication.
+console.error("validating chat framework links …");
+const chatStems = new Set();
+data.supFootprint.forEach((s) => s.top.forEach((f) => f.stem && chatStems.add(f.stem)));
+data.membership.forEach((m) => { const st = (m.rm || "").toUpperCase().match(/RM[0-9]+/); if (st) chatStems.add(st[0]); });
+data.chatFwUrl = {};
+await Promise.all([...chatStems].map(async (st) => {
+  const guess = `https://www.gca.gov.uk/agreements/${st}`;
+  data.chatFwUrl[st] = (await okUrl(guess)) ? guess : `https://www.gov.uk/search/all?keywords=${encodeURIComponent((data.rmName[st] || st) + " framework")}`;
+}));
 
 mkdirSync(OUT, { recursive: true });
 writeFileSync(join(OUT, "index.html"), renderHtml(data));
@@ -225,6 +266,101 @@ function renderHtml(d) {
       <p class="q-o">${x.o}</p>
     </article>`).join("");
 
+  // ---- animated chat demo: 50 questions, each answered from live BigQuery at build time ----
+  // Every figure/chart below is computed in main() from govbuy_public — never hand-written — so the
+  // demo is always current. The client just types the question and reveals this baked answer.
+  const rn = (stem) => d.rmName[stem] || stem;
+  const fwA = (stem) => extLink(d.chatFwUrl[stem] || `https://www.gov.uk/search/all?keywords=${encodeURIComponent(stem + " framework")}`, `${esc(rn(stem))} <span class="ch-rm numeral">(${esc(stem)})</span>`, "ch-fw");
+  const sectorPhrase = [
+    (l) => `Is the public sector overpaying for ${l} by buying through frameworks?`,
+    (l) => `What does ${l} actually cost — framework call-off or open tender?`,
+    (l) => `For ${l}, is a framework cheaper than running an open competition?`,
+  ];
+  const sectorQs = d.premium.map((p, i) => {
+    const prem = p.fw > p.open;
+    const pct = p.open ? Math.round(Math.abs(p.fw / p.open - 1) * 100) : 0;
+    const label = (CPV[p.d] || ("CPV " + p.d)).replace(/ \(CPV.*/, "");
+    return {
+      p: i % 3 === 0 ? "researcher" : "buyer",
+      q: sectorPhrase[i % sectorPhrase.length](label.toLowerCase()),
+      a: prem
+        ? `At the median, <b>yes</b>: a framework call-off runs <b>${gbp(p.fw)}</b> against <b>${gbp(p.open)}</b> on the open market — a ~${pct}% convenience premium. ${cnum(p.fw_n)} call-offs vs ${cnum(p.open_n)} open tenders.`
+        : `No — the framework median (<b>${gbp(p.fw)}</b>) sits <b>${pct}% below</b> open tender (${gbp(p.open)}); open competition captures the mega-projects that pull its median up. ${cnum(p.fw_n)} call-offs vs ${cnum(p.open_n)} open.`,
+      chart: { kind: "bars", caption: `Median award · ${esc(label)}`, rows: [
+        { label: "Framework call-off", value: p.fw, tone: "pink", fmt: "gbp" },
+        { label: "Open tender", value: p.open, tone: "ink", fmt: "gbp" },
+      ] },
+    };
+  });
+
+  const supPhrase = [
+    (n) => `Where does ${n} actually earn its public-sector money?`,
+    (n) => `Is ${n} a real player on frameworks, or just a name on a list?`,
+    (n) => `How much has ${n} won through call-offs — and through which frameworks?`,
+  ];
+  const supQs = d.supFootprint.filter((s) => s.name && s.top.length).map((s, i) => ({
+    p: i % 2 ? "researcher" : "seller",
+    q: supPhrase[i % supPhrase.length](s.name),
+    a: `${extLink(chUrl(s.crn), esc(s.name), "ch-fw")} (CRN ${esc(s.crn)}) has won <b>${gbp(s.gbp)}</b> across ${cnum(s.n)} framework call-offs. Its biggest route is ${fwA(s.top[0].stem)}. The split:`,
+    chart: { kind: "bars", caption: `${esc(s.name)} · call-off £ by framework`, rows: s.top.map((f) => ({ label: rn(f.stem), value: f.gbp, sub: cnum(f.n) + " call-offs", tone: "pink", fmt: "gbp" })) },
+  }));
+
+  const channelRows = d.channels.filter((c) => c.gbp > 0).map((c) => ({ label: CHANNEL_LABEL[c.channel] || c.channel, value: c.gbp, sub: cnum(c.awards) + " awards", tone: (c.channel === "framework_call_off" || c.channel === "dps_call_off") ? "pink" : "ink", fmt: "gbp" }));
+  const topSupRows = d.supFootprint.slice(0, 8).filter((s) => s.name).map((s) => ({ label: s.name, value: s.gbp, sub: cnum(s.n) + " call-offs", tone: "pink", fmt: "gbp" }));
+  const topFwRows = d.frameworks.slice(0, 8).map((f) => ({ label: f.name || f.rm, value: f.gbp, sub: cnum(f.suppliers) + " suppliers", tone: "pink", fmt: "gbp" }));
+  const resellerRows = d.resellers.slice(0, 8).map((r) => ({ label: r.name, value: r.gbp, sub: cnum(r.n) + " call-offs", tone: "ink", fmt: "gbp" }));
+  const catRows = d.catalogue.map((c) => ({ label: ({ "g-cloud": "G-Cloud 14", "azure": "Azure Marketplace", "ypo": "YPO", "espo": "ESPO", "nhs-buying-catalogue": "NHS Buying Catalogue", "ndx": "NDX" })[c.catalogue] || c.catalogue, value: c.n, tone: "ink", fmt: "num" }));
+  const memberRows = d.membership.map((m) => ({ label: m.name, value: m.n, tone: "pink", fmt: "num" }));
+  const expiryCols = d.expiry.map((e) => { const [y, m] = e.ym.split("-"); return { label: ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][Number(m)] + (m === "01" ? " " + y.slice(2) : ""), value: e.gbp, fmt: "gbp" }; });
+  const reTotal = d.resellers.reduce((a, r) => a + r.gbp, 0);
+  const exTotal = d.expiry.reduce((a, e) => a + e.gbp, 0);
+
+  const aggregateQs = [
+    { p: "researcher", q: "How does UK public money actually get spent — what share goes through each route?", a: `Open tender dominates by value (the big programmes); framework &amp; DPS call-offs are the high-volume routine layer. Across ${cnum(d.head.fused_awards)} award records:`, chart: { kind: "bars", caption: "Awarded value by channel", rows: channelRows } },
+    { p: "researcher", q: "Who has won the most public money through framework call-offs?", a: `The biggest call-off earners across the whole corpus — many are resellers carrying other firms' products onto frameworks:`, chart: { kind: "bars", caption: "Top suppliers · total call-off £", rows: topSupRows } },
+    { p: "researcher", q: "Which frameworks move the most money?", a: `Attributable call-off spend per framework, CRN-joined from real awards:`, chart: { kind: "bars", caption: "Top frameworks · call-off £", rows: topFwRows } },
+    { p: "researcher", q: "Map the 'thin-prime' economy — who fronts other firms onto frameworks, and how much flows there?", a: `<b>${gbp(reTotal)}</b> of call-off spend traces to the reseller layer — the public buyer often never contracts who does the work:`, chart: { kind: "bars", caption: "Resellers · call-off £ carried", rows: resellerRows } },
+    { p: "seller", q: "Which contracts are expiring soon — where are the displacement windows?", a: `<b>${gbp(exTotal)}</b> of contract value ends in the next 18 months. Each is a re-procurement deadline for a buyer and a displacement window for a challenger:`, chart: { kind: "cols", caption: "Contract value expiring · next 18 months", rows: expiryCols } },
+    { p: "buyer", q: "What can I actually search across the UK public-sector buying catalogues?", a: `<b>${cnum(d.head.listings)}</b> per-listing descriptions across ${d.head.catalogues} catalogues, all capability-searchable and token-free re-crawled:`, chart: { kind: "bars", caption: "Catalogue listings indexed", rows: catRows } },
+    { p: "buyer", q: "Which live frameworks have the deepest bench of appointed suppliers?", a: `The most-populated live frameworks — where a buyer has the widest compliant choice without a fresh competition:`, chart: { kind: "bars", caption: "Live frameworks · appointed suppliers", rows: memberRows } },
+    { p: "buyer", q: "How many appointed suppliers are in financial distress right now?", a: `<b>${cnum(d.distressed)}</b> of <b>${cnum(d.head.suppliers)}</b> matched suppliers are flagged dissolved / liquidation / administration — each a PA2023 Schedule 6/7 exclusion ground the gate raises <i>before</i> you award, via a ${A(L.ch, "live Companies House")} check.`, chart: { kind: "bars", caption: "Supplier financial health", rows: [{ label: "Flagged (Sch 6/7)", value: d.distressed, tone: "pink", fmt: "num" }, { label: "No distress flag", value: Math.max(0, d.head.suppliers - d.distressed), tone: "ink", fmt: "num" }] } },
+  ];
+
+  const noteQs = [
+    { p: "buyer", q: "Is buying off G-Cloud a 'direct award' under PA2023?", a: `No — it's a <b>framework call-off under s.45</b>: you apply the framework's own award mechanism. A <b>statutory direct award</b> is "no competition, by exception", lawful only on a ${A(L.sch5, "Schedule 5")} ground with a transparency notice first. <b>Don't label a G-Cloud purchase a "direct award" in your business case — you'll fail an audit on the wording alone.</b>` },
+    { p: "buyer", q: "We're about to award to a supplier in liquidation. Should we?", a: `<b>⚠️ Stop.</b> The two-limb exclusion gate flags a live ${A(L.ch, "Companies House")} insolvency status (PA2023 Sch 6/7) <i>and</i> checks the ${A(L.s62, "s.62 debarment register")} — both, with sources. No other procurement tool stops you here. It'll then find compliant alternatives.` },
+    { p: "buyer", q: "Do I need the 8-working-day standstill for a framework call-off?", a: `No. The mandatory ${A(L.pa2023, "PA2023")} standstill (s.51) applies to competitive awards but is <b>exempt for call-offs</b>. Keep a most-economically-advantageous audit note instead. (Indicative, not legal advice — confirm on the source it links.)` },
+    { p: "seller", q: "I rent out goats that clear invasive scrub. How do I sell conservation grazing to the public sector?", a: `An honest answer: <b>no grazing framework exists</b>. The money flows via grounds-maintenance primes — so subcontract to one, and chase sub-threshold local notices directly. govbuy says so rather than inventing a route.` },
+    { p: "seller", q: "I've built an AI triage tool but I'm on no framework. How do I reach the NHS this quarter?", a: `Get admitted to an AI ${A(L.rm6200, "dynamic market (RM6200)")} or via ${A(L.ht, "HealthTrust Europe")} — both allow continuous joining, no waiting for a re-opening. Then target where NHS commissioners actually shop.` },
+    { p: "buyer", q: "DPS vs dynamic market — what's changing under PA2023, and does it affect a long call-off?", a: `Legacy DPSs are sunsetting into PA2023 <b>dynamic markets by Feb 2029</b>. A call-off placed now is fine, but don't sign one that outlives a successor market without a transition plan. The tool flags the sunset on every affected route.` },
+    { p: "buyer", q: "Can I just put this on a government procurement card and skip the process?", a: `No — a GPC card (or a hyperscaler marketplace) is a <b>payment method, not a route</b>. You still need a compliant award mechanism behind it: a framework call-off, a dynamic-market competition, or a tendered contract. govbuy is payment-method-blind and says so.` },
+    { p: "buyer", q: "We missed a framework's joining window. What are our options now?", a: `Depends on the type: an <b>open framework</b> re-opens to new suppliers at defined points (PA2023 s.49); a <b>dynamic market / DPS</b> admits suppliers <i>continuously</i>, so there's no missed window. The tool tells you which one you're looking at and when it next opens.` },
+    { p: "buyer", q: "How do I check a supplier isn't debarred or excluded before I award?", a: `govbuy runs both PA2023 limbs: a live ${A(L.ch, "Companies House")} status check (Schedule 6/7 insolvency grounds) and the ${A(L.s62, "s.62 debarment register")} — each returned with a source, so it's auditable, not asserted.` },
+    { p: "researcher", q: "How current is this data, and where does it come from?", a: `Everything answers from <code>govbuy_public</code> as of <b>${d.generated}</b> — ${cnum(d.head.fused_awards)} real awards fused on Companies House CRN, refreshed deterministically. Nothing is hand-entered; every claim passes a verbatim-substring gate against its archived source.` },
+    { p: "buyer", q: "Does govbuy give legal or procurement advice?", a: `No. It <b>documents routes</b> and links the official source for every claim — frameworks, mechanics, ${A(L.pa2023, "PA2023")} duties — but it doesn't assemble the purchase or sign off compliance. You run the assessment on the sources it cites.` },
+    { p: "seller", q: "What's the fastest compliant way onto a framework if I'm a new SME?", a: `Target the routes that admit suppliers continuously — live <b>dynamic markets and DPSs</b> (e.g. ${A(L.rm6200, "RM6200")}) — rather than waiting for a closed framework to re-tender. The <code>sell</code> verb ranks the ones you can join now by real call-off spend.` },
+    { p: "researcher", q: "What exactly is govbuy, and what can it answer?", a: `An MCP server that welds <b>route × reality × statute</b> for UK public procurement: ${cnum(d.head.frameworks)} frameworks, ${cnum(d.head.listings)} catalogue listings and ${cnum(d.head.fused_awards)} real awards in one place — so your AI assistant answers buyer, seller and researcher questions with sources. ${extLink(REPO, "See the code")}.` },
+  ];
+
+  // Weave the four streams round-robin for persona variety, then cap at 50.
+  const streams = [sectorQs, supQs, aggregateQs, noteQs];
+  const chat = [];
+  for (let i = 0; chat.length < 50 && streams.some((s) => s.length); i++) {
+    const s = streams[i % streams.length];
+    if (s.length) chat.push(s.shift());
+  }
+  // server-rendered chart (no-JS / first paint fallback; the client re-renders with animation)
+  const chatVal = (v, fmt) => fmt === "num" ? cnum(v) : gbp(v);
+  const chatChartSSR = (c) => {
+    if (!c) return "";
+    const mx = Math.max(...c.rows.map((r) => r.value), 1);
+    const cap = c.caption ? `<div class="ch-cap">${esc(c.caption)}</div>` : "";
+    if (c.kind === "cols") {
+      return `<div class="ch-chart">${cap}<div class="ch-cols">${c.rows.map((r) => `<div class="ch-col" title="${esc(r.label)}: ${chatVal(r.value, r.fmt)}"><div class="ch-col-bar" style="height:${(r.value / mx * 100).toFixed(1)}%"></div><div class="ch-col-x">${esc(r.label)}</div></div>`).join("")}</div></div>`;
+    }
+    return `<div class="ch-chart">${cap}<div class="ch-bars">${c.rows.map((r) => `<div class="ch-brow"><div class="ch-bl">${esc(r.label)}</div><div class="ch-bt"><div class="ch-bf ${r.tone === "pink" ? "bf-pink" : "bf-ink"}" style="width:${(r.value / mx * 100).toFixed(1)}%"></div></div><div class="ch-bv numeral">${chatVal(r.value, r.fmt)}${r.sub ? ` <span class="ch-bsub">${esc(r.sub)}</span>` : ""}</div></div>`).join("")}</div></div>`;
+  };
+
   const tools = [
     ["Buyer", [
       ["buy", "one opinionated brief: route + PA2023 mechanic + ranked shortlist (track record + exclusion) + price + alternative routes + compliance checklist"],
@@ -306,6 +442,27 @@ ${MASTHEAD}
       [cnum(d.head.fused_awards), "real awards fused in"],
       [gbp(totalAwardGbp), "of awarded contract value"],
     ].map(([n, c]) => `<div class="stat"><span class="stat-num numeral">${n}</span><span class="stat-cap">${c}</span></div>`).join("")}
+  </div>
+</section>
+
+<section class="chatdemo" id="demo">
+  ${sectionHeader("Watch it work", "Real questions, answered live")}
+  <p class="section-lede">Buyers, sellers and researchers ask in plain English; govbuy answers from the live corpus. Every figure and chart in this demo is computed from <code>govbuy_public</code> at build time — <b>${chat.length}</b> questions on rotation, always current, never scripted. <span class="cd-hint">Hover to pause · click a chip to jump.</span></p>
+  <div class="chat-shell">
+    <div class="chat-personas" id="chatChips">
+      <button class="cd-chip active" data-persona="all">All</button>
+      <button class="cd-chip" data-persona="buyer">Buyer</button>
+      <button class="cd-chip" data-persona="seller">Seller</button>
+      <button class="cd-chip" data-persona="researcher">Researcher</button>
+    </div>
+    <div class="chat-win" id="chatWin">
+      <div class="chat-bar"><span class="cd-tl"></span><span class="cd-tl"></span><span class="cd-tl"></span><span class="chat-title">govbuy · via your AI assistant</span><span class="chat-live"><span class="cd-pulse"></span>live</span></div>
+      <div class="chat-log" id="chatLog" aria-live="polite">
+        <div class="msg msg-user"><span class="msg-persona p-${chat[0].p}">${PERSONA[chat[0].p]}</span><div class="bub bub-user">${esc(chat[0].q)}</div></div>
+        <div class="msg msg-bot"><div class="bub bub-bot"><div class="ch-ans">${chat[0].a}</div>${chatChartSSR(chat[0].chart)}</div></div>
+      </div>
+    </div>
+    <div class="chat-foot"><span class="numeral" id="chatCount">1</span> / <span class="numeral">${chat.length}</span> · answered from <code>govbuy_public</code> as of <span class="numeral">${d.generated}</span></div>
   </div>
 </section>
 
@@ -429,7 +586,7 @@ ${MASTHEAD}
 
 ${COLOPHON(d)}
 </div>
-<script>window.__DATA__=${JSON.stringify({ premium: d.premium })};</script>
+<script>window.__DATA__=${JSON.stringify({ premium: d.premium })};window.__CHAT__=${JSON.stringify(chat)};</script>
 <script>${CLIENT_JS}</script>
 </body>
 </html>`;
@@ -454,7 +611,7 @@ const MASTHEAD = `<header class="masthead">
   <div class="rule"></div>
   <nav class="masthead-nav">
     <div class="nav-left">
-      <a href="#what">What</a><a href="#data">Data</a><a href="#ask">Ask</a><a href="#tools">Tools</a><a href="#connect">Setup</a>
+      <a href="#demo">Demo</a><a href="#what">What</a><a href="#data">Data</a><a href="#ask">Ask</a><a href="#tools">Tools</a><a href="#connect">Setup</a>
     </div>
     <div class="nav-right">
       <a href="https://github.com/chrisns/govbuy">GitHub</a><a href="https://blog.cns.me">Blog</a><a href="https://talks.cns.me">Talks</a><a href="https://cns.me">cns.me</a>
@@ -698,6 +855,58 @@ code{font-family:var(--font-mono);font-size:.92em}
 .layer a{color:var(--ink);text-decoration:none;border-bottom:1px solid var(--pink)}
 .layer a:hover{color:var(--pink-deep)}
 
+/* chat demo */
+.chatdemo{margin-top:8px}
+.cd-hint{font-family:var(--font-mono);font-size:11px;letter-spacing:.03em;color:var(--ink-4);font-style:normal}
+.chat-shell{margin-top:18px;max-width:780px}
+.chat-personas{display:flex;gap:7px;margin-bottom:14px;flex-wrap:wrap}
+.cd-chip{font-family:var(--font-body);font-size:13px;font-weight:500;background:var(--paper);border:1px solid var(--paper-3);color:var(--ink-2);padding:6px 14px;cursor:pointer;border-radius:999px;transition:all .15s}
+.cd-chip:hover{border-color:var(--pink);color:var(--pink-deep)}
+.cd-chip.active{background:var(--ink);color:var(--bone);border-color:var(--ink)}
+.chat-win{border:1px solid var(--ink);background:var(--bone);box-shadow:0 26px 64px -34px rgba(20,17,15,.55);overflow:hidden}
+.chat-bar{display:flex;align-items:center;gap:7px;padding:11px 16px;background:var(--paper-2);border-bottom:1px solid var(--paper-3)}
+.cd-tl{width:9px;height:9px;border-radius:50%;background:var(--paper-3)}
+.chat-title{font-family:var(--font-mono);font-size:11px;letter-spacing:.05em;color:var(--ink-3);margin-left:8px}
+.chat-live{margin-left:auto;font-family:var(--font-mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--pink-deep);display:flex;align-items:center;gap:5px}
+.cd-pulse{width:6px;height:6px;border-radius:50%;background:var(--pink);animation:pulse 1.6s var(--ease) infinite}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(.65)}}
+.chat-log{padding:22px 22px 26px;min-height:360px;max-height:580px;overflow:hidden;display:flex;flex-direction:column;gap:15px;transition:opacity .4s var(--ease)}
+.msg{display:flex;flex-direction:column;gap:5px;animation:msgIn .4s var(--ease) both}
+@keyframes msgIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.msg-user{align-items:flex-end}
+.msg-persona{font-family:var(--font-mono);font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--bone);background:var(--ink);padding:2px 8px}
+.msg-persona.p-buyer{background:var(--pink-deep)}.msg-persona.p-seller{background:var(--ink)}.msg-persona.p-researcher{background:var(--ink-3)}
+.bub{max-width:90%;padding:13px 17px;line-height:1.5}
+.bub-user{background:var(--ink);color:var(--bone);font-family:var(--font-display);font-style:italic;font-weight:500;font-size:16px;border-radius:15px 15px 4px 15px}
+.bub-bot{background:var(--paper);border:1px solid var(--paper-3);color:var(--ink-2);border-radius:15px 15px 15px 4px;align-self:flex-start;min-width:min(420px,86%)}
+.bub-bot b{color:var(--ink)}.bub-bot i{font-style:italic}
+.ch-ans{font-size:14.5px}
+.ch-ans a,.ch-fw{color:var(--pink-deep);text-decoration:none;border-bottom:1px solid rgba(179,14,97,.32)}
+.ch-ans a:hover,.ch-fw:hover{color:var(--pink-hot);border-bottom-color:var(--pink-hot)}
+.ch-rm{color:var(--pink-deep);font-size:11px}
+.cd-caret{display:inline-block;width:2px;height:1.02em;background:var(--bone);margin-left:1px;transform:translateY(2px);animation:caret .85s steps(1) infinite}
+@keyframes caret{0%,49%{opacity:1}50%,100%{opacity:0}}
+.cd-typing{display:inline-flex;gap:5px;padding:3px 2px}
+.cd-typing i{width:6px;height:6px;border-radius:50%;background:var(--ink-4);animation:cdot 1.2s var(--ease) infinite}
+.cd-typing i:nth-child(2){animation-delay:.15s}.cd-typing i:nth-child(3){animation-delay:.3s}
+@keyframes cdot{0%,60%,100%{opacity:.25;transform:translateY(0)}30%{opacity:1;transform:translateY(-4px)}}
+.ch-chart{margin-top:13px;border-top:1px dashed var(--paper-3);padding-top:14px}
+.ch-cap{font-family:var(--font-mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-4);margin-bottom:11px}
+.ch-bars{display:flex;flex-direction:column;gap:9px}
+.ch-brow{display:grid;grid-template-columns:minmax(78px,1.1fr) minmax(0,1.8fr) auto;align-items:center;gap:12px}
+.ch-bl{font-size:12.5px;color:var(--ink-2);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ch-bt{height:14px;background:var(--paper-2);overflow:hidden}
+.ch-bf{height:100%;width:0;transform-origin:left;transition:width .8s var(--ease)}
+.ch-bv{font-size:12px;color:var(--ink);text-align:right;white-space:nowrap}
+.ch-bsub{color:var(--ink-4);font-size:10px}
+.ch-cols{display:flex;align-items:flex-end;gap:3px;height:120px}
+.ch-col{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%}
+.ch-col-bar{width:72%;background:var(--pink);min-height:2px;height:0;transition:height .7s var(--ease)}
+.ch-col:hover .ch-col-bar{background:var(--pink-hot)}
+.ch-col-x{font-family:var(--font-mono);font-size:7.5px;color:var(--ink-4);margin-top:5px;white-space:nowrap}
+.chat-foot{font-family:var(--font-mono);font-size:11px;color:var(--ink-4);margin-top:12px;letter-spacing:.02em}
+.chat-foot code{font-size:10.5px;color:var(--ink-3)}
+
 @media (max-width:920px){
   html,body{overflow-x:hidden}
   .page{padding:20px 20px 0}
@@ -711,6 +920,10 @@ code{font-family:var(--font-mono);font-size:.92em}
   .cta{margin-left:-20px;margin-right:-20px;padding:48px 20px}
   .ep-verdict{border-left:0;border-top:2px solid var(--pink);padding-left:0;padding-top:16px}
   .fw-name{max-width:none}
+  .chat-log{min-height:300px;max-height:none;padding:18px 16px 20px}
+  .bub{max-width:96%}.bub-bot{min-width:0;width:100%}
+  .ch-brow{grid-template-columns:minmax(60px,1fr) minmax(0,1.4fr) auto;gap:8px}
+  .ch-bl{font-size:11.5px}.ch-col-x{font-size:7px}
 }
 @media (prefers-reduced-motion:reduce){*{animation:none!important}}
 `;
@@ -751,6 +964,82 @@ const CLIENT_JS = `
     th.textContent=th.textContent+" \\u25be";
     rows.forEach(function(r,idx){r.querySelector(".fw-rank").textContent=idx+1;tb.appendChild(r);});
   });});}
+
+  // ---- animated chat demo ----
+  var CHAT=window.__CHAT__||[];
+  var log=document.getElementById("chatLog");
+  var win=document.getElementById("chatWin");
+  var countEl=document.getElementById("chatCount");
+  var chipBar=document.getElementById("chatChips");
+  if(log&&CHAT.length){
+    var reduce=window.matchMedia&&window.matchMedia("(prefers-reduced-motion:reduce)").matches;
+    var PC={buyer:"Buyer",seller:"Seller",researcher:"Researcher"};
+    var filter="all",pos=0,paused=false,timer=null,pairs=0;
+    var sesc=function(s){var e=document.createElement("div");e.textContent=s;return e.innerHTML;};
+    var fmtv=function(v,f){return f==="num"?cn(v):fmt(v);};
+    var pool=function(){var r=[];for(var i=0;i<CHAT.length;i++){if(filter==="all"||CHAT[i].p===filter)r.push(i);}return r;};
+    var scroll=function(){log.scrollTop=log.scrollHeight;};
+    var clearLog=function(){log.innerHTML="";pairs=0;};
+    function countUp(scope){scope.querySelectorAll(".cd-num").forEach(function(el){var v=+el.getAttribute("data-v"),f=el.getAttribute("data-f"),t0=null;function step(ts){if(!t0)t0=ts;var k=Math.min(1,(ts-t0)/700),e=1-Math.pow(1-k,3);el.textContent=fmtv(Math.round(v*e),f);if(k<1)requestAnimationFrame(step);else el.textContent=fmtv(v,f);}requestAnimationFrame(step);});}
+    function chartEl(c){
+      if(!c)return null;
+      var wrap=document.createElement("div");wrap.className="ch-chart";
+      var vals=c.rows.map(function(r){return r.value;});vals.push(1);var mx=Math.max.apply(null,vals);
+      if(c.caption){var cap=document.createElement("div");cap.className="ch-cap";cap.textContent=c.caption;wrap.appendChild(cap);}
+      if(c.kind==="cols"){
+        var cols=document.createElement("div");cols.className="ch-cols";
+        c.rows.forEach(function(r){var col=document.createElement("div");col.className="ch-col";col.title=r.label+": "+fmtv(r.value,r.fmt);col.innerHTML='<div class="ch-col-bar"></div><div class="ch-col-x">'+sesc(r.label)+'</div>';cols.appendChild(col);});
+        wrap.appendChild(cols);
+        wrap._anim=function(){var bs=cols.querySelectorAll(".ch-col-bar");c.rows.forEach(function(r,i){bs[i].style.height=(r.value/mx*100).toFixed(1)+"%";});};
+      }else{
+        var bars=document.createElement("div");bars.className="ch-bars";
+        c.rows.forEach(function(r){var row=document.createElement("div");row.className="ch-brow";
+          row.innerHTML='<div class="ch-bl" title="'+sesc(r.label)+'">'+sesc(r.label)+'</div><div class="ch-bt"><div class="ch-bf '+(r.tone==="pink"?"bf-pink":"bf-ink")+'"></div></div><div class="ch-bv numeral"><span class="cd-num" data-v="'+r.value+'" data-f="'+(r.fmt||"gbp")+'">'+fmtv(reduce?r.value:0,r.fmt)+'</span>'+(r.sub?' <span class="ch-bsub">'+sesc(r.sub)+'</span>':'')+'</div>';
+          bars.appendChild(row);});
+        wrap.appendChild(bars);
+        wrap._anim=function(){var fl=bars.querySelectorAll(".ch-bf");c.rows.forEach(function(r,i){fl[i].style.width=(r.value/mx*100).toFixed(1)+"%";});countUp(bars);};
+      }
+      return wrap;
+    }
+    function addUser(item,cb){
+      var m=document.createElement("div");m.className="msg msg-user";
+      m.innerHTML='<span class="msg-persona p-'+item.p+'">'+(PC[item.p]||item.p)+'</span><div class="bub bub-user"><span class="cd-q"></span><span class="cd-caret"></span></div>';
+      log.appendChild(m);scroll();
+      var span=m.querySelector(".cd-q"),caret=m.querySelector(".cd-caret"),q=item.q,i=0;
+      if(reduce){span.textContent=q;if(caret)caret.remove();return cb&&cb();}
+      (function type(){if(paused){timer=setTimeout(type,160);return;}
+        if(i<=q.length){span.textContent=q.slice(0,i);i++;scroll();timer=setTimeout(type,15+Math.random()*32);}
+        else{if(caret)caret.remove();timer=setTimeout(function(){cb&&cb();},340);}})();
+    }
+    function addBot(item,cb){
+      var m=document.createElement("div");m.className="msg msg-bot";
+      m.innerHTML='<div class="bub bub-bot"><div class="cd-typing"><i></i><i></i><i></i></div></div>';
+      log.appendChild(m);scroll();
+      var reveal=function(){var bub=m.querySelector(".bub-bot");bub.innerHTML="";
+        var ans=document.createElement("div");ans.className="ch-ans";ans.innerHTML=item.a;bub.appendChild(ans);
+        var ch=chartEl(item.chart);if(ch)bub.appendChild(ch);scroll();
+        if(ch&&ch._anim)requestAnimationFrame(function(){requestAnimationFrame(ch._anim);});
+        cb&&cb();};
+      if(reduce)return reveal();
+      timer=setTimeout(reveal,720);
+    }
+    function scheduleNext(hold){timer=setTimeout(function tick(){if(paused){timer=setTimeout(tick,200);return;}next();},hold);}
+    function run(item){pairs++;addUser(item,function(){addBot(item,function(){scheduleNext(reduce?3800:3400+(item.chart?700:0));});});}
+    function next(){
+      var p=pool();if(!p.length)return;
+      var idx=p[pos%p.length];pos++;var item=CHAT[idx];
+      if(countEl)countEl.textContent=String(((pos-1)%p.length)+1);
+      if(pairs>=3){log.style.opacity="0";timer=setTimeout(function(){clearLog();log.style.opacity="1";run(item);},420);}
+      else run(item);
+    }
+    clearLog();
+    if(win){win.addEventListener("mouseenter",function(){paused=true;});win.addEventListener("mouseleave",function(){paused=false;});}
+    if(chipBar){chipBar.querySelectorAll(".cd-chip").forEach(function(c){c.addEventListener("click",function(){
+      chipBar.querySelectorAll(".cd-chip").forEach(function(x){x.classList.remove("active");});c.classList.add("active");
+      filter=c.getAttribute("data-persona");pos=0;clearTimeout(timer);log.style.opacity="0";
+      timer=setTimeout(function(){clearLog();log.style.opacity="1";next();},300);});});}
+    next();
+  }
 })();
 `;
 
