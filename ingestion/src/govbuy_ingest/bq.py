@@ -596,6 +596,48 @@ def materialize_debarment(rows: list[dict]) -> int:
     return len(rows)
 
 
+def materialize_official_appointments(rows: list[dict]) -> dict:
+    """Backfill appointed-supplier lists for frameworks govbuy held as routes-without-members, from PUBLIC
+    official sources the coverage audit found (DOS7's GCA ODS, GCA /suppliers pages, the Cabinet Office DPS
+    supplier register, YPO, etc.). Each row: {rm_reference, supplier_name, company_number?, lot?, source_url}.
+    Source-anchored (a claim_evidence row per rm). MUST run AFTER materialize_core/_observed so it adds to the
+    rebuilt tables; re-runnable. CRN-bearing suppliers reuse/extend the canonical identity; name-only ones get
+    a synthetic id. See reference-data/official_appointments.ndjson + docs/coverage-backlog.md."""
+    if not rows:
+        return {"official_appointment_rows": 0}
+    c = client()
+    stage = config.pub("official_appointment_stage")
+    sup, ap, inst, ev = config.pub("supplier"), config.pub("appointed_supplier"), config.pub("instrument"), config.pub("claim_evidence")
+    c.query(f"CREATE OR REPLACE TABLE `{stage}` (rm_reference STRING, supplier_name STRING, company_number STRING, lot STRING, source_url STRING)").result()
+    c.insert_rows_json(stage, [{"rm_reference": r["rm_reference"], "supplier_name": r["supplier_name"], "company_number": r.get("company_number"), "lot": r.get("lot"), "source_url": r["source_url"]} for r in rows])
+    c.query(f"""INSERT INTO `{ev}` (evidence_id, source_url, source_kind, excerpt, licence, confidence, retrieved_on)
+      SELECT DISTINCT CONCAT('ev-official-', rm_reference), ANY_VALUE(source_url), 'official_supplier_list',
+        CONCAT(rm_reference, ' appointed-supplier list (official public source)'), 'OGL-3.0', 1.0, CURRENT_TIMESTAMP()
+      FROM `{stage}` st WHERE NOT EXISTS(SELECT 1 FROM `{ev}` e WHERE e.evidence_id = CONCAT('ev-official-', st.rm_reference)) GROUP BY rm_reference""").result()
+    # new CRN-bearing suppliers
+    c.query(f"""INSERT INTO `{sup}` (supplier_id, display_name, company_number, registered_name, match_confidence, match_band, status_at_match, matched_on, ch_url, publisher_ids)
+      SELECT * FROM (SELECT DISTINCT CONCAT('off-', st.company_number) AS supplier_id, st.supplier_name, st.company_number, st.supplier_name, 1.0, 'crn_from_official_list', CAST(NULL AS STRING), CURRENT_TIMESTAMP(),
+        CONCAT('https://find-and-update.company-information.service.gov.uk/company/', st.company_number), CAST([] AS ARRAY<STRING>)
+      FROM `{stage}` st WHERE st.company_number IS NOT NULL AND NOT EXISTS(SELECT 1 FROM `{sup}` s WHERE s.company_number = st.company_number))""").result()
+    # name-only suppliers (no CRN on the official source)
+    c.query(f"""INSERT INTO `{sup}` (supplier_id, display_name, company_number, registered_name, match_confidence, match_band, status_at_match, matched_on, ch_url, publisher_ids)
+      SELECT * FROM (SELECT DISTINCT CONCAT('off-', TO_HEX(MD5(LOWER(st.supplier_name)))) AS supplier_id, st.supplier_name, CAST(NULL AS STRING), st.supplier_name, 0.5, 'name_only_official_list', CAST(NULL AS STRING), CURRENT_TIMESTAMP(), CAST(NULL AS STRING), CAST([] AS ARRAY<STRING>)
+      FROM `{stage}` st WHERE st.company_number IS NULL AND NOT EXISTS(SELECT 1 FROM `{sup}` s WHERE LOWER(s.display_name) = LOWER(st.supplier_name)))""").result()
+    # appointed-supplier edges (resolve to the canonical existing supplier_id, else the off- row just created)
+    c.query(f"""INSERT INTO `{ap}` (instrument_id, lot_id, supplier_id, status, confidence, conflict, evidence_ids, last_seen_on, appointed_from, left_on)
+      SELECT m.inst_id, st.lot,
+        COALESCE(
+          (SELECT MIN(s.supplier_id) FROM `{sup}` s WHERE st.company_number IS NOT NULL AND s.company_number = st.company_number),
+          (SELECT MIN(s.supplier_id) FROM `{sup}` s WHERE st.company_number IS NULL AND LOWER(s.display_name) = LOWER(st.supplier_name))),
+        'active', 1.0, FALSE, [CONCAT('ev-official-', st.rm_reference)], CURRENT_DATE(), CAST(NULL AS DATE), CAST(NULL AS DATE)
+      FROM `{stage}` st
+      JOIN (SELECT rm_reference, ARRAY_AGG(instrument_id ORDER BY IF(operator_id='gca',0,1), instrument_id LIMIT 1)[OFFSET(0)] AS inst_id FROM `{inst}` WHERE rm_reference IS NOT NULL GROUP BY rm_reference) m USING (rm_reference)
+      WHERE m.inst_id IS NOT NULL""").result()
+    n = query(f"SELECT COUNT(*) n FROM `{stage}`")[0]["n"]
+    c.query(f"DROP TABLE IF EXISTS `{stage}`").result()
+    return {"official_appointment_rows": n}
+
+
 # ----------------------------------------------------------------- status + run ledger
 def _health(last_run_status: str, last_success_iso: str | None) -> str:
     """green/amber/red (PRD §11/N6): red if last run failed/paused or no success within the

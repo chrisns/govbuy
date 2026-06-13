@@ -70,6 +70,10 @@ def refresh(operator: str | None = None, max_docs: int | None = None) -> int:
     bq.materialize_track_record()
     bq.materialize_fusion()
     bq.materialize_observed()
+    import json as _json, pathlib as _pl
+    _oa = _pl.Path(__file__).resolve().parents[3] / "reference-data" / "official_appointments.ndjson"
+    _rows = [_json.loads(l) for l in _oa.read_text().splitlines() if l.strip() and not l.lstrip().startswith("//")] if _oa.exists() else []
+    bq.materialize_official_appointments(_rows)
     bq.ch_match_suppliers()
     cov = bq.coverage()
     bq.write_status(run_id, "refresh", stats, cov, est_gbp=meter.gbp(), tier_breakdown=meter.breakdown(), by_operator=meter.by_operator())

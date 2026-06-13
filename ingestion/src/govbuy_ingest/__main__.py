@@ -72,6 +72,10 @@ def main(argv: list[str] | None = None) -> int:
         return discover()
     if args.mode == "materialize-sibling":
         out = bq.materialize_sibling(); out.update(bq.materialize_track_record()); out.update(bq.materialize_fusion()); out.update(bq.materialize_observed())
+        import json as _json
+        _oa = pathlib.Path(__file__).resolve().parents[3] / "reference-data" / "official_appointments.ndjson"
+        _rows = [_json.loads(l) for l in _oa.read_text().splitlines() if l.strip() and not l.lstrip().startswith("//")] if _oa.exists() else []
+        out.update(bq.materialize_official_appointments(_rows))
         print(json.dumps(out, indent=2, default=str)); return 0
     if args.mode == "gca-sync":
         from .gca_api import sync as fw_sync

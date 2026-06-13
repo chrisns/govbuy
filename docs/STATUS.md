@@ -9,10 +9,11 @@ distinct hostname `govbuy.run.cns.me/mcp` and codebase._
 |---|---|
 | Operators (with ≥1 framework) | **147** (185 rows incl. catalogue-blocked) |
 | Frameworks / DPS / dynamic markets | **3,207** (3,108 live for call-off) |
-| Suppliers | **28,247** — **28,031 CRN-matched (99.2%)** via Companies House |
-| Appointed-supplier edges | **57,055** |
-| Frameworks with a supplier list | **2,455 (77%)** |
-| Frameworks with how-to-call-off mechanics | **2,289 (71%)** |
+| Suppliers | **30,071** — **29,311 CRN-matched (97.5%)** via Companies House |
+| Appointed-supplier edges | **60,056** |
+| Live frameworks with a supplier list | **2,424 of 3,108 (78%)** — 684 still without |
+| Frameworks with how-to-call-off mechanics | **2,314 (74%)** |
+| Forward pipeline (future-dated planned notices) | **866** |
 | Spend coverage (RM-attributable) | **91.4%** |
 | Acceptance | **11/11 (AC-1..11)** |
 
@@ -50,7 +51,32 @@ specific token (e.g. `drone`) ranks its framework top instead of being buried.
 
 ## What's missing (and why)
 
-### Supplier lists — 752 of 3,207 frameworks still have none, by reason ([details](access-barriers.md))
+### Coverage backfill — DOS7 + 7 sibling frameworks filled, deterministically + source-anchored
+A two-workflow sweep closed the highest-value "we route to it but can't name the suppliers" gaps, lifting
+live-framework supplier-list coverage and adding **~2,866 source-anchored appointed-supplier edges**:
+- **Audit workflow (40 agents)** classified all 39 no-list CCS/RM frameworks by retrievability →
+  9 `fillable_public`, 1 `fillable_digital_marketplace`, 3 already-covered duplicates, 13 rolling DPS not
+  exposed by the GCA API, 8 login-walled, 5 dynamic markets with no public list. Written up in
+  [coverage-backlog.md](coverage-backlog.md); ACs in [pipeline-coverage-acceptance.md](pipeline-coverage-acceptance.md).
+- **DOS7 (Digital Outcomes & Specialists 7, RM1043.9)** — the standout: its 1,807-row appointed-supplier
+  list is a public GCA ODS, but we'd been routing to it without naming a single supplier. Parsed → 1,596
+  deduped suppliers (CRN where shown) → loaded as `appointed_supplier` edges (instrument `rm-rm1043-9`,
+  evidence `ev-official-RM1043.9`). Verified live: `framework({rm_reference:"RM1043.9"})` → 1,596 suppliers,
+  `coverage.has_official_supplier_list=true`.
+- **Fill workflow (7 agents)** pulled the public appointed lists for 7 more — Cyber Security Services 3
+  (RM3764.3), Space-Enabled & Geospatial (RM6235), Construction Professional Services DPS (RM6242), MCF4
+  (RM6309), International Healthcare Recruitment (RM6333), Income Generation DPS (RM6350), GovPrint (RM6361_25)
+  — ~1,270 suppliers, all verbatim-gated.
+- **Durable, not one-off:** the fills live in `reference-data/official_appointments.ndjson` (a verbatim manifest)
+  and replay token-free via `bq.materialize_official_appointments()`, wired into the `materialize-sibling`
+  refresh — so a rebuild reproduces them deterministically.
+- **Forward-pipeline honesty fix:** the pipeline queries ordered notices oldest-first with no future filter, so
+  they surfaced 2015 notices as "coming". Now filtered to `expected_date >= CURRENT_TIMESTAMP()` and ordered
+  soonest-first; the site reports the honest **866** future-dated planned notices (of 29,306 total).
+
+Net: live frameworks with a supplier list **77% → 78%**; no-list among live **752 → 684**.
+
+### Supplier lists — 684 of 3,108 live frameworks still have none, by reason ([details](access-barriers.md))
 - **Login-walled — 328 frameworks. Needs credentials (actionable).** Highest-value single credential
   is **`hunterpcm.uk`** (Hunter CSM portal) → ~98 HE-consortia frameworks (NEUPC 72, APUC 21, LUPC 5).
   Then Pagabo (23), YPO (15), NHS LPP (13), TPPL (11), advantageswtenders.co.uk (10), CHIC (9).

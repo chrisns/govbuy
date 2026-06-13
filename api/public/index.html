@@ -310,7 +310,7 @@ code{font-family:var(--font-mono);font-size:.92em}
     <div class="sh-row"><span class="eyebrow">Explore the data</span><h2 class="sh-title">Real numbers from the corpus — not a brochure</h2></div>
   </header>
   <p class="section-lede">Every figure below is live from <code>govbuy_public</code> as of <span class="numeral">2026-06-13</span> — the same data your assistant reasons over.</p>
-  <p class="dash-method"><b>Method, plainly:</b> figures are over <b>award records</b> (one per award&times;supplier line, 658,625 of them across 57,190 appointed-supplier edges) from the fused UK-Tenders corpus. Framework-ceiling outliers (&gt;£100m) are removed so medians aren't distorted; the price explorer uses awards &ge;£1,000. Totals are sums over award records and are not de-duplicated across multi-supplier awards, so they read as gross awarded value, not net spend. Reseller £ come from a curated reseller-graph join across every CPV a firm operates in. Dirty upstream dates are bounded by each chart's window. Counts of <code>instrument</code>/<code>service</code> are exact. Nothing here is hand-entered — re-run <code>scripts/build-site.mjs</code> to reproduce.</p>
+  <p class="dash-method"><b>Method, plainly:</b> figures are over <b>award records</b> (one per award&times;supplier line, 658,625 of them across 60,056 appointed-supplier edges) from the fused UK-Tenders corpus. Framework-ceiling outliers (&gt;£100m) are removed so medians aren't distorted; the price explorer uses awards &ge;£1,000. Totals are sums over award records and are not de-duplicated across multi-supplier awards, so they read as gross awarded value, not net spend. Reseller £ come from a curated reseller-graph join across every CPV a firm operates in. Dirty upstream dates are bounded by each chart's window. Counts of <code>instrument</code>/<code>service</code> are exact. Nothing here is hand-entered — re-run <code>scripts/build-site.mjs</code> to reproduce.</p>
 
   <div class="dash dash-explorer" id="explorer">
     <div class="dash-head">
@@ -790,7 +790,7 @@ code{font-family:var(--font-mono);font-size:.92em}
   <div class="honest-grid">
     <p>Credibility is in the candour. govbuy never fabricates: every supplier, framework and £ comes from a source that literally states it, behind a verbatim-substring gate.</p>
     <ul>
-      <li><b>No published supplier list.</b> <b class="numeral">690</b> of <b class="numeral">3,108</b> live frameworks publish no member list (login-walled portals, or DPS/neutral-vendor models that don't publish membership) — govbuy says so rather than guessing.</li>
+      <li><b>No published supplier list.</b> <b class="numeral">684</b> of <b class="numeral">3,108</b> live frameworks publish no member list (login-walled portals, or DPS/neutral-vendor models that don't publish membership) — govbuy says so rather than guessing.</li>
       <li><b>Attribution gaps.</b> Most awards carry no framework reference, so a flagship showing low spend is often an attribution gap, <i>not</i> dead paper — and it tells you which.</li>
       <li><b>Backfilled, labelled.</b> Where an official list is missing, <b class="numeral">3,910</b> supplier×framework edges are inferred from real awards — clearly marked observed-not-official.</li>
       <li><b>Not legal advice.</b> It documents routes; it doesn't assemble the purchase or sign off compliance. Confirm on the official source it links.</li>
@@ -829,7 +829,7 @@ code{font-family:var(--font-mono);font-size:.92em}
       <h4 class="cl-h">The corpus</h4>
       <ul class="cl-list">
         <li class="numeral">3,207 frameworks</li><li class="numeral">658,625 awards</li>
-        <li class="numeral">28,272 suppliers</li><li>data as of <span class="numeral">2026-06-13</span></li>
+        <li class="numeral">30,071 suppliers</li><li>data as of <span class="numeral">2026-06-13</span></li>
       </ul>
     </div>
   </div>
