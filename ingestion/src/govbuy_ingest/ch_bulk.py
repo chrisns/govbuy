@@ -109,3 +109,71 @@ def sync(date: str | None = None, keep: bool = False) -> dict:
             except OSError:
                 pass
     return {"target_crns": len(crns), "matched": matched, **stats}
+
+
+# ── PSC ownership → corporate-group rollups (free, no key) ───────────────────────────────────────────
+_PSC_MARK = b'"corporate-entity-person-with-significant-control"'
+
+
+def _psc_files(date: str | None = None) -> list[str]:
+    """The PSC snapshot is split into N parts dated to a specific snapshot day. Scrape the listing page
+    for the current set of psc-snapshot-*.zip filenames (the date is not first-of-month, so we discover it)."""
+    html = httpx.get(f"{BASE}/en_pscdata.html", timeout=60, follow_redirects=True).text
+    import re
+    files = re.findall(r'href="(psc-snapshot-[0-9-]+_\d+of\d+\.zip)"', html)
+    if date:
+        files = [f for f in files if date in f]
+    return sorted(set(files))
+
+
+def psc_sync(date: str | None = None, keep: bool = False) -> dict:
+    """Download the free PSC snapshot, stream-filter to corporate-controller edges for govbuy's CRNs
+    (>25% control), materialise supplier_group. No API key, no rate limit."""
+    crns = _govbuy_crns()
+    files = _psc_files(date)
+    if not files:
+        return {"error": "no PSC snapshot files found on the listing page"}
+    tmp = tempfile.mkdtemp(prefix="chpsc_")
+    nd = os.path.join(tmp, "psc_parents.ndjson")
+    n_edges = 0
+    with open(nd, "w", encoding="utf-8") as out:
+        for fn in files:
+            z = os.path.join(tmp, fn)
+            with httpx.stream("GET", f"{BASE}/{fn}", timeout=600, follow_redirects=True) as r:
+                r.raise_for_status()
+                with open(z, "wb") as fz:
+                    for chunk in r.iter_bytes(1 << 20):
+                        fz.write(chunk)
+            with zipfile.ZipFile(z) as zf:
+                inner = next(n for n in zf.namelist() if not n.endswith("/"))
+                with zf.open(inner) as fh:
+                    for raw in fh:
+                        if _PSC_MARK not in raw:
+                            continue
+                        try:
+                            rec = json.loads(raw)
+                        except Exception:
+                            continue
+                        if rec.get("company_number") not in crns:
+                            continue
+                        d = rec.get("data", {})
+                        if d.get("kind") != "corporate-entity-person-with-significant-control":
+                            continue
+                        ident = d.get("identification", {}) or {}
+                        parent = (ident.get("registration_number") or "").strip()
+                        if not parent:
+                            continue
+                        out.write(json.dumps({
+                            "member_crn": rec["company_number"], "parent_crn": parent,
+                            "parent_name": d.get("name"), "country_registered": ident.get("country_registered"),
+                            "natures_of_control": d.get("natures_of_control", []),
+                        }, ensure_ascii=False) + "\n")
+                        n_edges += 1
+            os.remove(z)
+    stats = bq.materialize_supplier_group(nd)
+    if not keep:
+        try:
+            os.remove(nd)
+        except OSError:
+            pass
+    return {"target_crns": len(crns), "files": len(files), "corporate_psc_edges": n_edges, **stats}

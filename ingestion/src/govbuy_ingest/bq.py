@@ -618,6 +618,34 @@ def materialize_company_profile(ndjson_path: str) -> dict:
     return {"company_profile_rows": n}
 
 
+def materialize_supplier_group(ndjson_path: str) -> dict:
+    """Load the corporate-PSC parent edges (from ch_bulk.psc_sync — the free PSC snapshot, no key) and
+    materialise supplier_group: each corporate controller → the govbuy suppliers it controls (>25% via the
+    PSC natures-of-control) + their combined call-off £. Parent CRNs are zero-padded; UK-registered only."""
+    c = client()
+    stg = config.pub("supplier_psc_parent_stg")
+    with open(ndjson_path, "rb") as f:
+        c.load_table_from_file(f, stg, job_config=bigquery.LoadJobConfig(
+            source_format="NEWLINE_DELIMITED_JSON", autodetect=True, write_disposition="WRITE_TRUNCATE")).result()
+    c.query(f"""
+      CREATE OR REPLACE TABLE `{config.pub('supplier_group')}` AS
+      WITH edges AS (
+        SELECT member_crn,
+          CASE WHEN REGEXP_CONTAINS(parent_crn, r'^[0-9]+$') THEN LPAD(parent_crn,8,'0') ELSE UPPER(parent_crn) END AS parent_crn,
+          ANY_VALUE(parent_name) parent_name
+        FROM `{stg}`
+        WHERE country_registered IS NULL OR UPPER(country_registered) IN ('ENGLAND','WALES','SCOTLAND','NORTHERN IRELAND','UNITED KINGDOM','ENGLAND & WALES','ENGLAND AND WALES','GREAT BRITAIN','UK')
+        GROUP BY 1,2),
+      grp AS (SELECT parent_crn, ANY_VALUE(parent_name) parent_name, ARRAY_AGG(DISTINCT member_crn) member_crns FROM edges GROUP BY parent_crn)
+      SELECT g.parent_crn, g.parent_name, g.member_crns, ARRAY_LENGTH(g.member_crns) member_count,
+        (SELECT ROUND(SUM(ct.calloff_gbp)) FROM `{config.pub('supplier_calloff_total')}` ct
+           WHERE ct.supplier_crn IN UNNEST(g.member_crns) OR ct.supplier_crn = g.parent_crn) AS group_calloff_gbp
+      FROM grp g
+    """).result()
+    n = query(f"SELECT COUNT(*) AS n FROM `{config.pub('supplier_group')}`")[0]["n"]
+    return {"supplier_group_rows": n}
+
+
 def materialize_official_appointments(rows: list[dict]) -> dict:
     """Backfill appointed-supplier lists for frameworks govbuy held as routes-without-members, from PUBLIC
     official sources the coverage audit found (DOS7's GCA ODS, GCA /suppliers pages, the Cabinet Office DPS

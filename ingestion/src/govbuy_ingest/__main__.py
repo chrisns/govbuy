@@ -33,6 +33,7 @@ def main(argv: list[str] | None = None) -> int:
     cat = sub.add_parser("catalogues-sync"); cat.add_argument("--only", default="ndx,nhsbc")
     cw = sub.add_parser("credentialed-sync"); cw.add_argument("--only", default=None)
     cb = sub.add_parser("ch-bulk-sync"); cb.add_argument("--date", default=None); cb.add_argument("--keep", action="store_true")
+    cps = sub.add_parser("ch-psc-sync"); cps.add_argument("--date", default=None); cps.add_argument("--keep", action="store_true")
     args = ap.parse_args(argv)
 
     from . import bq, config
@@ -139,6 +140,10 @@ def main(argv: list[str] | None = None) -> int:
         # company_profile (SME / region / SIC). No API key, no rate limit, whole-population.
         from . import ch_bulk
         print(json.dumps(ch_bulk.sync(date=args.date, keep=args.keep), indent=2, default=str)); return 0
+    if args.mode == "ch-psc-sync":
+        # Credential-free: free PSC snapshot → corporate-group rollups (supplier_group).
+        from . import ch_bulk
+        print(json.dumps(ch_bulk.psc_sync(date=args.date, keep=args.keep), indent=2, default=str)); return 0
     if args.mode == "credentialed-sync":
         # Pull appointed-supplier lists from login-walled portals we hold credentials for, then gate+load
         # them through the same path as the official-appointments manifest. No creds → safe no-op.

@@ -33,16 +33,17 @@ Harness now returns a `gate` (pass-rate vs a `PASS_FLOOR`, default 70%); `script
 the result JSON and exits non-zero on regression (tested both ways). `freshness()` now emits `data_is_stale`
 + `freshness_sla{threshold_hours, oldest_source_age_hours, within_sla}`.
 
-## 4. Canonical identity at ingest + corporate-group rollups 🟡 (group rollups: PSC feed identified, credential-free, next)
+## 4. Canonical identity at ingest + corporate-group rollups ✅ (group rollups shipped; canonical-at-ingest deferred by choice)
 **AC:** one canonical `supplier_id` per `company_number` resolved at ingest; "how much has the whole group won"
 rolls subsidiaries up to a parent.
-**Status:** Canonical CRN reconciliation already exists (`supplier_crn_canonical`) and the read path UNIONs
-across split identities, so answers are correct *today*. Pushing the dedup into the projection is a low-marginal,
-higher-risk refactor — deferred deliberately. **Parent-group rollups** need ownership data; the **free,
-credential-free Companies House PSC (persons-with-significant-control) snapshot** is the source (same host as
-the bulk Company Data Product we now ingest). The bulk-profile pipeline (`ch_bulk.py`) is the template; a PSC
-sibling would build the ownership graph (>25% control, corporate PSC → parent CRN). Not yet built — it's the
-remaining credential-free data item. (No fabricated ownership in the meantime.)
+**Status:** **Corporate-group rollups shipped** from the free, credential-free **Companies House PSC snapshot**:
+`ch_bulk.psc_sync` + `ch-psc-sync` downloads the 32-part PSC snapshot, stream-filters to corporate-controller
+edges (>25% control) for govbuy's CRNs, and materialises `govbuy_public.supplier_group` — **16,158 groups,
+2,021 multi-member (biggest 41)**. `supplier()` now emits a `corporate_group` block: the parent company, the
+other govbuy suppliers under it, and the group's combined CRN-matched call-off £ (verified live: BAM Construct
+→ 3 entities / £1.36bn; Softcat → £972m). Immediate parent only, never inferred. Canonical CRN reconciliation
+already works at read time (`supplier_crn_canonical` UNION), so pushing dedup into the projection stays a
+deliberate, low-marginal deferral.
 
 ## 5. Credentialed ingest for the login-walled lists 🟡 (path ready; ⛔ on credentials)
 **AC:** a fetch path that authenticates to portals (hunterpcm.uk → ~98 HE frameworks, then Pagabo/YPO/NHS LPP)

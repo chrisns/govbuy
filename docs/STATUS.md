@@ -44,6 +44,9 @@ Nothing was lost; the mapping:
   Backed by the free, credential-free **Companies House bulk Company Data Product** — `company_profile`
   enriches **41,381** of govbuy's suppliers (26,506 SME-likely, 40,707 with region) with no API key or rate
   limit (`ingestion/ch_bulk.py` + `ch-bulk-sync`); the live CH call is preferred for freshness, bulk fills the rest.
+  Also emits a **`corporate_group`** rollup from the free **Companies House PSC snapshot** (`ch-psc-sync` →
+  `supplier_group`, 16,158 groups): the parent company + the other govbuy suppliers it controls + their combined
+  call-off £ (e.g. BAM's 3 entities = £1.36bn) — relevant to concentration/conflict. Immediate parent only, never inferred.
 - **framework** ← get_instrument + compliant_path, now with **per-lot supplier membership** (`suppliers_by_lot`).
 - **research** ← query_sql + spend_xray + get_schema + get_status (status now emits an explicit freshness SLA).
 - **draft** *(new)* — turns a chosen route into editable **scaffolding**: a real-dated procurement timetable,

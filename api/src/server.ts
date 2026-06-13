@@ -178,6 +178,31 @@ async function bulkProfile(crn: string | null | undefined): Promise<BulkProfile 
   } catch { return null; }
 }
 
+// Corporate-group footprint from PSC ownership (govbuy_public.supplier_group): the corporate controller of
+// this firm + the other govbuy suppliers under the same parent + the group's combined call-off £. Sourced
+// from the free PSC snapshot (>25% control), never inferred.
+async function groupFootprint(crn: string | null | undefined): Promise<Record<string, unknown> | null> {
+  if (!crn) return null;
+  try {
+    const rows = await runQuery(`SELECT parent_crn, parent_name, member_crns, member_count, group_calloff_gbp
+      FROM ${tableRef("supplier_group")} WHERE @crn IN UNNEST(member_crns) OR parent_crn = @crn
+      ORDER BY member_count DESC LIMIT 1`, { params: { crn }, types: { crn: "STRING" } });
+    if (!rows.length) return null;
+    const r = deep(rows[0]) as Record<string, unknown>;
+    const members = (r.member_crns as string[]) ?? [];
+    const siblings = members.filter((m) => m !== crn);
+    return {
+      source: "companies_house_psc",
+      parent_company_number: r.parent_crn,
+      parent_name: r.parent_name,
+      govbuy_suppliers_under_parent: r.member_count,
+      sibling_company_numbers: siblings,
+      group_calloff_gbp: r.group_calloff_gbp ?? null,
+      note: "Corporate controller (>25% control) per the Companies House PSC register, and the other govbuy-tracked suppliers under the same parent, with their combined CRN-matched call-off £. Immediate parent only — not a full ownership tree.",
+    };
+  } catch { return null; }
+}
+
 // Size / locality lens for one firm, from Companies House only (never invented). Prefers the LIVE call for
 // freshness, falls back to the bulk Company Data Product (whole-population, no key) for everything the live
 // call lacks or when there's no live key. SME likelihood is read off the filed-accounts category — a signal,
@@ -1087,7 +1112,7 @@ export function buildServer(): McpServer {
       const crn = (profile as A)._crn as string | null;
       // One live Companies House read (shared by the exclusion gate + lens) and the credential-free bulk
       // profile (whole-population), so the size/locality lens works even without a live key.
-      const [live, bulk] = await Promise.all([liveChProfile(crn), bulkProfile(crn)]);
+      const [live, bulk, group] = await Promise.all([liveChProfile(crn), bulkProfile(crn), groupFootprint(crn)]);
       const [exclusion, delivery] = await Promise.all([
         exclusionFor(crn, (profile as A)._status as string | null, live),
         crn || !looksCrn ? capDeliveryRecord(crn ? { crn } : { supplier: a.query }).catch(() => ({ profile: {}, sinfo: {} })) : Promise.resolve({ profile: {}, sinfo: {} }),
@@ -1099,9 +1124,10 @@ export function buildServer(): McpServer {
         ...p,
         exclusion,
         ...(lens ? { size_and_locality: lens } : {}),
+        ...(group ? { corporate_group: group } : {}),
         delivery_record: (delivery as A).profile,
         note: "One supplier: a two-limb PA2023 exclusion check (live Companies House insolvency + s.62 debarment), the canonical-reconciled framework footprint, award-evidenced frameworks, and the CRN-matched delivery record (call-off channels, £ ceiling outliers removed). top_buyer_pct_of_calloff >50% = single-customer risk; high pct_direct_award = wins by direct award not competition. NULL/absent = no matched awards, not proof of incapacity. " + NOT_ADVICE,
-        display_guidance: "If exclusion.flagged, LEAD with the ⚠ and state the limb (insolvency Sch 6/7 vs s.62 debarment); exclusion.insolvency.source = live_companies_house means checked live just now, else re-check. Then the framework footprint + frameworks_evidenced_by_awards (RMs really won), then the delivery record (£ won, concentration, competitive-vs-direct). When size_and_locality is present, report sme_likely (with its accounts-category basis) and the registered-office region as Companies-House signals — never assert SME status definitively, and treat social value as a PA2023 duty to evidence, not a supplier attribute. Always link ch_url. " + DISPLAY_GUIDANCE,
+        display_guidance: "If exclusion.flagged, LEAD with the ⚠ and state the limb (insolvency Sch 6/7 vs s.62 debarment); exclusion.insolvency.source = live_companies_house means checked live just now, else re-check. Then the framework footprint + frameworks_evidenced_by_awards (RMs really won), then the delivery record (£ won, concentration, competitive-vs-direct). When size_and_locality is present, report sme_likely (with its accounts-category basis) and the registered-office region as Companies-House signals — never assert SME status definitively, and treat social value as a PA2023 duty to evidence, not a supplier attribute. When corporate_group is present, note the parent company and the group's combined call-off £ (the firm may be one of several govbuy suppliers under one owner — relevant to concentration/conflict). Always link ch_url. " + DISPLAY_GUIDANCE,
       }, await freshness()));
     }),
   );
