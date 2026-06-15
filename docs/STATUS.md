@@ -48,8 +48,15 @@ Nothing was lost; the mapping:
   Also emits a **`corporate_group`** rollup from the free **Companies House PSC snapshot** (`ch-psc-sync` →
   `supplier_group`, 16,158 groups): the parent company + the other govbuy suppliers it controls + their combined
   call-off £ (e.g. BAM's 3 entities = £1.36bn) — relevant to concentration/conflict. Immediate parent only, never inferred.
+  And a **`modern_slavery_statement`** flag from the free gov.uk **Modern Slavery Statement Registry**
+  (`modern-slavery-sync` → `supplier_modern_slavery`, **2,499** suppliers, CRN-joined): whether the firm has
+  published an MSA s.54 statement (year + URL + turnover band) — a due-diligence signal, never proof of (non-)compliance.
 - **framework** ← get_instrument + compliant_path, now with **per-lot supplier membership** (`suppliers_by_lot`).
 - **research** ← query_sql + spend_xray + get_schema + get_status (status now emits an explicit freshness SLA).
+  Now also over **`buyer_classification`** (11,890 buyers typed local-gov / NHS / education / police / central-gov
+  deterministically from the buyer's own name + the open gov.uk organisations register — no fuzzy cross-entity
+  matching) and **`company_profile`** (SME / region / `sector`), so spend slices by buyer sector and supplier
+  sector/region (e.g. Local government £525bn vs Central £223bn vs NHS £168bn). `buyer-classification-sync`.
 - **draft** *(new)* — turns a chosen route into editable **scaffolding**: a real-dated procurement timetable,
   a MEAT evaluation-matrix skeleton, a spec outline, the route-correct PA2023 compliance steps, and a
   Schedule 5 / s.44 transparency-notice stub for statutory direct awards. Scaffolding, not legal advice.

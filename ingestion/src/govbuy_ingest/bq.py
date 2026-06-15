@@ -681,6 +681,54 @@ def materialize_supplier_group(ndjson_path: str) -> dict:
     return {"supplier_group_rows": n}
 
 
+def materialize_modern_slavery(ndjson_path: str) -> dict:
+    """Load the per-supplier modern-slavery-statement flag (from open_refs.modern_slavery_sync — the free
+    gov.uk Modern Slavery Statement Registry, joined by Companies House number). A published MSA s.54 statement
+    is a due-diligence signal (required of orgs with >£36m turnover); absence is NOT proof of non-compliance."""
+    c = client()
+    full = config.pub("supplier_modern_slavery")
+    schema = [bigquery.SchemaField(n, t) for n, t in (
+        ("company_number", "STRING"), ("organisation_name", "STRING"), ("sector_type", "STRING"),
+        ("statement_year", "INTEGER"), ("statement_url", "STRING"), ("turnover", "STRING"))]
+    with open(ndjson_path, "rb") as f:
+        c.load_table_from_file(f, full, job_config=bigquery.LoadJobConfig(
+            source_format="NEWLINE_DELIMITED_JSON", schema=schema, write_disposition="WRITE_TRUNCATE")).result()
+    n = query(f"SELECT COUNT(*) AS n FROM `{full}`")[0]["n"]
+    return {"supplier_modern_slavery_rows": n}
+
+
+def materialize_buyer_classification(gov_orgs_ndjson_path: str) -> dict:
+    """Load the gov.uk organisations register (open API) as buyer_org, then classify every distinct buyer in
+    tender_award into a public-sector TYPE — deterministically, from the buyer's OWN name (regex) plus an EXACT
+    match to the register for central gov. No fuzzy cross-entity matching, so no fabricated identities."""
+    c = client()
+    bo = config.pub("buyer_org")
+    schema = [bigquery.SchemaField(n, "STRING") for n in ("title", "norm", "format", "web_url", "parent")]
+    with open(gov_orgs_ndjson_path, "rb") as f:
+        c.load_table_from_file(f, bo, job_config=bigquery.LoadJobConfig(
+            source_format="NEWLINE_DELIMITED_JSON", schema=schema, write_disposition="WRITE_TRUNCATE")).result()
+    c.query(f"""
+      CREATE OR REPLACE TABLE `{config.pub('buyer_classification')}` AS
+      WITH d AS (SELECT DISTINCT buyer_name FROM `{config.pub('tender_award')}` WHERE buyer_name IS NOT NULL),
+      nm AS (SELECT buyer_name, ' ' || ARRAY_TO_STRING(REGEXP_EXTRACT_ALL(LOWER(buyer_name), r'[a-z0-9]+'),' ') || ' ' AS norm FROM d)
+      SELECT n.buyer_name,
+        CASE
+          WHEN bo.title IS NOT NULL AND bo.format NOT IN ('Other','Sub-organisation') THEN 'Central government'
+          WHEN REGEXP_CONTAINS(n.norm, r' (borough|county|district|metropolitan|unitary|parish) ') OR REGEXP_CONTAINS(n.norm, r' council ') THEN 'Local government'
+          WHEN REGEXP_CONTAINS(n.norm, r' (nhs|ccg|icb) ') OR REGEXP_CONTAINS(n.norm, r'(foundation trust|integrated care board|clinical commissioning|health board)') THEN 'NHS / health'
+          WHEN REGEXP_CONTAINS(n.norm, r' (university|college|academy|academies|school|schools) ') OR REGEXP_CONTAINS(n.norm, r'multi academy') THEN 'Education'
+          WHEN REGEXP_CONTAINS(n.norm, r' (police|constabulary) ') OR REGEXP_CONTAINS(n.norm, r'crime commissioner') THEN 'Police'
+          WHEN REGEXP_CONTAINS(n.norm, r'fire (and )?rescue') OR REGEXP_CONTAINS(n.norm, r'fire (authority|service)') THEN 'Fire & rescue'
+          WHEN REGEXP_CONTAINS(n.norm, r'(ministry|department for|department of|secretary of state|cabinet office|crown commercial)') OR REGEXP_CONTAINS(n.norm, r' (hmrc|dvla|dwp|mod|dfe|dft|defra) ') THEN 'Central government'
+          WHEN REGEXP_CONTAINS(n.norm, r'(housing association|combined authority)') OR REGEXP_CONTAINS(n.norm, r' homes ') THEN 'Housing / combined authority'
+          ELSE 'Other / unclassified' END AS buyer_type,
+        bo.format AS gov_uk_format, bo.web_url AS gov_uk_url
+      FROM nm n LEFT JOIN `{bo}` bo ON bo.norm = TRIM(n.norm)
+    """).result()
+    n = query(f"SELECT COUNT(*) AS n FROM `{config.pub('buyer_classification')}`")[0]["n"]
+    return {"buyer_org_rows": query(f"SELECT COUNT(*) AS n FROM `{bo}`")[0]["n"], "buyer_classification_rows": n}
+
+
 def materialize_official_appointments(rows: list[dict]) -> dict:
     """Backfill appointed-supplier lists for frameworks govbuy held as routes-without-members, from PUBLIC
     official sources the coverage audit found (DOS7's GCA ODS, GCA /suppliers pages, the Cabinet Office DPS

@@ -203,6 +203,20 @@ async function groupFootprint(crn: string | null | undefined): Promise<Record<st
   } catch { return null; }
 }
 
+// Modern Slavery Act s.54 statement, from the free gov.uk registry (CRN-joined). A due-diligence signal —
+// required of orgs with >£36m turnover; absence is NOT proof of non-compliance for smaller firms.
+async function modernSlavery(crn: string | null | undefined): Promise<Record<string, unknown> | null> {
+  if (!crn) return null;
+  try {
+    const rows = await runQuery(`SELECT organisation_name, statement_year, statement_url, turnover
+      FROM ${tableRef("supplier_modern_slavery")} WHERE company_number = @crn ORDER BY statement_year DESC LIMIT 1`,
+      { params: { crn }, types: { crn: "STRING" } });
+    if (!rows.length) return { has_published_statement: false, source: "gov.uk Modern Slavery Statement Registry", note: "No published Modern Slavery Act s.54 statement found on the registry. Only orgs with >£36m turnover are required to publish — absence is not proof of non-compliance." };
+    const r = deep(rows[0]) as Record<string, unknown>;
+    return { has_published_statement: true, source: "gov.uk Modern Slavery Statement Registry", latest_statement_year: r.statement_year, statement_url: r.statement_url, turnover_band: r.turnover, note: "Has a published MSA s.54 modern-slavery statement (a transparency signal, not a guarantee of supply-chain practice)." };
+  } catch { return null; }
+}
+
 // Size / locality lens for one firm, from Companies House only (never invented). Prefers the LIVE call for
 // freshness, falls back to the bulk Company Data Product (whole-population, no key) for everything the live
 // call lacks or when there's no live key. SME likelihood is read off the filed-accounts category — a signal,
@@ -1115,7 +1129,7 @@ export function buildServer(): McpServer {
       const crn = (profile as A)._crn as string | null;
       // One live Companies House read (shared by the exclusion gate + lens) and the credential-free bulk
       // profile (whole-population), so the size/locality lens works even without a live key.
-      const [live, bulk, group] = await Promise.all([liveChProfile(crn), bulkProfile(crn), groupFootprint(crn)]);
+      const [live, bulk, group, slavery] = await Promise.all([liveChProfile(crn), bulkProfile(crn), groupFootprint(crn), modernSlavery(crn)]);
       const [exclusion, delivery] = await Promise.all([
         exclusionFor(crn, (profile as A)._status as string | null, live),
         crn || !looksCrn ? capDeliveryRecord(crn ? { crn } : { supplier: a.query }).catch(() => ({ profile: {}, sinfo: {} })) : Promise.resolve({ profile: {}, sinfo: {} }),
@@ -1128,6 +1142,7 @@ export function buildServer(): McpServer {
         exclusion,
         ...(lens ? { size_and_locality: lens } : {}),
         ...(group ? { corporate_group: group } : {}),
+        ...(slavery ? { modern_slavery_statement: slavery } : {}),
         delivery_record: (delivery as A).profile,
         note: "One supplier: a two-limb PA2023 exclusion check (live Companies House insolvency + s.62 debarment), the canonical-reconciled framework footprint, award-evidenced frameworks, and the CRN-matched delivery record (call-off channels, £ ceiling outliers removed). top_buyer_pct_of_calloff >50% = single-customer risk; high pct_direct_award = wins by direct award not competition. NULL/absent = no matched awards, not proof of incapacity. " + NOT_ADVICE,
         display_guidance: "If exclusion.flagged, LEAD with the ⚠ and state the limb (insolvency Sch 6/7 vs s.62 debarment); exclusion.insolvency.source = live_companies_house means checked live just now, else re-check. Then the framework footprint + frameworks_evidenced_by_awards (RMs really won), then the delivery record (£ won, concentration, competitive-vs-direct). When size_and_locality is present, report sme_likely (with its accounts-category basis) and the registered-office region as Companies-House signals — never assert SME status definitively, and treat social value as a PA2023 duty to evidence, not a supplier attribute. When corporate_group is present, note the parent company and the group's combined call-off £ (the firm may be one of several govbuy suppliers under one owner — relevant to concentration/conflict). Always link ch_url. " + DISPLAY_GUIDANCE,
