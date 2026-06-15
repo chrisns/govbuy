@@ -14,7 +14,16 @@ database dump — and **bulletproof**: every supplier is exclusion-checked again
 Companies House** insolvency check *and* the **s.62 debarment register** — and every claim ships its
 source URL. Route × reality × statute, for buyers, suppliers and researchers alike.
 
-**Live now:**
+**Live now.** Easiest — install the **Claude plugin** (bundles the MCP server + a skill + slash commands):
+
+```
+/plugin marketplace add chrisns/govbuy
+/plugin install govbuy@cns
+```
+
+Then run `/govbuy:start`. (Approve the bundled MCP server when prompted.) See [plugins/govbuy](plugins/govbuy/).
+
+Or add just the MCP server to any client:
 
 ```bash
 claude mcp add --transport http govbuy https://govbuy.run.cns.me/mcp

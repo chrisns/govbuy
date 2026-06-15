@@ -1,0 +1,22 @@
+{
+  "name": "cns",
+  "owner": {
+    "name": "Chris Nesbitt-Smith",
+    "email": "chris@cns.me.uk"
+  },
+  "metadata": {
+    "description": "cns.me plugins. Tools that turn messy, high-stakes domains into something an AI can reason over precisely.",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "govbuy",
+      "source": "./plugins/govbuy",
+      "description": "The UK public-procurement co-pilot. Ask how to buy across the public sector, where to sell as a vendor, or how public money flows — source-anchored across 3,200 frameworks, 117k catalogue listings and 658k real awards, with the Procurement Act 2023 built in. Ships the govbuy MCP server + a skill + slash commands.",
+      "version": "1.0.0",
+      "author": { "name": "Chris Nesbitt-Smith", "email": "chris@cns.me.uk" },
+      "homepage": "https://govbuy.run.cns.me",
+      "keywords": ["uk", "public-sector", "procurement", "government", "frameworks", "g-cloud", "ccs", "procurement-act-2023", "mcp"]
+    }
+  ]
+}

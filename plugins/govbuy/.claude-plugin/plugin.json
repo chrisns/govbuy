@@ -1,0 +1,16 @@
+{
+  "name": "govbuy",
+  "description": "The UK public-procurement co-pilot — buy, sell, draft and research across the public sector, source-anchored, with the Procurement Act 2023 built in. Bundles the govbuy MCP server, an auto-activating skill, and slash commands.",
+  "version": "1.0.0",
+  "author": { "name": "Chris Nesbitt-Smith", "email": "chris@cns.me.uk" },
+  "homepage": "https://govbuy.run.cns.me",
+  "keywords": ["uk", "public-sector", "procurement", "government", "frameworks", "g-cloud", "ccs", "procurement-act-2023", "mcp"],
+  "skills": "./skills/",
+  "commands": "./commands/",
+  "mcpServers": {
+    "govbuy": {
+      "type": "http",
+      "url": "https://govbuy.run.cns.me/mcp"
+    }
+  }
+}
