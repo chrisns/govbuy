@@ -13,7 +13,7 @@ distinct hostname `govbuy.run.cns.me/mcp` and codebase._
 | Appointed-supplier edges | **60,056** |
 | Live frameworks with a supplier list | **2,424 of 3,108 (78%)** — 684 still without |
 | Frameworks with how-to-call-off mechanics | **2,314 (74%)** |
-| Forward pipeline (future-dated planned notices) | **866** |
+| Forward pipeline (future-dated planned notices) | **1,029** (incl. s.93 planning-block notices) |
 | Spend coverage (RM-attributable) | **91.4%** |
 | Acceptance | **11/11 (AC-1..11)** |
 
@@ -97,7 +97,14 @@ live-framework supplier-list coverage and adding **~2,866 source-anchored appoin
   refresh — so a rebuild reproduces them deterministically.
 - **Forward-pipeline honesty fix:** the pipeline queries ordered notices oldest-first with no future filter, so
   they surfaced 2015 notices as "coming". Now filtered to `expected_date >= CURRENT_TIMESTAMP()` and ordered
-  soonest-first; the site reports the honest **866** future-dated planned notices (of 29,306 total).
+  soonest-first; the site reports the honest future-dated planned notices.
+
+**Deeper forward pipeline (PA2023 s.93).** `pipeline_notice` now also draws from the OCDS `$.planning` block
+(the pipeline/planning-notice carrier — 20,677 records), not just `tender.status` planned/planning, and prefers
+the **`futureNoticeDate`** ("when the buyer plans to publish the actual tender") as `expected_date`, exposing it
+as `expected_notice_date` + a `notice_kind`. Future-dated forward notices **866 → 1,029** (894 with an explicit
+tender-publication date). Surfaced through `sell` / `watch` / `buy`. The corpus genuinely holds little more
+forward-dated signal than this — most "planned" notices are historical, not a coverage bug.
 
 Net: live frameworks with a supplier list **77% → 78%**; no-list among live **752 → 684**.
 

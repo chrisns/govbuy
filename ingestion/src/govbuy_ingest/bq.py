@@ -525,18 +525,25 @@ def materialize_fusion() -> dict:
       WHERE JSON_VALUE(compiled_json,'$.tender.status')='active'
         AND SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', JSON_VALUE(compiled_json,'$.tender.tenderPeriod.endDate')) > CURRENT_TIMESTAMP()
     """).result()
+    # PA2023 s.93 forward pipeline. Universe = planned/planning tenders OR an OCDS $.planning block (the
+    # pipeline/planning-notice carrier). expected_date prefers the futureNoticeDate ("when the buyer plans to
+    # publish the actual tender" — the actionable forward signal for a seller), then contract start, planning
+    # milestone, tender start, published. expected_notice_date surfaces that future-notice date explicitly.
     c.query(f"""
       CREATE OR REPLACE TABLE `{config.pub('pipeline_notice')}` CLUSTER BY cpv_division, expected_date AS
       SELECT ocid, buyer_name, title, cpv_division, value_amount AS estimated_value,
+             SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', JSON_VALUE(compiled_json,'$.tender.communication.futureNoticeDate')) AS expected_notice_date,
              COALESCE(
-               SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', JSON_VALUE(compiled_json,'$.tender.tenderPeriod.startDate')),
                SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', JSON_VALUE(compiled_json,'$.tender.communication.futureNoticeDate')),
                SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', JSON_VALUE(compiled_json,'$.tender.contractPeriod.startDate')),
+               (SELECT MAX(SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', JSON_VALUE(m,'$.dueDate'))) FROM UNNEST(JSON_QUERY_ARRAY(compiled_json,'$.planning.milestones')) m),
+               SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', JSON_VALUE(compiled_json,'$.tender.tenderPeriod.startDate')),
                published_date) AS expected_date,
+             CASE WHEN JSON_QUERY(compiled_json,'$.planning') IS NOT NULL THEN 'pipeline_planning_notice' ELSE 'planned_tender' END AS notice_kind,
              source, official_url,
              LOWER(CONCAT(IFNULL(title,''),' ',IFNULL(description,''))) AS hay
       FROM `{config.PROJECT}.{sib}.compiled_process`
-      WHERE JSON_VALUE(compiled_json,'$.tender.status') IN ('planned','planning')
+      WHERE JSON_VALUE(compiled_json,'$.tender.status') IN ('planned','planning') OR JSON_QUERY(compiled_json,'$.planning') IS NOT NULL
     """).result()
     return {"tender_award_rows": query(f"SELECT COUNT(*) n FROM `{config.pub('tender_award')}`")[0]["n"],
             "live_opportunity_rows": query(f"SELECT COUNT(*) n FROM `{config.pub('live_opportunity')}`")[0]["n"],

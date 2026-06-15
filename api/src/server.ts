@@ -675,7 +675,8 @@ async function capPlan(a: A) {
         ROUND(APPROX_QUANTILES(award_amount,100)[OFFSET(75)]) p75, COUNT(*) n
       FROM ${tableRef("tender_award")} WHERE @cpv IS NOT NULL AND cpv_division=@cpv AND channel IN ('framework_call_off','dps_call_off') AND award_amount BETWEEN 0 AND 100000000`,
       { params: { cpv }, types: { cpv: "STRING" } }),
-    runQuery(`SELECT buyer_name, title, ROUND(estimated_value) AS estimated_value, CAST(expected_date AS STRING) AS expected_date, official_url
+    runQuery(`SELECT buyer_name, title, ROUND(estimated_value) AS estimated_value, CAST(expected_date AS STRING) AS expected_date,
+        CAST(expected_notice_date AS STRING) AS expected_notice_date, notice_kind, official_url
       FROM ${tableRef("pipeline_notice")} WHERE expected_date >= CURRENT_TIMESTAMP() AND (@cpv IS NULL OR cpv_division=@cpv) AND hay LIKE @kw ORDER BY expected_date LIMIT 3`,
       { params: { cpv, kw }, types: { cpv: "STRING", kw: "STRING" } }),
     runQuery(`SELECT i.name, i.rm_reference, CAST(i.expires_on AS STRING) AS expires_on, i.official_url, i.lifecycle_status,
@@ -919,7 +920,8 @@ async function capPipeline(a: A) {
     ORDER BY CASE rc.channel_type WHEN 'thin_prime' THEN 1 WHEN 'hybrid' THEN 2 ELSE 3 END, s.display_name LIMIT @lim`;
   const pipeSql = `
     SELECT buyer_name, title, cpv_division, ROUND(estimated_value) AS estimated_value,
-           CAST(expected_date AS STRING) AS expected_date, official_url
+           CAST(expected_date AS STRING) AS expected_date,
+           CAST(expected_notice_date AS STRING) AS expected_notice_date, notice_kind, official_url
     FROM ${tableRef("pipeline_notice")}
     WHERE expected_date >= CURRENT_TIMESTAMP() AND (@cpv IS NULL OR cpv_division = @cpv) AND (@kw IS NULL OR hay LIKE @kw)
     ORDER BY expected_date LIMIT @lim`;
