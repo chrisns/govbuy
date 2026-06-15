@@ -407,6 +407,7 @@ function renderHtml(d) {
   // https://govbuy.run.cns.me/mcp — free, unauthenticated, no API key.
   const URL_MCP = "https://govbuy.run.cns.me/mcp";
   const clients = [
+    { name: "Claude — one-click plugin ★", kind: "Bundles the MCP + a skill + slash commands", code: `/plugin marketplace add chrisns/govbuy\n/plugin install govbuy@cns`, docs: "https://github.com/chrisns/govbuy/tree/main/plugins/govbuy", note: "Then run /govbuy:start. Approve the MCP server when prompted." },
     { name: "Claude Code", kind: "Terminal — one command", code: installCmd, docs: "https://docs.claude.com/en/docs/claude-code/mcp", note: "Then ask Claude anything about UK procurement." },
     { name: "Claude Desktop", kind: "Settings → Developer → Edit Config", code: `{\n  "mcpServers": {\n    "govbuy": { "type": "http", "url": "${URL_MCP}" }\n  }\n}`, docs: "https://modelcontextprotocol.io/quickstart/user", note: "Add to claude_desktop_config.json, then restart." },
     { name: "GitHub Copilot (VS Code)", kind: "Create .vscode/mcp.json (or ⌘⇧P → “MCP: Add Server”)", code: `{\n  "servers": {\n    "govbuy": { "type": "http", "url": "${URL_MCP}" }\n  }\n}`, docs: "https://code.visualstudio.com/docs/copilot/chat/mcp-servers", note: "Use in Copilot Chat → Agent mode." },

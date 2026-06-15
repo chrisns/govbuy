@@ -166,13 +166,13 @@ async function liveChProfile(crn: string | null | undefined): Promise<ChProfile 
 interface BulkProfile {
   company_category: string | null; company_status_bulk: string | null; incorporated_on: string | null;
   accounts_category: string | null; region: string | null; postcode_area: string | null;
-  sic_codes: string[]; sme_likely: boolean | null;
+  sic_codes: string[]; sme_likely: boolean | null; sector: string | null;
 }
 async function bulkProfile(crn: string | null | undefined): Promise<BulkProfile | null> {
   if (!crn) return null;
   try {
     const rows = await runQuery<BulkProfile>(`SELECT company_category, company_status_bulk, incorporated_on,
-        accounts_category, region, postcode_area, sic_codes, sme_likely
+        accounts_category, region, postcode_area, sic_codes, sme_likely, sector
       FROM ${tableRef("company_profile")} WHERE company_number = @crn LIMIT 1`, { params: { crn }, types: { crn: "STRING" } });
     return rows.length ? (deep(rows[0]) as BulkProfile) : null;
   } catch { return null; }
@@ -220,6 +220,7 @@ function procurementLens(live: ChProfile | null, bulk: BulkProfile | null): Reco
     company_type: live?.company_type ?? bulk?.company_category ?? null,
     incorporated_on: live?.incorporated_on ?? bulk?.incorporated_on ?? null,
     sic_codes: sics,
+    sector: bulk?.sector ?? null,
     registered_office_region: region,
     registered_office_postcode_area: live?.registered_office_postcode_area ?? bulk?.postcode_area ?? null,
     accounts_category: accounts,

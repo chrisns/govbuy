@@ -604,15 +604,43 @@ def materialize_company_profile(ndjson_path: str) -> dict:
     with open(ndjson_path, "rb") as f:
         c.load_table_from_file(f, stg, job_config=bigquery.LoadJobConfig(
             source_format="NEWLINE_DELIMITED_JSON", autodetect=True, write_disposition="WRITE_TRUNCATE")).result()
+    # Derive: SME signal off the filed-accounts category; a readable sector off the primary SIC code.
+    # SIC codes are normalised back to 5-char zero-padded strings (autodetect may have typed them INT).
     c.query(f"""
       CREATE OR REPLACE TABLE `{config.pub('company_profile')}` CLUSTER BY company_number AS
-      SELECT company_number, company_category, company_status_bulk, country_of_origin, incorporated_on,
-             accounts_category, region, post_town, postcode_area, sic_codes, sic_text,
-             CASE
-               WHEN UPPER(accounts_category) IN ('MICRO ENTITY','SMALL','DORMANT','TOTAL EXEMPTION FULL','TOTAL EXEMPTION SMALL','ACCOUNTS TYPE NOT AVAILABLE') THEN TRUE
-               WHEN UPPER(accounts_category) IN ('MEDIUM','FULL','GROUP','AUDITED ABRIDGED','AUDIT EXEMPTION SUBSIDIARY') THEN FALSE
-               ELSE NULL END AS sme_likely
-      FROM `{stg}`
+      WITH base AS (
+        SELECT company_number, company_category, company_status_bulk, country_of_origin, incorporated_on,
+               accounts_category, region, post_town, postcode_area, sic_text,
+               ARRAY(SELECT LPAD(CAST(x AS STRING),5,'0') FROM UNNEST(sic_codes) x) AS sic_codes,
+               SAFE_CAST(SUBSTR(LPAD(CAST(sic_codes[SAFE_OFFSET(0)] AS STRING),5,'0'),1,2) AS INT64) AS sic_division,
+               CASE
+                 WHEN UPPER(accounts_category) IN ('MICRO ENTITY','SMALL','DORMANT','TOTAL EXEMPTION FULL','TOTAL EXEMPTION SMALL','ACCOUNTS TYPE NOT AVAILABLE') THEN TRUE
+                 WHEN UPPER(accounts_category) IN ('MEDIUM','FULL','GROUP','AUDITED ABRIDGED','AUDIT EXEMPTION SUBSIDIARY') THEN FALSE
+                 ELSE NULL END AS sme_likely
+        FROM `{stg}`)
+      SELECT * EXCEPT(sic_division), sic_division,
+        CASE
+          WHEN sic_division BETWEEN 1 AND 3 THEN 'Agriculture, forestry & fishing'
+          WHEN sic_division BETWEEN 5 AND 9 THEN 'Mining & quarrying'
+          WHEN sic_division BETWEEN 10 AND 33 THEN 'Manufacturing'
+          WHEN sic_division = 35 THEN 'Energy'
+          WHEN sic_division BETWEEN 36 AND 39 THEN 'Water, sewerage & waste'
+          WHEN sic_division BETWEEN 41 AND 43 THEN 'Construction'
+          WHEN sic_division BETWEEN 45 AND 47 THEN 'Wholesale & retail'
+          WHEN sic_division BETWEEN 49 AND 53 THEN 'Transport & storage'
+          WHEN sic_division BETWEEN 55 AND 56 THEN 'Accommodation & food'
+          WHEN sic_division BETWEEN 58 AND 63 THEN 'Information & communication'
+          WHEN sic_division BETWEEN 64 AND 66 THEN 'Financial & insurance'
+          WHEN sic_division = 68 THEN 'Real estate'
+          WHEN sic_division BETWEEN 69 AND 75 THEN 'Professional, scientific & technical'
+          WHEN sic_division BETWEEN 77 AND 82 THEN 'Administrative & support services'
+          WHEN sic_division = 84 THEN 'Public administration & defence'
+          WHEN sic_division = 85 THEN 'Education'
+          WHEN sic_division BETWEEN 86 AND 88 THEN 'Health & social work'
+          WHEN sic_division BETWEEN 90 AND 93 THEN 'Arts & recreation'
+          WHEN sic_division BETWEEN 94 AND 99 THEN 'Other services'
+          ELSE NULL END AS sector
+      FROM base
     """).result()
     n = query(f"SELECT COUNT(*) AS n FROM `{config.pub('company_profile')}`")[0]["n"]
     return {"company_profile_rows": n}

@@ -42,8 +42,9 @@ Nothing was lost; the mapping:
 - **supplier** ← get_supplier + due_diligence (one CRN; the two-limb exclusion is computed once) + an
   **SME/locality lens** (SIC / company type / registered-office region / filed-accounts-category SME signal).
   Backed by the free, credential-free **Companies House bulk Company Data Product** — `company_profile`
-  enriches **41,381** of govbuy's suppliers (26,506 SME-likely, 40,707 with region) with no API key or rate
-  limit (`ingestion/ch_bulk.py` + `ch-bulk-sync`); the live CH call is preferred for freshness, bulk fills the rest.
+  enriches **41,381** of govbuy's suppliers (26,506 SME-likely, 40,707 with region, + a readable **sector**
+  derived from SIC) with no API key or rate limit (`ingestion/ch_bulk.py` + `ch-bulk-sync`); the live CH call
+  is preferred for freshness, bulk fills the rest.
   Also emits a **`corporate_group`** rollup from the free **Companies House PSC snapshot** (`ch-psc-sync` →
   `supplier_group`, 16,158 groups): the parent company + the other govbuy suppliers it controls + their combined
   call-off £ (e.g. BAM's 3 entities = £1.36bn) — relevant to concentration/conflict. Immediate parent only, never inferred.
@@ -59,6 +60,12 @@ Also new: **MCP prompts** (`compliant-buy`, `due-diligence`, `market-entry`) + *
 `govbuy://guide`); **Wayback `archived_url`** on every evidence block (citations survive 404s); a TTL cache on
 static reference reads; and the eval is now a **release gate** ([release-gate.sh](../scripts/release-gate.sh),
 golden set 27→49, harness corrected to the seven verbs).
+
+**One-command install — a Claude plugin.** A `cns` marketplace in this repo ([plugins/govbuy](../plugins/govbuy/))
+bundles the govbuy MCP server + an auto-activating `uk-procurement` skill + slash commands
+(`/govbuy:start|buy|check-supplier|sell|draft|watch`): `/plugin marketplace add chrisns/govbuy` then
+`/plugin install govbuy@cns`. The skill encodes the verb routing, the no-fabrication grounding rules, and
+how to format a brief for impact — so a fresh install answers procurement questions decisively out of the box.
 
 Sections below describe capabilities by their original names; each is now reached through the verb above.
 Two real bugs were fixed in the refactor: **(1)** `runQuery` passed `{autoPaginate:false}`, which returned the
