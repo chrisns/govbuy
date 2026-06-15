@@ -41,7 +41,7 @@ const cpvLabel = (d) => CPV[d] ? `${CPV[d]} (CPV ${d})` : `CPV ${d}`;
 
 async function main() {
 console.error("querying govbuy_public …");
-const [head, channels, premium, frameworks, resellers, expiry, catalogue, observed, exclusion, supFootprint, membership, rmNames] = await Promise.all([
+const [head, channels, premium, frameworks, resellers, expiry, catalogue, observed, exclusion, supFootprint, membership, rmNames, buyerSectors] = await Promise.all([
   q(`SELECT
        (SELECT COUNT(*) FROM govbuy_public.instrument) AS frameworks,
        (SELECT COUNTIF(lifecycle_status='live_for_call_off') FROM govbuy_public.instrument) AS live_frameworks,
@@ -111,6 +111,11 @@ const [head, channels, premium, frameworks, resellers, expiry, catalogue, observ
   q(`SELECT REGEXP_EXTRACT(UPPER(rm_reference),r'RM[0-9]+') stem,
         ARRAY_AGG(name ORDER BY IF(operator_id='gca',0,1), LENGTH(name) DESC)[SAFE_OFFSET(0)] name
       FROM govbuy_public.instrument WHERE rm_reference IS NOT NULL AND name NOT LIKE 'RM%' GROUP BY stem`),
+  // award spend by public-sector buyer layer (deterministic buyer classification, open gov.uk register)
+  q(`SELECT bc.buyer_type, ROUND(SUM(t.award_amount)) gbp, COUNT(DISTINCT bc.buyer_name) buyers
+      FROM govbuy_public.buyer_classification bc JOIN govbuy_public.tender_award t USING(buyer_name)
+      WHERE t.award_amount BETWEEN 0 AND 100000000 AND bc.buyer_type != 'Other / unclassified'
+      GROUP BY 1 ORDER BY gbp DESC`),
 ]);
 
 const num = (v) => Number(v);
@@ -128,6 +133,7 @@ const data = {
   supFootprint: supFootprint.map((r) => ({ crn: r.supplier_crn, name: r.display_name, gbp: num(r.total_gbp), n: num(r.total_n), top: (r.top_fw || []).map((f) => ({ stem: f.stem, gbp: num(f.gbp), n: num(f.n) })) })),
   membership: membership.map((r) => ({ name: r.name, rm: r.rm, n: num(r.n) })),
   rmName: Object.fromEntries(rmNames.filter((r) => r.stem && r.name).map((r) => [r.stem, r.name])),
+  buyerSectors: buyerSectors.map((r) => ({ type: r.buyer_type, gbp: num(r.gbp), buyers: num(r.buyers) })),
 };
 
 // Resolve every framework link to one that actually loads (validated), else a gov.uk search fallback.
@@ -244,6 +250,14 @@ function renderHtml(d) {
       <div class="bar-val numeral">${cnum(c.n)}</div>
     </div>`).join("");
 
+  const bsMax = Math.max(...d.buyerSectors.map((b) => b.gbp), 1);
+  const buyerBars = d.buyerSectors.map((b) => `
+    <div class="bar-row">
+      <div class="bar-label">${esc(b.type)}</div>
+      <div class="bar-track"><div class="bar-fill ${b.type.startsWith("Local") || b.type.startsWith("NHS") ? "bf-pink" : "bf-ink"}" style="width:${(b.gbp / bsMax * 100).toFixed(1)}%"></div></div>
+      <div class="bar-val numeral">${gbp(b.gbp)} <span class="bar-sub">· ${cnum(b.buyers)} buyers</span></div>
+    </div>`).join("");
+
   const itPremium = d.premium.find((p) => p.d === "72");
   const totalAwardGbp = d.channels.reduce((a, c) => a + c.gbp, 0);
 
@@ -324,6 +338,7 @@ function renderHtml(d) {
   const topSupRows = d.supFootprint.slice(0, 8).filter((s) => s.name).map((s) => ({ label: s.name, value: s.gbp, sub: cnum(s.n) + " call-offs", tone: "pink", fmt: "gbp" }));
   const topFwRows = d.frameworks.slice(0, 8).map((f) => ({ label: f.name || f.rm, value: f.gbp, sub: cnum(f.suppliers) + " suppliers", tone: "pink", fmt: "gbp" }));
   const resellerRows = d.resellers.slice(0, 8).map((r) => ({ label: r.name, value: r.gbp, sub: cnum(r.n) + " call-offs", tone: "ink", fmt: "gbp" }));
+  const buyerSectorRows = d.buyerSectors.map((b) => ({ label: b.type, value: b.gbp, sub: cnum(b.buyers) + " buyers", tone: (b.type.startsWith("Local") || b.type.startsWith("NHS")) ? "pink" : "ink", fmt: "gbp" }));
   const catRows = d.catalogue.map((c) => ({ label: ({ "g-cloud": "G-Cloud 14", "azure": "Azure Marketplace", "ypo": "YPO", "espo": "ESPO", "nhs-buying-catalogue": "NHS Buying Catalogue", "ndx": "NDX" })[c.catalogue] || c.catalogue, value: c.n, tone: "ink", fmt: "num" }));
   const memberRows = d.membership.map((m) => ({ label: m.name, value: m.n, tone: "pink", fmt: "num" }));
   const expiryCols = d.expiry.map((e) => { const [y, m] = e.ym.split("-"); return { label: ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][Number(m)] + (m === "01" ? " " + y.slice(2) : ""), value: e.gbp, fmt: "gbp" }; });
@@ -339,6 +354,7 @@ function renderHtml(d) {
     { p: "buyer", q: "What can I actually search across the UK public-sector buying catalogues?", a: `<b>${cnum(d.head.listings)}</b> per-listing descriptions across ${d.head.catalogues} catalogues, all capability-searchable and token-free re-crawled:`, chart: { kind: "bars", caption: "Catalogue listings indexed", rows: catRows } },
     { p: "buyer", q: "Which live frameworks have the deepest bench of appointed suppliers?", a: `The most-populated live frameworks — where a buyer has the widest compliant choice without a fresh competition:`, chart: { kind: "bars", caption: "Live frameworks · appointed suppliers", rows: memberRows } },
     { p: "buyer", q: "How many appointed suppliers are in financial distress right now?", a: `<b>${cnum(d.distressed)}</b> of <b>${cnum(d.head.suppliers)}</b> matched suppliers are flagged dissolved / liquidation / administration — each a PA2023 Schedule 6/7 exclusion ground the gate raises <i>before</i> you award, via a ${A(L.ch, "live Companies House")} check.`, chart: { kind: "bars", caption: "Supplier financial health", rows: [{ label: "Flagged (Sch 6/7)", value: d.distressed, tone: "pink", fmt: "num" }, { label: "No distress flag", value: Math.max(0, d.head.suppliers - d.distressed), tone: "ink", fmt: "num" }] } },
+    { p: "researcher", q: "How is public spending split across the public sector — local government, Whitehall, the NHS?", a: `Every buyer is typed <b>deterministically</b> from its own name + the open gov.uk organisations register (no fuzzy matching). The split of attributable award value:`, chart: { kind: "bars", caption: "Award value by buyer layer", rows: buyerSectorRows } },
   ];
 
   const noteQs = [
@@ -355,6 +371,7 @@ function renderHtml(d) {
     { p: "buyer", q: "Does govbuy give legal or procurement advice?", a: `No. It <b>documents routes</b> and links the official source for every claim — frameworks, mechanics, ${A(L.pa2023, "PA2023")} duties — but it doesn't assemble the purchase or sign off compliance. You run the assessment on the sources it cites.` },
     { p: "seller", q: "What's the fastest compliant way onto a framework if I'm a new SME?", a: `Target the routes that admit suppliers continuously — live <b>dynamic markets and DPSs</b> (e.g. ${A(L.rm6200, "RM6200")}) — rather than waiting for a closed framework to re-tender. The <code>sell</code> verb ranks the ones you can join now by real call-off spend.` },
     { p: "researcher", q: "What exactly is govbuy, and what can it answer?", a: `An MCP server that welds <b>route × reality × statute</b> for UK public procurement: ${cnum(d.head.frameworks)} frameworks, ${cnum(d.head.listings)} catalogue listings and ${cnum(d.head.fused_awards)} real awards in one place — so your AI assistant answers buyer, seller and researcher questions with sources. ${extLink(REPO, "See the code")}.` },
+    { p: "buyer", q: "Give me the full picture on a supplier before we award — risk, size, ownership, ethics.", a: `One <code>supplier</code> call returns a 360: the <b>two-limb exclusion check</b> (live ${A(L.ch, "Companies House")} insolvency + ${A(L.s62, "s.62 debarment")}), an <b>SME / sector / region</b> lens, the <b>corporate-group</b> (parent + sibling suppliers + combined call-off £, from the Companies House PSC register), and whether they've published a <b>modern-slavery statement</b> — all from free, open data, CRN-joined, never invented.` },
     { p: "buyer", q: "I've picked my route — now draft me the procurement timetable and evaluation.", a: `The <code>draft</code> verb returns editable <b>scaffolding</b>: a real-dated timetable (invitation → tender → evaluation → <b>8-working-day standstill</b> → signature), a MEAT evaluation-matrix skeleton, a spec outline, and the route-correct ${A(L.pa2023, "PA2023")} compliance steps — for a statutory direct award, a Schedule 5 + ${A(L.sch5, "s.44")} stub. Scaffolding to complete, never legal advice.` },
     { p: "seller", q: "Tell me when IT contracts are about to expire so I can time my pitch.", a: `The <code>watch</code> verb returns the contracts ending within your horizon (the incumbent's displacement window) plus a <b>re-runnable saved query</b> — govbuy is request/response, so you diff successive runs to catch what's newly expiring.` },
   ];
@@ -381,7 +398,7 @@ function renderHtml(d) {
   const tools = [
     ["Buyer", [
       ["buy", "one opinionated brief: route + PA2023 mechanic + ranked shortlist (track record + exclusion) + price + alternative routes + compliance checklist"],
-      ["supplier", "is this firm safe? a two-limb live exclusion check + framework footprint + CRN-matched delivery record + an SME/locality lens"],
+      ["supplier", "is this firm safe? a two-limb live exclusion check + framework footprint + CRN-matched delivery record + an SME/sector/region lens + corporate-group rollup + a modern-slavery-statement flag"],
       ["framework", "one instrument: lots, appointed suppliers (incl. per-lot), observed-from-awards, coverage, and the PA2023-precise call-off path"],
       ["draft", "scaffolding to START the procurement: a real-dated timetable, a MEAT matrix skeleton, a spec outline, the compliance steps, a Schedule 5 / s.44 stub"],
     ]],
@@ -582,6 +599,11 @@ ${MASTHEAD}
       <div class="dash-head"><span class="eyebrow">${cnum(d.head.listings)} listings · ${d.head.catalogues} catalogues</span><h3>What's actually on the shelves</h3><p class="dash-note">Per-listing descriptions across every public UK buying catalogue, searchable by capability — token-free re-crawled.</p></div>
       <div class="bars">${catBars}</div>
     </div>
+  </div>
+
+  <div class="dash">
+    <div class="dash-head"><span class="eyebrow">Who's spending · open gov.uk data</span><h3>Award value by public-sector layer</h3><p class="dash-note">Every distinct buyer is typed <b>deterministically</b> from its own name + the open ${A("https://www.gov.uk/api/organisations", "gov.uk organisations register")} — no fuzzy cross-entity matching, so nothing's mislabelled. A further ${gbp(totalAwardGbp - d.buyerSectors.reduce((a, b) => a + b.gbp, 0))} sits in genuinely ambiguous names (shown as unclassified in the data, omitted here). Supplier-side, the same open feeds add SME / region / sector, corporate-group ownership and modern-slavery flags — all on <code>supplier()</code>.</p></div>
+    <div class="bars">${buyerBars}</div>
   </div>
 </section>
 
