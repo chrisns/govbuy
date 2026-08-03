@@ -33,24 +33,191 @@
 <meta name="twitter:label2" content="Real awards fused in" /><meta name="twitter:data2" content="658,625" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;0,9..144,800;0,9..144,900;1,9..144,400;1,9..144,500;1,9..144,600&family=Hanken+Grotesk:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<style>
-:root{
-  --font-display:"Fraunces","Times New Roman",ui-serif,serif;
-  --font-body:"Hanken Grotesk",ui-sans-serif,system-ui,sans-serif;
-  --font-mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,monospace;
-  --pink:#E5197F;--pink-hot:#FF2D8A;--pink-deep:#B30E61;--pink-ink:#5A0830;
-  --ink:#14110F;--ink-2:#2A2622;--ink-3:#5C544C;--ink-4:#8A8077;--rule:#1F1B17;
-  --paper:#F4EFE7;--paper-2:#EBE4D8;--paper-3:#DDD3C2;--bone:#FBF8F2;
-  --ease:cubic-bezier(.2,.7,.2,1);--maxw:1320px;
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;0,9..144,800;0,9..144,900;1,9..144,400;1,9..144,500;1,9..144,600;1,9..144,700&family=Hanken+Grotesk:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>/* ============================================================
+   CNS Design System — Core Tokens
+   Chris Nesbitt-Smith / cns.me
+   Pink-forward editorial; UK gov digital thought leadership.
+   ============================================================ */
+
+/* ---------- Typography ----------------------------------- */
+/* Union of every weight/axis the blog, talks and govbuy surfaces request, so
+   consumers link this file alone and never need their own Google Fonts tag. */
+
+
+:root {
+  /* ----- Type families ----- */
+  --font-display: "Fraunces", "Times New Roman", ui-serif, serif;
+  --font-body:    "Hanken Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-mono:    "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* ----- Type scale (1.25 ratio, generous display end) ----- */
+  --t-xs:    0.75rem;   /* 12 */
+  --t-sm:    0.875rem;  /* 14 */
+  --t-base:  1rem;      /* 16 */
+  --t-md:    1.125rem;  /* 18 */
+  --t-lg:    1.375rem;  /* 22 */
+  --t-xl:    1.75rem;   /* 28 */
+  --t-2xl:   2.25rem;   /* 36 */
+  --t-3xl:   3rem;      /* 48 */
+  --t-4xl:   4rem;      /* 64 */
+  --t-5xl:   5.5rem;    /* 88 */
+  --t-6xl:   8rem;      /* 128 */
+
+  /* ----- Weights ----- */
+  --w-light: 300;
+  --w-reg:   400;
+  --w-med:   500;
+  --w-semi:  600;
+  --w-bold:  700;
+  --w-black: 900;
+
+  /* ----- Tracking ----- */
+  --tr-tight:  -0.03em;
+  --tr-snug:   -0.015em;
+  --tr-normal: 0;
+  --tr-loose:  0.04em;
+  --tr-eyebrow: 0.18em;
+
+  /* ----- Leading ----- */
+  --lh-tight: 1.05;
+  --lh-snug:  1.2;
+  --lh-body:  1.55;
+  --lh-loose: 1.75;
+
+  /* ============================================================
+     COLOR — Brand pink. Hot, saturated, magenta-leaning.
+     The kind a man wears as trousers. Not bubblegum, not pastel.
+     ============================================================ */
+
+  /* Pink ramp (oklch for control) */
+  --pink-50:  oklch(96% 0.025 350);
+  --pink-100: oklch(92% 0.06  350);
+  --pink-200: oklch(85% 0.12  350);
+  --pink-300: oklch(76% 0.19  350);
+  --pink-400: oklch(68% 0.24  350);
+  --pink-500: oklch(62% 0.27  350);   /* primary */
+  --pink-600: oklch(54% 0.26  352);
+  --pink-700: oklch(45% 0.22  354);
+  --pink-800: oklch(36% 0.17  356);
+  --pink-900: oklch(26% 0.11  358);
+
+  /* The hero — the "pink trousers" pink. Hex pinned for brand. */
+  --pink:        #E5197F;   /* primary brand pink */
+  --pink-hot:    #FF2D8A;   /* punchier, for hover/spotlight */
+  --pink-deep:   #B30E61;   /* press / shadows / type on cream */
+  --pink-ink:    #5A0830;   /* deepest — rare, for accents */
+
+  /* Neutrals — warm, paper-like cream and a near-black ink. */
+  --ink:      #14110F;      /* primary text, almost-black */
+  --ink-2:    #2A2622;      /* secondary text */
+  --ink-3:    #5C544C;      /* tertiary, captions */
+  --ink-4:    #8A8077;      /* disabled / hint */
+  --rule:     #1F1B17;      /* hairline rules on cream */
+
+  --paper:    #F4EFE7;      /* primary background — warm cream */
+  --paper-1:  #F4EFE7;      /* alias of --paper for legacy refs */
+  --paper-2:  #EBE4D8;      /* card / sunken surfaces */
+  --paper-3:  #DDD3C2;      /* borders on paper, dividers */
+  --bone:     #FBF8F2;      /* lightest, modal / lifted */
+
+  --white:    #FFFFFF;
+  --black:    #14110F;      /* alias of --ink for clarity */
+
+  /* Inverse mode (dark / hero blocks) */
+  --night:    #14110F;
+  --night-2:  #221E1A;
+  --night-3:  #3A332D;
+
+  /* Semantic */
+  --ok:       #1F7A4D;
+  --warn:     #C57A12;
+  --err:      var(--pink-deep);
+  --info:     #1E4FA8;
+
+  /* Foreground / background semantic aliases */
+  --fg-1: var(--ink);
+  --fg-2: var(--ink-2);
+  --fg-3: var(--ink-3);
+  --fg-4: var(--ink-4);
+  --fg-on-pink: var(--bone);
+  --fg-on-ink:  var(--paper);
+  --fg-on-ink-2: #D8CFC4;   /* muted text on an ink surface — lede under an inverse headline */
+  --rule-on-ink: #4A443E;   /* hairline / ghost-button border on an ink surface */
+
+  --bg-1: var(--paper);
+  --bg-2: var(--paper-2);
+  --bg-3: var(--paper-3);
+  --bg-lift: var(--bone);
+  --bg-ink:  var(--ink);
+  --bg-pink: var(--pink);
+
+  --accent:        var(--pink);
+  --accent-hover:  var(--pink-hot);
+  --accent-press:  var(--pink-deep);
+  --link:          var(--pink-deep);
+  --link-hover:    var(--pink);
+
+  /* ============================================================
+     Spacing — 4px base, generous editorial scale
+     ============================================================ */
+  --s-0:   0;
+  --s-1:   4px;
+  --s-2:   8px;
+  --s-3:   12px;
+  --s-4:   16px;
+  --s-5:   24px;
+  --s-6:   32px;
+  --s-7:   48px;
+  --s-8:   64px;
+  --s-9:   96px;
+  --s-10: 128px;
+  --s-11: 160px;
+  --s-12: 240px;
+
+  /* ----- Radii ----- */
+  --r-0:   0;
+  --r-1:   2px;
+  --r-2:   4px;
+  --r-3:   8px;
+  --r-pill: 999px;
+  /* Note: brand favors sharp / squared corners. r-3 is the max for cards. */
+
+  /* ----- Borders ----- */
+  --bw-hair:  1px;
+  --bw-rule:  2px;     /* editorial rule weight */
+  --bw-bold:  4px;
+
+  /* ----- Shadows — used sparingly. Editorial = mostly flat. ----- */
+  --sh-0: none;
+  --sh-1: 0 1px 0 rgba(20,17,15,0.08);
+  --sh-2: 0 2px 8px -2px rgba(20,17,15,0.12), 0 1px 0 rgba(20,17,15,0.06);
+  --sh-3: 0 12px 24px -12px rgba(20,17,15,0.22), 0 2px 0 rgba(20,17,15,0.08);
+  --sh-pink: 0 12px 32px -12px rgba(229,25,127,0.45);
+  --sh-press: inset 0 2px 0 rgba(20,17,15,0.18);
+
+  /* ----- Motion ----- */
+  --ease-out:  cubic-bezier(0.2, 0.7, 0.2, 1);
+  --ease-in:   cubic-bezier(0.6, 0, 0.8, 0.4);
+  --ease-pop:  cubic-bezier(0.34, 1.56, 0.64, 1);
+  --dur-fast:  120ms;
+  --dur:       220ms;
+  --dur-slow:  400ms;
+
+  /* ----- Layout ----- */
+  --maxw-prose:     68ch;
+  --maxw-content:   1080px;
+  --maxw-page:      1320px;
 }
+
+/* CNS govbuy kit — govbuy.run.cns.me app surfaces. Tokens come from colors_and_type.css. */
 *{box-sizing:border-box}html,body{margin:0;padding:0}
 body{background:var(--paper);color:var(--ink);font-family:var(--font-body);font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 ::selection{background:var(--pink);color:var(--bone)}
-a{color:var(--pink-deep);text-decoration:underline;text-underline-offset:3px;transition:color .2s var(--ease)}
+a{color:var(--pink-deep);text-decoration:underline;text-underline-offset:3px;transition:color .2s var(--ease-out)}
 a:hover{color:var(--pink-hot)}
 code{font-family:var(--font-mono);font-size:.92em}
-.page{max-width:var(--maxw);margin:0 auto;padding:28px 48px 0}
+.page{max-width:var(--maxw-page);margin:0 auto;padding:28px 48px 0}
 .rule{border-top:1px solid var(--rule)}.rule.strong{border-top:2px solid var(--ink)}.rule.top{border-top:4px solid var(--ink)}
 .numeral{font-family:var(--font-mono);font-feature-settings:"tnum" 1;letter-spacing:.01em}
 .eyebrow{font-family:var(--font-mono);font-size:11px;font-weight:500;letter-spacing:.18em;text-transform:uppercase;color:var(--pink-deep);display:block}
@@ -121,7 +288,7 @@ code{font-family:var(--font-mono);font-size:.92em}
 .bar-row{display:grid;grid-template-columns:minmax(120px,1.3fr) minmax(0,2fr) auto;align-items:center;gap:14px}
 .bar-label{font-size:13.5px;color:var(--ink-2);font-weight:500}
 .bar-track{height:9px;background:var(--paper-2);border-radius:0;overflow:hidden}
-.bar-fill{height:100%;transform-origin:left;animation:grow .9s var(--ease) both}
+.bar-fill{height:100%;transform-origin:left;animation:grow .9s var(--ease-out) both}
 .bf-pink{background:var(--pink)}.bf-ink{background:var(--ink-2)}
 .bar-val{font-size:13px;color:var(--ink);text-align:right;white-space:nowrap}
 .bar-sub{color:var(--ink-4);font-size:11px}
@@ -139,7 +306,7 @@ code{font-family:var(--font-mono);font-size:.92em}
 .ep-row{display:grid;grid-template-columns:130px 1fr auto;align-items:center;gap:14px}
 .ep-rl{font-size:14px;font-weight:600}
 .ep-track{height:26px;background:var(--paper-2);position:relative;overflow:hidden}
-.ep-fill{height:100%;transform-origin:left;animation:grow .7s var(--ease) both}
+.ep-fill{height:100%;transform-origin:left;animation:grow .7s var(--ease-out) both}
 .ep-v{font-family:var(--font-mono);font-size:15px;font-weight:600;white-space:nowrap}
 .ep-verdict{border-left:2px solid var(--pink);padding-left:18px}
 .ep-big{font-family:var(--font-display);font-weight:800;font-size:46px;line-height:1;letter-spacing:-.02em;color:var(--pink);display:block}
@@ -155,14 +322,14 @@ code{font-family:var(--font-mono);font-size:.92em}
 .fw-name{color:var(--ink-2);max-width:340px}
 .fw-rm{color:var(--pink-deep);font-size:12px;margin-right:6px}
 .fw-bar{width:120px}
-.mini-track{height:7px;background:var(--paper-2)}.mini-fill{height:100%;background:var(--pink);transform-origin:left;animation:grow .9s var(--ease) both}
+.mini-track{height:7px;background:var(--paper-2)}.mini-fill{height:100%;background:var(--pink);transform-origin:left;animation:grow .9s var(--ease-out) both}
 .fw-gbp{font-weight:600;text-align:right}.fw-n,.fw-s{text-align:right;color:var(--ink-3)}
 .fw-table th.fw-gbp,.fw-table th.fw-n,.fw-table th.fw-s{text-align:right}
 
 /* expiry columns */
 .cols{display:flex;align-items:flex-end;gap:4px;height:180px;padding-top:8px}
 .col{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%}
-.col-bar{width:74%;background:var(--pink);min-height:2px;animation:rise .9s var(--ease) both}
+.col-bar{width:74%;background:var(--pink);min-height:2px;animation:rise .9s var(--ease-out) both}
 .col:hover .col-bar{background:var(--pink-hot)}
 .col-x{font-family:var(--font-mono);font-size:8.5px;color:var(--ink-4);margin-top:6px;text-align:center;line-height:1.3}
 .col-yr{color:var(--ink-2);font-weight:600}
@@ -196,16 +363,16 @@ code{font-family:var(--font-mono);font-size:.92em}
 
 /* cta */
 .cta{margin-top:64px;background:var(--ink);color:var(--bone);padding:64px 48px;margin-left:-48px;margin-right:-48px}
-.cta-inner{max-width:var(--maxw);margin:0 auto;text-align:center;display:flex;flex-direction:column;align-items:center;gap:16px}
+.cta-inner{max-width:var(--maxw-page);margin:0 auto;text-align:center;display:flex;flex-direction:column;align-items:center;gap:16px}
 .cta .orn{font-size:34px}
 .cta .eyebrow{color:var(--pink-hot)}
 .cta-title{font-family:var(--font-display);font-weight:800;font-size:clamp(30px,4vw,52px);line-height:1.02;letter-spacing:-.02em;margin:0;max-width:18ch;color:var(--bone)}
 .cta-title em{color:var(--pink-hot);font-style:italic}
-.cta-lede{font-size:17px;color:#D8CFC4;max-width:60ch;margin:0}
+.cta-lede{font-size:17px;color:var(--fg-on-ink-2);max-width:60ch;margin:0}
 .cta-row{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;margin-top:10px}
-.btn-primary{font-family:var(--font-body);font-weight:600;font-size:15px;padding:14px 28px;background:var(--pink);color:var(--bone);text-decoration:none;border-radius:999px;transition:all .2s var(--ease)}
+.btn-primary{font-family:var(--font-body);font-weight:600;font-size:15px;padding:14px 28px;background:var(--pink);color:var(--bone);text-decoration:none;border-radius:999px;transition:all .2s var(--ease-out)}
 .btn-primary:hover{background:var(--pink-hot);color:var(--bone);box-shadow:0 12px 32px -12px rgba(229,25,127,.65);transform:translateY(-1px)}
-.btn-ghost{font-family:var(--font-body);font-weight:600;font-size:15px;padding:14px 24px;color:var(--bone);text-decoration:none;border:1px solid #4a443e;border-radius:999px;transition:all .2s}
+.btn-ghost{font-family:var(--font-body);font-weight:600;font-size:15px;padding:14px 24px;color:var(--bone);text-decoration:none;border:1px solid var(--rule-on-ink);border-radius:999px;transition:all .2s}
 .btn-ghost:hover{border-color:var(--pink);color:var(--bone)}
 
 /* colophon */
@@ -257,10 +424,10 @@ code{font-family:var(--font-mono);font-size:.92em}
 .cd-tl{width:9px;height:9px;border-radius:50%;background:var(--paper-3)}
 .chat-title{font-family:var(--font-mono);font-size:11px;letter-spacing:.05em;color:var(--ink-3);margin-left:8px}
 .chat-live{margin-left:auto;font-family:var(--font-mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--pink-deep);display:flex;align-items:center;gap:5px}
-.cd-pulse{width:6px;height:6px;border-radius:50%;background:var(--pink);animation:pulse 1.6s var(--ease) infinite}
+.cd-pulse{width:6px;height:6px;border-radius:50%;background:var(--pink);animation:pulse 1.6s var(--ease-out) infinite}
 @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(.65)}}
-.chat-log{padding:22px 22px 26px;height:480px;overflow-y:auto;display:flex;flex-direction:column;gap:15px;transition:opacity .35s var(--ease)}
-.msg{display:flex;flex-direction:column;gap:5px;animation:msgIn .4s var(--ease) both}
+.chat-log{padding:22px 22px 26px;height:480px;overflow-y:auto;display:flex;flex-direction:column;gap:15px;transition:opacity .35s var(--ease-out)}
+.msg{display:flex;flex-direction:column;gap:5px;animation:msgIn .4s var(--ease-out) both}
 @keyframes msgIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 .msg-user{align-items:flex-end}
 .msg-persona{font-family:var(--font-mono);font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--bone);background:var(--ink);padding:2px 8px}
@@ -276,7 +443,7 @@ code{font-family:var(--font-mono);font-size:.92em}
 .cd-caret{display:inline-block;width:2px;height:1.02em;background:var(--bone);margin-left:1px;transform:translateY(2px);animation:caret .85s steps(1) infinite}
 @keyframes caret{0%,49%{opacity:1}50%,100%{opacity:0}}
 .cd-typing{display:inline-flex;gap:5px;padding:3px 2px}
-.cd-typing i{width:6px;height:6px;border-radius:50%;background:var(--ink-4);animation:cdot 1.2s var(--ease) infinite}
+.cd-typing i{width:6px;height:6px;border-radius:50%;background:var(--ink-4);animation:cdot 1.2s var(--ease-out) infinite}
 .cd-typing i:nth-child(2){animation-delay:.15s}.cd-typing i:nth-child(3){animation-delay:.3s}
 @keyframes cdot{0%,60%,100%{opacity:.25;transform:translateY(0)}30%{opacity:1;transform:translateY(-4px)}}
 .ch-chart{margin-top:13px;border-top:1px dashed var(--paper-3);padding-top:14px}
@@ -285,12 +452,12 @@ code{font-family:var(--font-mono);font-size:.92em}
 .ch-brow{display:grid;grid-template-columns:minmax(78px,1.1fr) minmax(0,1.8fr) auto;align-items:center;gap:12px}
 .ch-bl{font-size:12.5px;color:var(--ink-2);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ch-bt{height:14px;background:var(--paper-2);overflow:hidden}
-.ch-bf{height:100%;width:0;transform-origin:left;transition:width .8s var(--ease)}
+.ch-bf{height:100%;width:0;transform-origin:left;transition:width .8s var(--ease-out)}
 .ch-bv{font-size:12px;color:var(--ink);text-align:right;white-space:nowrap}
 .ch-bsub{color:var(--ink-4);font-size:10px}
 .ch-cols{display:flex;align-items:flex-end;gap:3px;height:120px}
 .ch-col{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%}
-.ch-col-bar{width:72%;background:var(--pink);min-height:2px;height:0;transition:height .7s var(--ease)}
+.ch-col-bar{width:72%;background:var(--pink);min-height:2px;height:0;transition:height .7s var(--ease-out)}
 .ch-col:hover .ch-col-bar{background:var(--pink-hot)}
 .ch-col-x{font-family:var(--font-mono);font-size:7.5px;color:var(--ink-4);margin-top:5px;white-space:nowrap}
 .chat-foot{font-family:var(--font-mono);font-size:11px;color:var(--ink-4);margin-top:12px;letter-spacing:.02em}
