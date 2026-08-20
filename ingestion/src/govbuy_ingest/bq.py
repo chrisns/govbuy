@@ -8,6 +8,7 @@ import re
 from datetime import datetime, timezone, date
 from pathlib import Path
 
+from google.api_core import exceptions as google_exceptions
 from google.cloud import bigquery
 
 from . import config
@@ -422,7 +423,13 @@ def materialize_sibling() -> dict:
     boundary (built by the ingest SA; API reads the table, never uk_tenders_public). Drops
     parties[].contactPoint; surfaces the §14 framework-reference keys."""
     full = config.pub("sibling_call_off_awards")
-    client().query(f"DROP VIEW IF EXISTS `{full}`").result()
+    try:
+        # One-time migration step from when this was a VIEW. CREATE OR REPLACE TABLE below
+        # handles the table-replacement case on its own, so ignore "already a TABLE".
+        client().query(f"DROP VIEW IF EXISTS `{full}`").result()
+    except google_exceptions.BadRequest as e:
+        if "was expected" not in str(e):
+            raise
     client().query(f"""
       CREATE OR REPLACE TABLE `{full}` AS
       SELECT cp.ocid, cp.source, cp.buyer_name, cp.cpv_division, cp.awarded_amount, cp.awarded_currency,
