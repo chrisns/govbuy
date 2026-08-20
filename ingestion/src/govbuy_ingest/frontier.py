@@ -10,19 +10,19 @@ from __future__ import annotations
 # which has no open API, would be a separate scrape sidecar if/when per-service depth is in scope.)
 SEED = [
     {"source_id": "bramble_hub", "operator_id": None, "cadence_hint": "monthly",
-     "seed_urls": ["https://www.bramblehub.com/", "https://www.bramblehub.com/partners"],
+     "seed_urls": ["https://www.bramblehub.co.uk/", "https://www.bramblehub.co.uk/partners"],
      "recipe": {"target_fact_types": ["supplier", "reseller_channel", "inbound_scope", "appointment_observation"],
                 "fetch": {"pagination": None, "follow": ["partner"]},
                 "extractor_prompt_id": "govbuy-extract", "extractor_prompt_version": "1",
                 "locator_strategy": "css-list", "tos_gate": "supplier_tos"}},
     {"source_id": "bloom", "operator_id": "bloom", "cadence_hint": "monthly",
-     "seed_urls": ["https://www.bloom.gov.uk/"],
+     "seed_urls": ["https://bloom.services/framework"],
      "recipe": {"target_fact_types": ["operator", "instrument", "lot", "supplier"], "fetch": {}, "extractor_prompt_id": "govbuy-extract", "extractor_prompt_version": "1", "locator_strategy": "css-section", "tos_gate": "operator_tos"}},
     {"source_id": "ypo", "operator_id": "ypo", "cadence_hint": "monthly",
      "seed_urls": ["https://www.ypo.co.uk/frameworks"],
      "recipe": {"target_fact_types": ["operator", "instrument", "lot"], "fetch": {}, "extractor_prompt_id": "govbuy-extract", "extractor_prompt_version": "1", "locator_strategy": "css-section", "tos_gate": "operator_tos"}},
     {"source_id": "nhs_sbs", "operator_id": "nhs_sbs", "cadence_hint": "monthly",
-     "seed_urls": ["https://www.sbs.nhs.uk/our-frameworks/"],
+     "seed_urls": ["https://www.sbs.nhs.uk/services/framework-agreements/"],
      "recipe": {"target_fact_types": ["operator", "instrument", "lot"], "fetch": {}, "extractor_prompt_id": "govbuy-extract", "extractor_prompt_version": "1", "locator_strategy": "css-section", "tos_gate": "operator_tos"}},
 ]
 
