@@ -227,20 +227,25 @@ def rebuild_public() -> dict:
     alias: dict[str, str] = {}
     for s, rws in by_rm.items():
         if len(rws) > 1:
-            canon = max(rws, key=lambda r: (child_counts.get(r["instrument_id"], 0),
-                                            sum(1 for v in r.values() if v not in (None, ""))))["instrument_id"]
-            for r in rws:
-                if r["instrument_id"] != canon:
-                    alias[r["instrument_id"]] = canon
+            # A row missing instrument_id entirely (extractor didn't supply one) can't be canon
+            # and can't be aliased-from — .get() everywhere here, never []: a standalone
+            # instrument fact with no id must not crash the whole rebuild.
+            canon = max(rws, key=lambda r: (child_counts.get(r.get("instrument_id"), 0),
+                                            sum(1 for v in r.values() if v not in (None, "")))).get("instrument_id")
+            if canon:
+                for r in rws:
+                    rid = r.get("instrument_id")
+                    if rid and rid != canon:
+                        alias[rid] = canon
     if alias:
-        instruments = [r for r in instruments if r["instrument_id"] not in alias]
+        instruments = [r for r in instruments if r.get("instrument_id") not in alias]
         for lst in (lots, mechanics, docs, obs):
             for row in lst:
                 if row.get("instrument_id") in alias:
                     row["instrument_id"] = alias[row["instrument_id"]]
 
     # Drop child facts orphaned by the GCA-artifact filter / dedup (no lot/mechanic without an instrument).
-    valid_ids = {r["instrument_id"] for r in instruments}
+    valid_ids = {r["instrument_id"] for r in instruments if r.get("instrument_id")}
     lots = [r for r in lots if r.get("instrument_id") in valid_ids]
     mechanics = [r for r in mechanics if r.get("instrument_id") in valid_ids]
     docs = [r for r in docs if r.get("instrument_id") in valid_ids]
