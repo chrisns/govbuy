@@ -452,6 +452,9 @@ def materialize_track_record() -> dict:
     delivery next to each catalogue listing — 'who actually wins money on this route', not just who
     is listed. One paid scan here; cheap join at query time."""
     full = config.pub("supplier_track_record")
+    # CREATE OR REPLACE can't change an existing table's CLUSTER BY spec, so drop first — cheap,
+    # since the table is rebuilt from scratch on every run anyway.
+    client().query(f"DROP TABLE IF EXISTS `{full}`").result()
     client().query(f"""
       CREATE TEMP FUNCTION NORM(s STRING) AS (
         TRIM(REGEXP_REPLACE(REGEXP_REPLACE(REGEXP_REPLACE(
@@ -482,6 +485,10 @@ def materialize_fusion() -> dict:
     sib = config.SIBLING_DATASET
     pub = config.PUBLIC_DATASET
     c = client()
+    # CREATE OR REPLACE can't change an existing table's CLUSTER BY spec, so drop the clustered
+    # tables first — cheap, since each is rebuilt from scratch on every run anyway.
+    for _t in ("tender_award", "supplier_calloff_total", "live_opportunity", "pipeline_notice"):
+        c.query(f"DROP TABLE IF EXISTS `{config.pub(_t)}`").result()
     c.query(f"""
       CREATE OR REPLACE TABLE `{config.pub('tender_award')}` CLUSTER BY cpv_division, supplier_crn AS
       SELECT ocid, source, buyer_name,
@@ -564,6 +571,8 @@ def materialize_observed() -> dict:
     (inferred, not official membership) — surfaced as such by the API. Also builds the canonical-CRN map
     that collapses split supplier identities (the GCA spine vs the Digital Marketplace directory)."""
     c = client()
+    # CREATE OR REPLACE can't change an existing table's CLUSTER BY spec — drop first.
+    c.query(f"DROP TABLE IF EXISTS `{config.pub('observed_membership')}`").result()
     c.query(f"""
       CREATE OR REPLACE TABLE `{config.pub('observed_membership')}` CLUSTER BY rm_reference AS
       SELECT rm_reference, supplier_crn, ANY_VALUE(supplier_name) AS supplier_name,
@@ -620,6 +629,8 @@ def materialize_company_profile(ndjson_path: str) -> dict:
             source_format="NEWLINE_DELIMITED_JSON", autodetect=True, write_disposition="WRITE_TRUNCATE")).result()
     # Derive: SME signal off the filed-accounts category; a readable sector off the primary SIC code.
     # SIC codes are normalised back to 5-char zero-padded strings (autodetect may have typed them INT).
+    # CREATE OR REPLACE can't change an existing table's CLUSTER BY spec — drop first.
+    c.query(f"DROP TABLE IF EXISTS `{config.pub('company_profile')}`").result()
     c.query(f"""
       CREATE OR REPLACE TABLE `{config.pub('company_profile')}` CLUSTER BY company_number AS
       WITH base AS (
