@@ -41,15 +41,19 @@ def refresh(operator: str | None = None, max_docs: int | None = None) -> int:
             for url in src["seed_urls"]:
                 if max_docs and n >= max_docs:
                     break
-                doc = fetch(url)
-                if not doc["text"]:
+                try:
+                    doc = fetch(url)
+                    if not doc["text"]:
+                        continue
+                    doc["document_id"] = document_id(url, doc["text"])
+                    doc["source_id"] = src["source_id"]
+                    doc["operator_id"] = src["operator_id"]
+                    doc["licence"] = src["recipe"].get("tos_gate", "unknown")
+                    doc["fetched_at"] = datetime.now(timezone.utc).isoformat()
+                    extracted = extractor.extract(doc, meter=meter, operator=src["operator_id"] or src["source_id"])
+                except Exception as e:  # noqa: BLE001 — one dead/flaky source must not sink the whole nightly run
+                    print(f"skip {src['source_id']} {url}: {e}")
                     continue
-                doc["document_id"] = document_id(url, doc["text"])
-                doc["source_id"] = src["source_id"]
-                doc["operator_id"] = src["operator_id"]
-                doc["licence"] = src["recipe"].get("tos_gate", "unknown")
-                doc["fetched_at"] = datetime.now(timezone.utc).isoformat()
-                extracted = extractor.extract(doc, meter=meter, operator=src["operator_id"] or src["source_id"])
                 documents.append({k: doc[k] for k in ("document_id", "source_id", "operator_id", "url", "content_type", "http_status", "robots_ok", "licence", "fetched_at", "text")})
                 facts.extend(extracted)
                 n += 1
@@ -93,6 +97,7 @@ def discover() -> int:
     client = Anthropic(api_key=config.ANTHROPIC_API_KEY)
     known = ", ".join(s["source_id"] for s in frontier.sources())
     msg = client.messages.create(model=config.MODEL_DISCOVER, max_tokens=2048,
+        output_config={"effort": "low"},  # low-frequency sweep; low effort keeps cost down
         messages=[{"role": "user", "content": f"Known govbuy frontier sources: {known}. Propose UK public-sector framework operators / standing instruments NOT in that list that run technology/AI agreements, as JSON [{{operator, why, seed_url}}]. These are PROPOSALS for human review, not facts."}])
     text = "".join(b.text for b in msg.content if getattr(b, "type", None) == "text")
     print("DISCOVERY PROPOSALS (review before adding to the frontier):\n" + text)

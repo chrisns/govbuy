@@ -35,14 +35,16 @@ ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
 
 # Tiered models (PRD §7.2): Haiku extract / Sonnet verify / Opus discover.
 MODEL_EXTRACT = os.environ.get("GOVBUY_MODEL_EXTRACT", "claude-haiku-4-5-20251001")
-MODEL_VERIFY = os.environ.get("GOVBUY_MODEL_VERIFY", "claude-sonnet-4-6")
-MODEL_DISCOVER = os.environ.get("GOVBUY_MODEL_DISCOVER", "claude-opus-4-8")
+MODEL_VERIFY = os.environ.get("GOVBUY_MODEL_VERIFY", "claude-sonnet-5")
+MODEL_DISCOVER = os.environ.get("GOVBUY_MODEL_DISCOVER", "claude-opus-5")
 
 # Approx per-MTok USD prices for cost reporting (override as pricing changes).
+# ponytail: Sonnet 5 has a $2/$10 intro rate through 2026-08-31; priced here at the standard
+# $3/$15 rate so the cost ceiling never under-counts spend once the intro rate lapses.
 PRICES_USD_PER_MTOK = {
     MODEL_EXTRACT: (1.0, 5.0),    # (input, output) — Haiku tier
-    MODEL_VERIFY: (3.0, 15.0),    # Sonnet tier
-    MODEL_DISCOVER: (15.0, 75.0), # Opus tier
+    MODEL_VERIFY: (3.0, 15.0),    # Sonnet 5
+    MODEL_DISCOVER: (5.0, 25.0),  # Opus 5
 }
 USD_GBP = float(os.environ.get("GOVBUY_USD_GBP", "0.79"))
 

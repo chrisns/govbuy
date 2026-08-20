@@ -31,6 +31,7 @@ class AnthropicExtractor:
         self.model = model or config.MODEL_EXTRACT
 
     def extract(self, doc: dict, meter=None, operator: str | None = None) -> list[dict]:
+        # ponytail: no output_config.effort here — Haiku 4.5 rejects the effort parameter (400).
         msg = self.client.messages.create(
             model=self.model, max_tokens=4096, system=SYSTEM,
             messages=[{"role": "user", "content": f"{INSTRUCTION}\n\nDOCUMENT URL: {doc['url']}\n\nDOCUMENT TEXT:\n{doc['text'][:120000]}"}],
