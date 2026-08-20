@@ -6,7 +6,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { config, tableRef } from "./lib/config.js";
-import { runQuery, dryRunBytes } from "./lib/bigquery.js";
+import { runQuery, runQueryWithStats } from "./lib/bigquery.js";
 import { ok, toolError, guard, BadInput } from "./lib/errors.js";
 import { membership, deep, freshness, withFreshness } from "./lib/format.js";
 import { validateReadOnlySql } from "./lib/sqlguard.js";
@@ -1186,10 +1186,13 @@ export function buildServer(): McpServer {
       if (a.sql) {
         const g = validateReadOnlySql(a.sql);
         if (!g.ok) return toolError(g.code, g.message);
-        const bytes = await dryRunBytes(g.sql);
-        if (bytes > Number(config.maxBytesBilled)) return toolError("CAP_EXCEEDED", `Query would scan ~${(bytes / 1024 / 1024).toFixed(0)} MB; cap is ${config.maxBytesHuman}.`, "Add filters or aggregate.");
-        const rows = await runQuery(g.sql);
-        return ok({ estimated_bytes: bytes, row_count: rows.length, rows: rows.slice(0, 1000).map(deep) });
+        // Enforced at runtime (maximumBytesBilled), not via a dry-run pre-check: dry-run
+        // estimates ignore cluster pruning, so a pre-check rejects cheap, well-pruned
+        // queries (e.g. filtered on instrument_id/operator_id/company_number) that the
+        // runtime would bill at a fraction of the cap. Over-cap queries are cancelled
+        // unbilled and map to CAP_EXCEEDED in guard() via fromException().
+        const { rows, totalBytesProcessed } = await runQueryWithStats(g.sql);
+        return ok({ bytes_processed: totalBytesProcessed, row_count: rows.length, rows: rows.slice(0, 1000).map(deep) });
       }
       if (a.cpv !== undefined || a.years !== undefined) {
         const xray = await capSpendXray({ cpv: a.cpv, years: a.years });
