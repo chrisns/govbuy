@@ -387,8 +387,9 @@ A go/no-go input, to be firmed in a sizing spike before sprint 1. Rough order of
   (supersedes [0005](adr/0005-portable-unscheduled-harness.md)).
 - **GCP (`govreposcrape`):** Cloud Run (API, europe-west1 for domain mapping), BigQuery (EU; two
   datasets + the authorized view), GCS (raw doc archive). **No Cloud Scheduler resource** — the
-  schedule is a nightly GitHub Actions cron (`.github/workflows/govbuy-refresh.yml`) authenticating
-  keyless via Workload Identity Federation.
+  schedule is a GitHub Actions cron (`.github/workflows/govbuy-refresh.yml`), authenticating keyless
+  via Workload Identity Federation: deterministic-only nightly (Mon-Sat), full run including the
+  LLM agentic sources weekly on Sunday.
 - **Custom domain:** `govbuy.run.cns.me/mcp` via Cloud Run domain mapping (wildcard already resolves).
 - **IaC:** Terraform provisions the two datasets, least-privilege IAM (API SA → `govbuy_public` only;
   the authorized view granted access on `uk_tenders_public`; the deploy-time IAM assertion), GCS, the

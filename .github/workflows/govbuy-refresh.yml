@@ -1,11 +1,21 @@
 name: govbuy nightly refresh
 # Runs the ingest harness on a schedule (ADR-0006, supersedes ADR-0005).
+# Nightly (Mon-Sat) is deterministic-only (GCA + G-Cloud, no LLM, no Anthropic spend). Sunday is
+# the full run, including the LLM-based agentic sources (bramble_hub/bloom/ypo/nhs_sbs) - "AI
+# things" run weekly, not nightly. workflow_dispatch defaults to deterministic-only; pass
+# full=true to exercise the full path on demand.
 # Needs repo vars GOVBUY_WIF_PROVIDER + GOVBUY_INGEST_SA, and repo secrets
 # GOVBUY_ANTHROPIC_API_KEY + GOVBUY_COMPANIES_HOUSE_API. See docs/adr/0006-scheduled-github-actions-refresh.md.
 on:
   schedule:
-    - cron: "0 3 * * *" # 03:00 UTC nightly
-  workflow_dispatch: {}
+    - cron: "0 3 * * 1-6" # 03:00 UTC, Mon-Sat: deterministic-only
+    - cron: "0 3 * * 0"   # 03:00 UTC, Sun: full run (LLM-based agentic sources)
+  workflow_dispatch:
+    inputs:
+      full:
+        description: "Run the full refresh (including LLM agentic sources) instead of deterministic-only"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -30,7 +40,14 @@ jobs:
       - run: pip install ./ingestion
 
       - name: govbuy-ingest refresh
-        run: govbuy-ingest refresh
+        run: |
+          if [ "${{ github.event.schedule }}" = "0 3 * * 0" ] || [ "${{ github.event.inputs.full }}" = "true" ]; then
+            echo "full refresh (LLM agentic sources included)"
+            govbuy-ingest refresh
+          else
+            echo "deterministic-only refresh (GCA + G-Cloud, no LLM spend)"
+            govbuy-ingest refresh --operator gca
+          fi
         env:
           GCP_PROJECT: govreposcrape
           ANTHROPIC_API_KEY: ${{ secrets.GOVBUY_ANTHROPIC_API_KEY }}

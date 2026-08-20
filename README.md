@@ -404,9 +404,9 @@ cd ingestion && python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
 .venv/bin/python -m govbuy_ingest gca-sync
 # load a fact bundle (the in-session / workflow path) — gate + project + CH-match + coverage:
 .venv/bin/python -m govbuy_ingest load-bundle bundle.json --match
-# production nightly (needs ANTHROPIC_API_KEY): walk the frontier and extract for real.
-# Runs on its own now, on a GitHub Actions cron — see ADR-0006. One-off setup:
-# scripts/setup_govbuy_refresh_wizard.sh
+# production refresh (needs ANTHROPIC_API_KEY): walk the frontier and extract for real.
+# Runs on its own now, on a GitHub Actions cron — deterministic-only nightly, full (LLM) weekly
+# on Sunday — see ADR-0006. One-off setup: scripts/setup_govbuy_refresh_wizard.sh
 .venv/bin/python -m govbuy_ingest refresh
 # dead-man's switch (wire to any channel):
 .venv/bin/python -m govbuy_ingest liveness || notify "govbuy stale"

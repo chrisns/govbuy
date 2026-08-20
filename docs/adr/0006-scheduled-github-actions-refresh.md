@@ -5,12 +5,23 @@
 **Supersedes:** [ADR-0005](0005-portable-unscheduled-harness.md).
 
 The harness stayed unscheduled from 2026-06-06. Freshness depended on an operator running it by
-hand, and in practice no one did — the index went stale. `govbuy-ingest refresh` now runs nightly
-(03:00 UTC) as a scheduled `.github/workflows/govbuy-refresh.yml` job, plus `workflow_dispatch` for
-an on-demand run. It authenticates to GCP with Workload Identity Federation (no long-lived key),
-impersonating the existing `govbuy-ingest` service account (`terraform/main.tf`). The job's last
-step runs `govbuy-ingest liveness`; a failed job is now itself the dead-man's-switch signal, so a
-missed or failing refresh shows up as a red GitHub Actions run.
+hand, and in practice no one did — the index went stale. `govbuy-ingest refresh` now runs on a
+scheduled `.github/workflows/govbuy-refresh.yml` job, plus `workflow_dispatch` for an on-demand
+run, at two cadences (03:00 UTC both times):
+
+- **Nightly, Mon-Sat — deterministic-only** (`refresh --operator gca`): the GCA + G-Cloud spine,
+  no LLM call, no Anthropic spend.
+- **Weekly, Sunday — full run** (`refresh`): also walks the LLM-based agentic frontier
+  (bramble_hub/bloom/ypo/nhs_sbs) via the Haiku extractor.
+
+The split keeps the free deterministic spine fresh every day while capping LLM usage to once a
+week, rather than paying the (small, ceiling-bounded) Anthropic cost on every run. `workflow_dispatch`
+defaults to deterministic-only; pass `full=true` to exercise the full path on demand.
+
+The job authenticates to GCP with Workload Identity Federation (no long-lived key), impersonating
+the existing `govbuy-ingest` service account (`terraform/main.tf`). The job's last step runs
+`govbuy-ingest liveness`; a failed job is itself the dead-man's-switch signal, so a missed or
+failing refresh shows up as a red GitHub Actions run.
 
 **Why:** ADR-0005 correctly named the cost/runtime uncertainty as the reason to defer scheduling.
 That uncertainty is resolved: the per-run cost ceiling (`GOVBUY_CEILING_PAUSE_GBP`) already bounds
