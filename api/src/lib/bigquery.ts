@@ -37,19 +37,31 @@ export async function runQuery<T = Record<string, unknown>>(
   return rows as T[];
 }
 
-// Estimate scanned bytes without running the query (pre-empt QUERY_TOO_LARGE).
-export async function dryRunBytes(sql: string, params?: Record<string, unknown>): Promise<number> {
-  const [job] = await bq.createQueryJob({
+// Like runQuery, but also reports bytes processed. The byte cap is enforced at
+// runtime via maximumBytesBilled rather than a dry-run pre-check: dry-run
+// estimates ignore cluster pruning, so a pre-check rejects cheap, well-pruned
+// queries (e.g. filtered on a cluster key) that the runtime would bill at a
+// fraction of the cap. Over-cap queries fail unbilled (BigQuery cancels before
+// charging) and fromException() maps the thrown error to CAP_EXCEEDED.
+export async function runQueryWithStats<T = Record<string, unknown>>(
+  sql: string,
+  opts: QueryOpts = {},
+): Promise<{ rows: T[]; totalBytesProcessed: number }> {
+  // Same bq.query() convenience call as runQuery — see the note above about NOT
+  // using autoPaginate:false / manual job polling, which caused an intermittent
+  // empty-results bug here before.
+  const [rows, job] = await bq.query({
     query: sql,
-    params,
+    params: opts.params,
+    types: opts.types,
     location: config.location,
     defaultDataset: { datasetId: config.publicDataset, projectId: config.project },
-    dryRun: true,
-    maximumBytesBilled: config.maxBytesBilled,
+    maximumBytesBilled: opts.maxBytes ?? config.maxBytesBilled,
+    maxResults: opts.maxResults ?? 1000,
+    jobTimeoutMs: Number(config.jobTimeoutMs),
   });
-  const bytes = (job.metadata?.statistics as { totalBytesProcessed?: string } | undefined)
-    ?.totalBytesProcessed;
-  return bytes ? Number(bytes) : 0;
+  const bytes = (job?.statistics as { totalBytesProcessed?: string } | undefined)?.totalBytesProcessed;
+  return { rows: rows as T[], totalBytesProcessed: bytes ? Number(bytes) : 0 };
 }
 
 // Coerce BigQuery wrapper types (BigQueryTimestamp/Date, Big.js NUMERIC) to plain JSON scalars.
