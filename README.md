@@ -404,7 +404,9 @@ cd ingestion && python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
 .venv/bin/python -m govbuy_ingest gca-sync
 # load a fact bundle (the in-session / workflow path) — gate + project + CH-match + coverage:
 .venv/bin/python -m govbuy_ingest load-bundle bundle.json --match
-# production nightly (needs ANTHROPIC_API_KEY): walk the frontier and extract for real
+# production nightly (needs ANTHROPIC_API_KEY): walk the frontier and extract for real.
+# Runs on its own now, on a GitHub Actions cron — see ADR-0006. One-off setup:
+# scripts/setup_govbuy_refresh_wizard.sh
 .venv/bin/python -m govbuy_ingest refresh
 # dead-man's switch (wire to any channel):
 .venv/bin/python -m govbuy_ingest liveness || notify "govbuy stale"
@@ -433,8 +435,10 @@ PROJECT=govreposcrape REGION=europe-west1 ./scripts/deploy_api.sh
 Creates the read-only `govbuy-api` service account (dataset-scoped to `govbuy_public` **only** —
 the script fails the deploy if the SA can read `govbuy_raw` or the sibling's datasets), deploys to
 Cloud Run, and prints the endpoint. The custom domain `govbuy.run.cns.me` is a one-off Cloud Run
-domain mapping. See also [`terraform/`](terraform) (datasets + least-privilege IAM + GCS —
-**no scheduler**; the harness is operator-hosted and reports its cost each run).
+domain mapping. See also [`terraform/`](terraform) (datasets + least-privilege IAM + GCS + the
+GitHub Actions Workload Identity Federation binding). The ingest harness runs nightly via
+`.github/workflows/govbuy-refresh.yml` and reports its cost each run
+([ADR-0006](docs/adr/0006-scheduled-github-actions-refresh.md)).
 
 ## License & data
 

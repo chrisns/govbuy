@@ -12,3 +12,8 @@ output "api_sa" {
   value       = google_service_account.api.email
   description = "Read-only API service account (govbuy_public only)"
 }
+
+output "github_wif_provider" {
+  value       = google_iam_workload_identity_pool_provider.github.name
+  description = "Set as the GOVBUY_WIF_PROVIDER repo variable in chrisns/govbuy"
+}

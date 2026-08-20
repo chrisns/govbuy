@@ -1,7 +1,8 @@
-# govbuy — infrastructure (ADR-0001/0002/0005). Datasets + least-privilege IAM + the sibling
-# authorized-view grant + GCS archive + Cloud Run (API). NO scheduler: the ingest harness is
-# operator-hosted (ADR-0005). Tables are created by `sql/schema.sql` (the contract), not duplicated
-# here. (For the working session the datasets were bootstrapped via `bq`; this is the reproducible IaC.)
+# govbuy — infrastructure (ADR-0001/0002/0005/0006). Datasets + least-privilege IAM + the sibling
+# authorized-view grant + GCS archive + Cloud Run (API). Scheduler: GitHub Actions cron, keyless
+# via Workload Identity Federation (ADR-0006, supersedes the operator-hosted ADR-0005). Tables are
+# created by `sql/schema.sql` (the contract), not duplicated here. (For the working session the
+# datasets were bootstrapped via `bq`; this is the reproducible IaC.)
 
 terraform {
   required_version = ">= 1.5"
@@ -75,6 +76,32 @@ resource "google_bigquery_dataset_iam_member" "ingest_reads_sibling" {
   member     = "serviceAccount:${google_service_account.ingest.email}"
 }
 
+# --- GitHub Actions -> govbuy-ingest SA, keyless (ADR-0006, supersedes ADR-0005) ---------------
+# Lets the chrisns/govbuy nightly workflow impersonate the ingest SA with no long-lived key.
+resource "google_iam_workload_identity_pool" "github" {
+  workload_identity_pool_id = "github-actions"
+  display_name              = "GitHub Actions"
+}
+
+resource "google_iam_workload_identity_pool_provider" "github" {
+  workload_identity_pool_id          = google_iam_workload_identity_pool.github.workload_identity_pool_id
+  workload_identity_pool_provider_id = "github"
+  display_name                       = "GitHub"
+  attribute_mapping = {
+    "google.subject"       = "assertion.sub"
+    "attribute.repository" = "assertion.repository"
+  }
+  # Only this repo's workflows may mint tokens.
+  attribute_condition = "assertion.repository == 'chrisns/govbuy'"
+  oidc { issuer_uri = "https://token.actions.githubusercontent.com" }
+}
+
+resource "google_service_account_iam_member" "github_impersonates_ingest" {
+  service_account_id = google_service_account.ingest.name
+  role                = "roles/iam.workloadIdentityUser"
+  member              = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/attribute.repository/chrisns/govbuy"
+}
+
 # --- GCS raw doc archive (replay + substring-gate source) -----------------------
 resource "google_storage_bucket" "raw_archive" {
   name                        = "${var.project}-govbuy-raw"
@@ -101,10 +128,22 @@ resource "google_cloud_run_v2_service" "api" {
     containers {
       image = var.api_image
       ports { container_port = 8080 }
-      env { name = "GCP_PROJECT"      value = var.project }
-      env { name = "BQ_PUBLIC_DATASET" value = var.public_dataset }
-      env { name = "BQ_LOCATION"      value = var.bq_location }
-      env { name = "MAX_BYTES_BILLED" value = var.max_bytes_billed }
+      env {
+        name  = "GCP_PROJECT"
+        value = var.project
+      }
+      env {
+        name  = "BQ_PUBLIC_DATASET"
+        value = var.public_dataset
+      }
+      env {
+        name  = "BQ_LOCATION"
+        value = var.bq_location
+      }
+      env {
+        name  = "MAX_BYTES_BILLED"
+        value = var.max_bytes_billed
+      }
       resources { limits = { cpu = "1", memory = "512Mi" } }
     }
   }

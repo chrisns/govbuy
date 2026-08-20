@@ -1,0 +1,42 @@
+name: govbuy nightly refresh
+# Runs the ingest harness on a schedule (ADR-0006, supersedes ADR-0005).
+# Needs repo vars GOVBUY_WIF_PROVIDER + GOVBUY_INGEST_SA, and repo secrets
+# GOVBUY_ANTHROPIC_API_KEY + GOVBUY_COMPANIES_HOUSE_API. See docs/adr/0006-scheduled-github-actions-refresh.md.
+on:
+  schedule:
+    - cron: "0 3 * * *" # 03:00 UTC nightly
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  id-token: write # required for keyless Workload Identity Federation auth to GCP
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GOVBUY_WIF_PROVIDER }}
+          service_account: ${{ vars.GOVBUY_INGEST_SA }}
+
+      - run: pip install ./ingestion
+
+      - name: govbuy-ingest refresh
+        run: govbuy-ingest refresh
+        env:
+          GCP_PROJECT: govreposcrape
+          ANTHROPIC_API_KEY: ${{ secrets.GOVBUY_ANTHROPIC_API_KEY }}
+          COMPANIES_HOUSE_API: ${{ secrets.GOVBUY_COMPANIES_HOUSE_API }}
+
+      - name: liveness check
+        run: govbuy-ingest liveness
+        env:
+          GCP_PROJECT: govreposcrape

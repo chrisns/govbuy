@@ -303,8 +303,9 @@ enrichment of G-Cloud descriptions from the detail pages.
 ## Next steps
 1. **Credentials** for the login-walled portals (start with hunterpcm.uk) → unlocks ~98 + the rest.
 2. Optional: headless-browser pass for the genuinely-JS `blocked` subset.
-3. Nightly: `govbuy-ingest refresh` (deterministic GCA+G-Cloud spine) + the saved agentic workflows;
-   no scheduler in infra — operator-hosted, cost-metered, with a liveness alert.
+3. Nightly: `govbuy-ingest refresh` (deterministic GCA+G-Cloud spine) runs on a GitHub Actions
+   cron ([ADR-0006](adr/0006-scheduled-github-actions-refresh.md)), cost-metered, with a liveness
+   check as the job's last step. The saved agentic workflows for other operators still run in-session.
 4. _(Optional, deeper)_ The query-time CRN reconciliation in `get_supplier` could be pushed into ingest
    (one canonical `supplier_id` per `company_number`), which would also de-duplicate the 5,181 split CRNs
    everywhere at once — but the read-time union already gives correct answers today.

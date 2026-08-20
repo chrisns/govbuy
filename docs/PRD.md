@@ -383,14 +383,17 @@ A go/no-go input, to be firmed in a sizing spike before sprint 1. Rough order of
 ## 12. Tech stack & deployment
 
 - **Languages:** **TypeScript** MCP API (Cloud Run); **Python** harness + extractors (Anthropic API,
-  tiered models). Mirrors the sibling + [ADR-0002](adr/0002-agentic-hybrid-ingestion.md)/[0005](adr/0005-portable-unscheduled-harness.md).
+  tiered models). Mirrors the sibling + [ADR-0002](adr/0002-agentic-hybrid-ingestion.md)/[0006](adr/0006-scheduled-github-actions-refresh.md)
+  (supersedes [0005](adr/0005-portable-unscheduled-harness.md)).
 - **GCP (`govreposcrape`):** Cloud Run (API, europe-west1 for domain mapping), BigQuery (EU; two
-  datasets + the authorized view), GCS (raw doc archive). **No Cloud Scheduler** (operator-hosted harness).
+  datasets + the authorized view), GCS (raw doc archive). **No Cloud Scheduler resource** — the
+  schedule is a nightly GitHub Actions cron (`.github/workflows/govbuy-refresh.yml`) authenticating
+  keyless via Workload Identity Federation.
 - **Custom domain:** `govbuy.run.cns.me/mcp` via Cloud Run domain mapping (wildcard already resolves).
 - **IaC:** Terraform provisions the two datasets, least-privilege IAM (API SA → `govbuy_public` only;
   the authorized view granted access on `uk_tenders_public`; the deploy-time IAM assertion), GCS, the
-  Cloud Run service — **not a scheduler**. Tables created by the harness `--bootstrap` from
-  [`sql/schema.sql`](../sql/schema.sql).
+  Cloud Run service, and the GitHub Actions WIF pool/provider/binding. Tables created by the harness
+  `--bootstrap` from [`sql/schema.sql`](../sql/schema.sql).
 - **Secrets:** Companies House + Anthropic keys via `.env` / Secret Manager (CH key already present).
 - **Distribution:** `claude mcp add --transport http govbuy https://govbuy.run.cns.me/mcp`; `.mcp.json`;
   health/OpenAPI endpoints; README.
