@@ -26,12 +26,16 @@ so the live site's "data as of" date and every baked-in figure track the corpus 
 that file was previously baked into the Docker image only at whatever moment an operator last ran
 `scripts/deploy_api.sh` by hand, same unscheduled-by-default problem as the ingest harness itself.
 The regenerated HTML is not committed back to git; the deployed image carries it, not the repo.
-The ingest SA got four new scoped grants for this (`roles/run.admin`, `roles/cloudbuild.builds.editor`,
-`roles/artifactregistry.writer` at project level, plus `roles/iam.serviceAccountUser` scoped to just
-the `govbuy-api` service account so it can deploy a service running *as* that SA) — not the broader
-project-IAM-admin / dataset-owner permissions `deploy_api.sh`'s one-time bootstrap preamble needs,
-since that bootstrap (creating the API SA, granting it its own BigQuery roles) is already done and
-isn't re-run by the automated path.
+The ingest SA got five new grants for this: `roles/run.admin`, `roles/cloudbuild.builds.editor`,
+`roles/artifactregistry.writer` and `roles/storage.admin` at project level, plus
+`roles/iam.serviceAccountUser` scoped to just the `govbuy-api` service account so it can deploy a
+service running *as* that SA. `storage.admin` was tried bucket-scoped first (on the Cloud-Run-managed
+source-staging bucket alone) but `gcloud run deploy --source`'s existence check calls
+`storage.buckets.list`, which is project-level-only — no per-bucket IAM binding satisfies it — so it
+widened to the whole project (run 32470581123). That's not the broader project-IAM-admin /
+dataset-owner permissions `deploy_api.sh`'s one-time bootstrap preamble needs, though: that bootstrap
+(creating the API SA, granting it its own BigQuery roles) is already done and isn't re-run by the
+automated path.
 
 The liveness check runs before the site steps, so ingest freshness and site-deploy health surface as
 independent failures: `govbuy-ingest liveness` is the ingest dead-man's-switch; a failed `rebuild
