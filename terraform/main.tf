@@ -136,6 +136,18 @@ resource "google_service_account_iam_member" "ingest_deploys_as_api" {
   member              = "serviceAccount:${google_service_account.ingest.email}"
 }
 
+data "google_project" "this" {
+  project_id = var.project
+}
+
+resource "google_service_account_iam_member" "ingest_acts_as_cloudbuild_default" {
+  # gcloud run deploy --source's build runs as the default compute SA; the deploying principal
+  # needs serviceAccountUser on it too, distinct from the runtime SA (govbuy-api) above (run 32472701319).
+  service_account_id = "projects/${var.project}/serviceAccounts/${data.google_project.this.number}-compute@developer.gserviceaccount.com"
+  role                = "roles/iam.serviceAccountUser"
+  member              = "serviceAccount:${google_service_account.ingest.email}"
+}
+
 # --- GCS raw doc archive (replay + substring-gate source) -----------------------
 resource "google_storage_bucket" "raw_archive" {
   name                        = "${var.project}-govbuy-raw"
