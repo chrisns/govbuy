@@ -121,6 +121,13 @@ resource "google_project_iam_member" "ingest_artifactregistry_writer" {
   role    = "roles/artifactregistry.writer"
   member  = "serviceAccount:${google_service_account.ingest.email}"
 }
+resource "google_storage_bucket_iam_member" "ingest_run_source_bucket" {
+  # gcloud run deploy --source stages the build context here; Cloud Run auto-creates this bucket on
+  # first source-deploy (already exists from the original manual deploy) but grants no access to it.
+  bucket = "run-sources-${var.project}-${var.region}"
+  role   = "roles/storage.admin"
+  member = "serviceAccount:${google_service_account.ingest.email}"
+}
 resource "google_service_account_iam_member" "ingest_deploys_as_api" {
   service_account_id = google_service_account.api.name
   role                = "roles/iam.serviceAccountUser"
