@@ -102,6 +102,31 @@ resource "google_service_account_iam_member" "github_impersonates_ingest" {
   member              = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/attribute.repository/chrisns/govbuy"
 }
 
+# --- site auto-deploy: ingest SA can rebuild+redeploy govbuy-mcp after a refresh (`gcloud run
+#     deploy --source`), running the service AS the existing read-only api SA. Scoped to exactly
+#     what a source deploy needs — no project-wide IAM/dataset-ACL admin (that's a one-time,
+#     already-done bootstrap in scripts/deploy_api.sh, not re-run by the automated path). ---
+resource "google_project_iam_member" "ingest_run_admin" {
+  project = var.project
+  role    = "roles/run.admin"
+  member  = "serviceAccount:${google_service_account.ingest.email}"
+}
+resource "google_project_iam_member" "ingest_cloudbuild_editor" {
+  project = var.project
+  role    = "roles/cloudbuild.builds.editor"
+  member  = "serviceAccount:${google_service_account.ingest.email}"
+}
+resource "google_project_iam_member" "ingest_artifactregistry_writer" {
+  project = var.project
+  role    = "roles/artifactregistry.writer"
+  member  = "serviceAccount:${google_service_account.ingest.email}"
+}
+resource "google_service_account_iam_member" "ingest_deploys_as_api" {
+  service_account_id = google_service_account.api.name
+  role                = "roles/iam.serviceAccountUser"
+  member              = "serviceAccount:${google_service_account.ingest.email}"
+}
+
 # --- GCS raw doc archive (replay + substring-gate source) -----------------------
 resource "google_storage_bucket" "raw_archive" {
   name                        = "${var.project}-govbuy-raw"

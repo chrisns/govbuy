@@ -19,9 +19,23 @@ week, rather than paying the (small, ceiling-bounded) Anthropic cost on every ru
 defaults to deterministic-only; pass `full=true` to exercise the full path on demand.
 
 The job authenticates to GCP with Workload Identity Federation (no long-lived key), impersonating
-the existing `govbuy-ingest` service account (`terraform/main.tf`). The job's last step runs
-`govbuy-ingest liveness`; a failed job is itself the dead-man's-switch signal, so a missed or
-failing refresh shows up as a red GitHub Actions run.
+the existing `govbuy-ingest` service account (`terraform/main.tf`). After a successful refresh, the
+same job also regenerates `api/public/index.html` (`api/scripts/build-site.mjs`, queries
+`govbuy_public` live) and redeploys `govbuy-mcp` on Cloud Run (`gcloud run deploy --source ./api`),
+so the live site's "data as of" date and every baked-in figure track the corpus automatically —
+that file was previously baked into the Docker image only at whatever moment an operator last ran
+`scripts/deploy_api.sh` by hand, same unscheduled-by-default problem as the ingest harness itself.
+The regenerated HTML is not committed back to git; the deployed image carries it, not the repo.
+The ingest SA got four new scoped grants for this (`roles/run.admin`, `roles/cloudbuild.builds.editor`,
+`roles/artifactregistry.writer` at project level, plus `roles/iam.serviceAccountUser` scoped to just
+the `govbuy-api` service account so it can deploy a service running *as* that SA) — not the broader
+project-IAM-admin / dataset-owner permissions `deploy_api.sh`'s one-time bootstrap preamble needs,
+since that bootstrap (creating the API SA, granting it its own BigQuery roles) is already done and
+isn't re-run by the automated path.
+
+The liveness check runs before the site steps, so ingest freshness and site-deploy health surface as
+independent failures: `govbuy-ingest liveness` is the ingest dead-man's-switch; a failed `rebuild
+site` or `deploy govbuy-mcp` step is itself the site's, since either failure leaves the job red.
 
 **Why:** ADR-0005 correctly named the cost/runtime uncertainty as the reason to defer scheduling.
 That uncertainty is resolved: the per-run cost ceiling (`GOVBUY_CEILING_PAUSE_GBP`) already bounds

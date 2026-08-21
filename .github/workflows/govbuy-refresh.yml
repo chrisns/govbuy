@@ -1,5 +1,6 @@
 name: govbuy nightly refresh
-# Runs the ingest harness on a schedule (ADR-0006, supersedes ADR-0005).
+# Runs the ingest harness on a schedule (ADR-0006, supersedes ADR-0005), then regenerates and
+# redeploys the govbuy.run.cns.me site so its "data as of" date and figures never go stale.
 # Nightly (Mon-Sat) is deterministic-only (GCA + G-Cloud, no LLM, no Anthropic spend). Sunday is
 # the full run, including the LLM-based agentic sources (bramble_hub/bloom/ypo/nhs_sbs) - "AI
 # things" run weekly, not nightly. workflow_dispatch defaults to deterministic-only; pass
@@ -24,13 +25,17 @@ permissions:
 jobs:
   refresh:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.11"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
 
       - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
         with:
@@ -57,3 +62,24 @@ jobs:
         run: govbuy-ingest liveness
         env:
           GCP_PROJECT: govreposcrape
+
+      # Site data: rebuild api/public/index.html from the just-refreshed govbuy_public, then
+      # redeploy so the live site's "data as of" date and every baked-in figure stay current.
+      # Not committed back to git - the deployed image, not the repo, carries the fresh HTML.
+      - name: rebuild site
+        working-directory: api
+        run: |
+          npm ci --no-audit --no-fund
+          node scripts/build-site.mjs
+        env:
+          GCP_PROJECT: govreposcrape
+
+      - name: deploy govbuy-mcp
+        run: |
+          gcloud run deploy govbuy-mcp --source ./api \
+            --project=govreposcrape --region=europe-west1 \
+            --service-account=govbuy-api@govreposcrape.iam.gserviceaccount.com \
+            --allow-unauthenticated --memory=512Mi --cpu=1 \
+            --min-instances=0 --max-instances=1 --session-affinity --timeout=60 \
+            --set-env-vars="GCP_PROJECT=govreposcrape,BQ_PUBLIC_DATASET=govbuy_public,BQ_LOCATION=EU,MAX_BYTES_BILLED=2147483648,COMPANIES_HOUSE_API=${{ secrets.GOVBUY_COMPANIES_HOUSE_API }}" \
+            --quiet
