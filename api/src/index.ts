@@ -31,6 +31,12 @@ app.get("/", (_req, res) => res.sendFile(path.join(PUBLIC_DIR, "index.html")));
 app.use(express.static(PUBLIC_DIR, { index: false, maxAge: "1h", fallthrough: true }));
 
 const transports: Record<string, StreamableHTTPServerTransport> = {};
+// No background notifications are sent. Reject the optional standalone SSE stream
+// before rate limiting so idle clients cannot keep Cloud Run requests billable.
+// Tool responses still use the Streamable HTTP POST transport.
+app.get("/mcp", (_req, res) => {
+  res.set("Allow", "POST, DELETE").status(405).end();
+});
 app.use("/mcp", mcpLimiter);
 
 app.post("/mcp", async (req, res) => {
@@ -62,7 +68,6 @@ const sessionRequest = async (req: express.Request, res: express.Response) => {
   if (!transport) { res.status(400).send("Invalid or missing session id"); return; }
   await transport.handleRequest(req, res);
 };
-app.get("/mcp", sessionRequest);
 app.delete("/mcp", sessionRequest);
 
 app.listen(config.port, () => {

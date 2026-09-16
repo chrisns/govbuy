@@ -70,6 +70,8 @@ jobs:
         working-directory: api
         run: |
           npm ci --no-audit --no-fund
+          npm run typecheck
+          npm test
           node scripts/build-site.mjs
         env:
           GCP_PROJECT: govreposcrape
