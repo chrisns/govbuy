@@ -23,11 +23,11 @@ supplier, reseller_channel (thin_prime/var/vendor), and inbound_scope (reseller-
 
 
 class AnthropicExtractor:
-    """Production extractor. Requires ANTHROPIC_API_KEY."""
+    """Production extractor. Needs Anthropic credentials (see llm.py)."""
 
     def __init__(self, model: str | None = None):
-        from anthropic import Anthropic  # imported lazily so the package loads without the dep
-        self.client = Anthropic(api_key=config.ANTHROPIC_API_KEY)
+        from .llm import make_client
+        self.client = make_client()
         self.model = model or config.MODEL_EXTRACT
 
     def extract(self, doc: dict, meter=None, operator: str | None = None) -> list[dict]:
