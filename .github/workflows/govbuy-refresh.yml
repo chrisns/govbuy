@@ -5,8 +5,11 @@ name: govbuy nightly refresh
 # the full run, including the LLM-based agentic sources (bramble_hub/bloom/ypo/nhs_sbs) - "AI
 # things" run weekly, not nightly. workflow_dispatch defaults to deterministic-only; pass
 # full=true to exercise the full path on demand.
-# Needs repo vars GOVBUY_WIF_PROVIDER + GOVBUY_INGEST_SA, and repo secrets
-# GOVBUY_ANTHROPIC_API_KEY + GOVBUY_COMPANIES_HOUSE_API. See docs/adr/0006-scheduled-github-actions-refresh.md.
+# Needs repo vars GOVBUY_WIF_PROVIDER + GOVBUY_INGEST_SA, and repo secret GOVBUY_COMPANIES_HOUSE_API.
+# Claude is reached with no stored key: the job's GitHub OIDC token is exchanged for a short-lived
+# Anthropic token (Workload Identity Federation), pinned to this repo + this workflow file on main and
+# to the govbuy workspace. See docs/adr/0006-scheduled-github-actions-refresh.md and
+# docs/adr/0007-anthropic-workload-identity-federation.md.
 on:
   schedule:
     - cron: "0 3 * * 1-6" # 03:00 UTC, Mon-Sat: deterministic-only
@@ -55,8 +58,13 @@ jobs:
           fi
         env:
           GCP_PROJECT: govreposcrape
-          ANTHROPIC_API_KEY: ${{ secrets.GOVBUY_ANTHROPIC_API_KEY }}
           COMPANIES_HOUSE_API: ${{ secrets.GOVBUY_COMPANIES_HOUSE_API }}
+          # Anthropic Workload Identity Federation (ids, not secrets). Do NOT set ANTHROPIC_API_KEY:
+          # it outranks federation. govbuy_ingest.llm fetches a fresh GitHub OIDC token per exchange.
+          ANTHROPIC_FEDERATION_RULE_ID: fdrl_01TwKj6LmHNgt8yyLSEufx9Y
+          ANTHROPIC_ORGANIZATION_ID: 5a1ccb40-fac3-4b39-a0ca-20e686975459
+          ANTHROPIC_SERVICE_ACCOUNT_ID: svac_01VjnvwgE5G8wW5vx8oBh8XF
+          ANTHROPIC_WORKSPACE_ID: wrkspc_01GCffBHZvV6oUN9tq8Vm9ep
 
       - name: liveness check
         run: govbuy-ingest liveness

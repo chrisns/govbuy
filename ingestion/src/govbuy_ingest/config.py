@@ -33,18 +33,20 @@ GCS_BUCKET = os.environ.get("GOVBUY_GCS_BUCKET")  # if set, archive to gs://BUCK
 COMPANIES_HOUSE_API = os.environ.get("COMPANIES_HOUSE_API")
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
 
-# Tiered models (PRD §7.2): Haiku extract / Sonnet verify / Opus discover.
-MODEL_EXTRACT = os.environ.get("GOVBUY_MODEL_EXTRACT", "claude-haiku-4-5-20251001")
-MODEL_VERIFY = os.environ.get("GOVBUY_MODEL_VERIFY", "claude-sonnet-5")
-MODEL_DISCOVER = os.environ.get("GOVBUY_MODEL_DISCOVER", "claude-opus-5")
+# Tiered models (PRD §7.2): Haiku extract / Sonnet verify / Opus discover. Newest generation (5.5).
+MODEL_EXTRACT = os.environ.get("GOVBUY_MODEL_EXTRACT", "claude-haiku-5-5")
+MODEL_VERIFY = os.environ.get("GOVBUY_MODEL_VERIFY", "claude-sonnet-5-5")
+MODEL_DISCOVER = os.environ.get("GOVBUY_MODEL_DISCOVER", "claude-opus-5-5")
+# The govbuy Anthropic workspace has per-model rate limits on exactly these three (everything else is
+# throttled to ~nothing), so changing a model here means raising its limit in the Claude Console first.
 
-# Approx per-MTok USD prices for cost reporting (override as pricing changes).
-# ponytail: Sonnet 5 has a $2/$10 intro rate through 2026-08-31; priced here at the standard
-# $3/$15 rate so the cost ceiling never under-counts spend once the intro rate lapses.
+# Per-MTok USD prices for cost reporting (override as pricing changes).
+# ponytail: Haiku 5.5 is $0.10/$0.50 up to 100k prompt tokens and $0.50/$2.50 above that; the extractor
+# sends at most ~30k tokens, but the upper tier is used so the cost ceiling never under-counts.
 PRICES_USD_PER_MTOK = {
-    MODEL_EXTRACT: (1.0, 5.0),    # (input, output) — Haiku tier
-    MODEL_VERIFY: (3.0, 15.0),    # Sonnet 5
-    MODEL_DISCOVER: (5.0, 25.0),  # Opus 5
+    MODEL_EXTRACT: (0.5, 2.5),    # (input, output) — Haiku tier
+    MODEL_VERIFY: (2.0, 10.0),    # Sonnet 5.5
+    MODEL_DISCOVER: (4.0, 20.0),  # Opus 5.5
 }
 USD_GBP = float(os.environ.get("GOVBUY_USD_GBP", "0.79"))
 

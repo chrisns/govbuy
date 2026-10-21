@@ -246,23 +246,20 @@ set_var GOVBUY_INGEST_SA "$GOVBUY_INGEST_SA_VALUE"
 
 # ── Stage 4: GitHub Actions repo secrets ──────────────────────────────────
 stage "GitHub Actions — repo secrets"
-say "The workflow needs these to run the extract/verify LLM steps and the"
-say "Companies House match. COMPANIES_HOUSE_API is already in your local .env;"
-say "Enter keeps it. ANTHROPIC_API_KEY isn't in .env yet — paste one from"
-say "https://console.anthropic.com/settings/keys (a key scoped for this harness,"
-say "not your personal one, if you keep them separate)."
+say "The workflow needs the Companies House match key. COMPANIES_HOUSE_API is"
+say "already in your local .env; Enter keeps it."
+say "There is deliberately NO Anthropic key here: the job reaches Claude with"
+say "Workload Identity Federation (docs/adr/0007-anthropic-workload-identity-federation.md)."
+say "For local runs only, put a key from the govbuy workspace in .env as ANTHROPIC_API_KEY."
 ask_secret COMPANIES_HOUSE_API "Companies House API key:"
-ask_secret ANTHROPIC_API_KEY "Anthropic API key for the ingest harness:"
 write_env COMPANIES_HOUSE_API "$COMPANIES_HOUSE_API"
-write_env ANTHROPIC_API_KEY "$ANTHROPIC_API_KEY"
 set_secret GOVBUY_COMPANIES_HOUSE_API "$COMPANIES_HOUSE_API"
-set_secret GOVBUY_ANTHROPIC_API_KEY "$ANTHROPIC_API_KEY"
 
 # ── Stage 5: dry-run the workflow ─────────────────────────────────────────
 stage "Dry run"
 say "Trigger the workflow once by hand and watch it end to end (auth → refresh"
 say "→ liveness) before trusting the 03:00 UTC cron."
-if confirm "Trigger govbuy-refresh.yml now? (this spends real Anthropic + CH API budget)"; then
+if confirm "Trigger govbuy-refresh.yml now? (this spends real Anthropic + CH API budget, capped by the govbuy workspace limits)"; then
   gh workflow run govbuy-refresh.yml --repo chrisns/govbuy
   sleep 5
   RUN_ID=$(gh run list --repo chrisns/govbuy --workflow=govbuy-refresh.yml --limit 1 --json databaseId -q '.[0].databaseId')

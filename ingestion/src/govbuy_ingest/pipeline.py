@@ -6,7 +6,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from . import config, bq, frontier
+from . import config, bq, frontier, llm
 from .fetch import fetch, document_id
 from .cost import CostMeter
 
@@ -31,8 +31,8 @@ def refresh(operator: str | None = None, max_docs: int | None = None) -> int:
         documents += gcb["documents"]; facts += gcb["facts"]
     # Agentic operators (no structured API) — need the LLM extractor.
     agentic = [] if operator == "gca" else [s for s in frontier.sources(operator) if s["source_id"] != "gca"]
-    if agentic and not config.ANTHROPIC_API_KEY:
-        print("agentic operators need ANTHROPIC_API_KEY — ingested the deterministic GCA slice only. "
+    if agentic and not llm.has_credentials():
+        print("agentic operators need Anthropic credentials (ANTHROPIC_API_KEY or the ANTHROPIC_FEDERATION_* variables) — ingested the deterministic GCA slice only. "
               "In-session, drive non-GCA operators via the workflow + `govbuy-ingest load-bundle`.")
     elif agentic:
         from .extract import AnthropicExtractor
@@ -88,13 +88,12 @@ def refresh(operator: str | None = None, max_docs: int | None = None) -> int:
 def discover() -> int:
     """Lower-frequency autonomous sweep (Opus tier): propose NEW operators/instruments/changed
     structures for the frontier. Outputs PROPOSALS to a review queue — never auto-committed
-    (PRD §7.2). Requires ANTHROPIC_API_KEY."""
-    if not config.ANTHROPIC_API_KEY:
-        print("discover needs ANTHROPIC_API_KEY (Opus tier). It proposes frontier additions for review; "
+    (PRD §7.2). Needs Anthropic credentials (see llm.py)."""
+    if not llm.has_credentials():
+        print("discover needs Anthropic credentials (Opus tier). It proposes frontier additions for review; "
               "in-session, frontier curation is done via the workflow layer.")
         return 1
-    from anthropic import Anthropic
-    client = Anthropic(api_key=config.ANTHROPIC_API_KEY)
+    client = llm.make_client()
     known = ", ".join(s["source_id"] for s in frontier.sources())
     msg = client.messages.create(model=config.MODEL_DISCOVER, max_tokens=2048,
         output_config={"effort": "low"},  # low-frequency sweep; low effort keeps cost down
