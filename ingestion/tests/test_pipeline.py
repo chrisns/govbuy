@@ -48,3 +48,47 @@ def test_refresh_skips_dead_source_and_keeps_processing(monkeypatch):
 if __name__ == "__main__":
     import pytest
     raise SystemExit(pytest.main([__file__, "-q"]))
+
+
+def _stub_bq(monkeypatch):
+    import govbuy_ingest.bq as bq
+    loaded = {}
+    monkeypatch.setattr(bq, "load_bundle", lambda bundle: loaded.update(bundle) or {"facts": len(bundle["facts"])})
+    for name in ("rebuild_public", "materialize_sibling", "materialize_track_record", "materialize_fusion", "materialize_observed"):
+        monkeypatch.setattr(bq, name, lambda: {})
+    monkeypatch.setattr(bq, "materialize_official_appointments", lambda rows: {})
+    return loaded
+
+
+def _bundle(tag):
+    return {"documents": [{"document_id": tag}], "facts": [{"fact_type": tag}]}
+
+
+def test_refresh_continues_when_one_deterministic_source_is_offline(monkeypatch):
+    import govbuy_ingest.gca_api as gca_api, govbuy_ingest.gca_suppliers as gca_sup, govbuy_ingest.gcloud_dm as dm
+    loaded = _stub_bq(monkeypatch)
+
+    def offline():
+        raise RuntimeError("302 to unavailable.service.gca.gov.uk")
+    monkeypatch.setattr(gca_api, "fetch_all", offline)
+    monkeypatch.setattr(gca_sup, "sync", lambda run_id: (_bundle("sup"), None))
+    monkeypatch.setattr(dm, "sync", lambda run_id: (_bundle("dm"), None))
+
+    pipeline.refresh(operator="gca")
+
+    assert [f["fact_type"] for f in loaded["facts"]] == ["sup", "dm"]
+
+
+def test_refresh_fails_when_every_deterministic_source_is_offline(monkeypatch):
+    import pytest
+    import govbuy_ingest.gca_api as gca_api, govbuy_ingest.gca_suppliers as gca_sup, govbuy_ingest.gcloud_dm as dm
+    _stub_bq(monkeypatch)
+
+    def offline(*_a, **_k):
+        raise RuntimeError("offline")
+    monkeypatch.setattr(gca_api, "fetch_all", offline)
+    monkeypatch.setattr(gca_sup, "sync", offline)
+    monkeypatch.setattr(dm, "sync", offline)
+
+    with pytest.raises(RuntimeError, match="every deterministic source failed"):
+        pipeline.refresh(operator="gca")

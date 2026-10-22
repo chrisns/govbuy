@@ -23,12 +23,24 @@ def refresh(operator: str | None = None, max_docs: int | None = None) -> int:
         from .gca_api import fetch_all, to_bundle
         from .gca_suppliers import sync as gca_sup_sync
         from .gcloud_dm import sync as gcloud_sync
-        gb = to_bundle(fetch_all(), run_id)
-        documents += gb["documents"]; facts += gb["facts"]
-        sb, _ = gca_sup_sync(run_id)
-        documents += sb["documents"]; facts += sb["facts"]
-        gcb, _ = gcloud_sync(run_id)
-        documents += gcb["documents"]; facts += gcb["facts"]
+        # One offline source (e.g. the GCA API redirecting to its "unavailable" page) must not stop
+        # the rebuild and redeploy: facts are append-only per run, so a skipped source keeps its last-good data.
+        sources = (
+            ("gca_frameworks", lambda: to_bundle(fetch_all(), run_id)),
+            ("gca_suppliers", lambda: gca_sup_sync(run_id)[0]),
+            ("gcloud_dm", lambda: gcloud_sync(run_id)[0]),
+        )
+        failed = []
+        for name, build in sources:
+            try:
+                b = build()
+            except Exception as e:  # noqa: BLE001
+                print(f"skip {name}: {e!r}")
+                failed.append(name)
+                continue
+            documents += b["documents"]; facts += b["facts"]
+        if len(failed) == len(sources):
+            raise RuntimeError("every deterministic source failed: " + ", ".join(failed))
     # Agentic operators (no structured API) — need the LLM extractor.
     agentic = [] if operator == "gca" else [s for s in frontier.sources(operator) if s["source_id"] != "gca"]
     if agentic and not llm.has_credentials():

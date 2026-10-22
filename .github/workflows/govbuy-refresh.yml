@@ -93,3 +93,22 @@ jobs:
             --min-instances=0 --max-instances=1 --session-affinity --timeout=60 \
             --set-env-vars="GCP_PROJECT=govreposcrape,BQ_PUBLIC_DATASET=govbuy_public,BQ_LOCATION=EU,MAX_BYTES_BILLED=2147483648,COMPANIES_HOUSE_API=${{ secrets.GOVBUY_COMPANIES_HOUSE_API }}" \
             --quiet
+
+      # `gcloud run deploy` does not clear a manual traffic pin (e.g. left by a rollback), so the new
+      # revision can be created and "deployed" while users keep getting an old one. Always route to latest.
+      - name: route traffic to the new revision
+        run: |
+          gcloud run services update-traffic govbuy-mcp \
+            --project=govreposcrape --region=europe-west1 --to-latest --quiet
+
+      - name: verify the live site serves today's data
+        run: |
+          today=$(date -u +%F)
+          for i in 1 2 3 4 5; do
+            live=$(curl -fsS https://govbuy.run.cns.me/ | grep -o -E 'data as of <span class="numeral">[0-9-]+' | head -1 | grep -o -E '[0-9]{4}-[0-9]{2}-[0-9]{2}' || true)
+            echo "live data-as-of: ${live:-none} (expected $today)"
+            [ "$live" = "$today" ] && exit 0
+            sleep 15
+          done
+          echo "::error::govbuy.run.cns.me does not serve $today data - the deploy is not live"
+          exit 1
