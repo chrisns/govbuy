@@ -998,6 +998,56 @@ async function capSpendXray(a: A) {
   return { cpv: a.cpv ?? "all", years: a.years ?? 3, channels: rows.map((r) => deep(r)) };
 }
 
+// Researcher: who wins the awards in a market. Counts awards (distinct ocid), not £, because the £ in
+// notices is mostly framework ceilings. Supplier names are normalised (case, "(UK)", Ltd/Limited/PLC)
+// so one firm filed under several CRNs or spellings counts once. KEEP IN SYNC with the same query in
+// scripts/build-site.mjs.
+const IT_CPV = ["72", "48", "30"];
+async function capConcentration(a: A) {
+  const cpvs = a.cpv ? String(a.cpv).split(",").map((c: string) => c.trim()).filter(Boolean) : IT_CPV;
+  const months = a.months ?? 12;
+  const sql = `
+    WITH raw AS (
+      SELECT ocid, buyer_name, channel, contract_end_date, award_amount, supplier_name,
+             TRIM(REGEXP_REPLACE(REGEXP_REPLACE(LOWER(supplier_name), r'\\b(uk|limited|ltd|plc|llp|inc|corporation|group|holdings)\\b|[^a-z0-9 ]', ' '), r'\\s+', ' ')) AS k
+      FROM ${tableRef("tender_award")}
+      WHERE award_date BETWEEN DATE_SUB(CURRENT_DATE(), INTERVAL @months MONTH) AND CURRENT_DATE()
+        AND cpv_division IN UNNEST(@cpvs) AND supplier_name IS NOT NULL),
+    a AS (
+      SELECT ocid, k, ANY_VALUE(buyer_name) AS buyer_name,
+             ARRAY_AGG(supplier_name ORDER BY supplier_name = UPPER(supplier_name), LENGTH(supplier_name) LIMIT 1)[OFFSET(0)] AS name,
+             MAX(IF(award_amount BETWEEN 0 AND 100000000, award_amount, NULL)) AS amt
+      FROM raw GROUP BY ocid, k),
+    o AS (
+      SELECT ocid, MAX(award_amount) AS amt, ANY_VALUE(channel) AS channel, MAX(contract_end_date) AS ends
+      FROM raw GROUP BY ocid),
+    tot AS (SELECT COUNT(*) AS awards FROM o),
+    per_sup AS (
+      SELECT k, ARRAY_AGG(name ORDER BY name = UPPER(name), LENGTH(name) LIMIT 1)[OFFSET(0)] AS supplier,
+             COUNT(*) AS awards, COUNT(DISTINCT buyer_name) AS buyers, ROUND(SUM(amt)) AS gross_gbp
+      FROM a GROUP BY k)
+    SELECT
+      (SELECT AS STRUCT tot.awards AS total_awards,
+         (SELECT COUNT(DISTINCT buyer_name) FROM raw) AS distinct_buyers,
+         (SELECT COUNT(*) FROM per_sup) AS distinct_suppliers,
+         ROUND(100 * (SELECT SUM(awards) FROM (SELECT awards FROM per_sup ORDER BY awards DESC LIMIT 5)) / tot.awards, 1) AS top5_award_share_pct,
+         ROUND(100 * (SELECT COUNTIF(channel = 'open') FROM o) / tot.awards, 1) AS open_tender_pct,
+         (SELECT CAST(APPROX_QUANTILES(IF(amt BETWEEN 0 AND 100000000, amt, NULL), 100 IGNORE NULLS)[OFFSET(50)] AS INT64) FROM o) AS median_award_gbp,
+         (SELECT COUNTIF(ends BETWEEN CURRENT_DATE() AND DATE_ADD(CURRENT_DATE(), INTERVAL 12 MONTH)) FROM o) AS ending_within_12m,
+         (SELECT COUNTIF(ends BETWEEN CURRENT_DATE() AND DATE_ADD(CURRENT_DATE(), INTERVAL 6 MONTH)) FROM o) AS ending_within_6m
+       FROM tot) AS summary,
+      ARRAY(SELECT AS STRUCT supplier, awards, ROUND(100 * awards / (SELECT awards FROM tot), 1) AS award_share_pct, buyers, gross_gbp
+            FROM per_sup ORDER BY awards DESC, k LIMIT @top) AS suppliers`;
+  const rows = await runQuery(sql, {
+    params: { months, cpvs, top: a.top ?? 10 },
+    types: { months: "INT64", cpvs: ["STRING"], top: "INT64" },
+  });
+  const r: any = deep(rows[0]);
+  if (!r?.summary?.total_awards) throw new BadInput("UNKNOWN", `No awards for CPV '${cpvs.join(",")}' in the last ${months} months.`);
+  const topShare = r.suppliers.slice(0, 5).reduce((n: number, s: any) => n + s.awards, 0);
+  return { cpv: cpvs, months, ...r, top5_one_in: Math.round(r.summary.total_awards / Math.max(topShare, 1)) };
+}
+
 async function capSchema() {
   return memo("schema", 600_000, async () => {
     const rows = await runQuery(`SELECT table_name, column_name, data_type FROM \`${config.project}.${config.publicDataset}.INFORMATION_SCHEMA.COLUMNS\` ORDER BY table_name, ordinal_position`);
@@ -1019,7 +1069,7 @@ export function buildServer(): McpServer {
         "• sell({product, cpv?, open_only?, depth?}) — a SELLER's go-to-market: frameworks/live DPS you can join, frameworks ranked by REAL call-off spend, live + forward opportunities, incumbents to displace (contract-end windows), and resellers who can carry you in. " +
         "• supplier({query, depth?}) — one firm by name or CRN: a TWO-LIMB PA2023 exclusion check (a LIVE Companies House status + the s.62 debarment register), the canonical-reconciled framework footprint, award-evidenced frameworks, and the CRN-matched delivery record. " +
         "• framework({id? , rm_reference?, depth?}) — one instrument: lots, lifecycle, appointed suppliers, observed-from-awards backfill, coverage, AND the PA2023-precise permitted award mechanics + statutory rules. " +
-        "• research({sql?, cpv?, schema?, status?}) — read-only BigQuery SQL (the escape hatch), or a spend x-ray for a CPV division (channel mix + concentration), or the schema / freshness+status. " +
+        "• research({sql?, cpv?, concentration?, schema?, status?}) — read-only BigQuery SQL (the escape hatch), or a spend x-ray for a CPV division (channel mix + concentration), or who wins the awards in a market (supplier concentration, default IT), or the schema / freshness+status. " +
         "• draft({need?|rm_reference?, route?}) — editable SCAFFOLDING to START the procurement: a real-dated timetable, a MEAT evaluation-matrix skeleton, a spec outline, the route-correct PA2023 compliance steps, and (for a direct award) a Schedule 5 / s.44 stub. Not the documents, not legal advice — complete every placeholder. " +
         "• watch({what, cpv?, keyword?}) — a re-runnable saved query for contract expiries or the forward pipeline (govbuy is request/response; diff successive runs to spot change). " +
         "depth:'full' on buy/sell/supplier/framework widens the payload (more candidates, full price distribution, deeper detail); default 'brief'. " +
@@ -1179,8 +1229,8 @@ export function buildServer(): McpServer {
     {
       title: "Research — SQL, spend x-ray, schema & status",
       description:
-        "RESEARCHER. The power-user surface over the whole corpus. `sql` runs a single read-only BigQuery SELECT/WITH over govbuy_public (byte-capped). `cpv` returns a spend & competition x-ray for that CPV division (channel mix: framework vs open vs direct, % of spend, distinct suppliers, top-5 concentration). `schema:true` returns tables/columns for writing SQL; `status:true` (or no args) returns per-source freshness/health + the harness cost & spend coverage. Absorbs query_sql / spend_xray / get_schema / get_status. Anti-patterns: SQL is SELECT-only and capped — aggregate/filter to stay under it; CPV is a 2-digit division, not a full code.",
-      inputSchema: { sql: z.string().optional(), cpv: z.string().optional(), years: z.number().int().min(1).max(10).optional(), schema: z.boolean().optional(), status: z.boolean().optional() },
+        "RESEARCHER. The power-user surface over the whole corpus. `sql` runs a single read-only BigQuery SELECT/WITH over govbuy_public (byte-capped). `cpv` returns a spend & competition x-ray for that CPV division (channel mix: framework vs open vs direct, % of spend, distinct suppliers, top-5 concentration). `concentration:true` returns who wins the awards (default IT, CPV 72/48/30; `months` window, `top` N): top suppliers by award count and share, top-5 'one in N', open-tender share, median award, and contracts ending within 6 and 12 months. `schema:true` returns tables/columns for writing SQL; `status:true` (or no args) returns per-source freshness/health + the harness cost & spend coverage. Absorbs query_sql / spend_xray / get_schema / get_status. Anti-patterns: SQL is SELECT-only and capped — aggregate/filter to stay under it; CPV is a 2-digit division, not a full code.",
+      inputSchema: { sql: z.string().optional(), cpv: z.string().optional(), years: z.number().int().min(1).max(10).optional(), concentration: z.boolean().optional(), months: z.number().int().min(1).max(60).optional(), top: z.number().int().min(1).max(50).optional(), schema: z.boolean().optional(), status: z.boolean().optional() },
     },
     guard(async (a) => {
       if (a.sql) {
@@ -1193,6 +1243,10 @@ export function buildServer(): McpServer {
         // unbilled and map to CAP_EXCEEDED in guard() via fromException().
         const { rows, totalBytesProcessed } = await runQueryWithStats(g.sql);
         return ok({ bytes_processed: totalBytesProcessed, row_count: rows.length, rows: rows.slice(0, 1000).map(deep) });
+      }
+      if (a.concentration) {
+        const c = await capConcentration(a);
+        return ok(withFreshness({ ...c, note: "Who wins the awards in this market, by award COUNT over the window (distinct notices). Count is used because notice £ is mostly framework ceilings. Supplier names are normalised so one firm under several CRNs counts once, so the shares are indicative. cpv takes a comma list and defaults to IT (72,48,30). top5_award_share_pct is the share of all awards won by the five busiest suppliers. " + NOT_ADVICE, display_guidance: "Lead with top5_award_share_pct and top5_one_in ('one in N awards'), then the supplier table by awards and award_share_pct. Show gross_gbp only as gross awarded value that may include framework ceilings. Close with open_tender_pct and the contracts ending within 12 and 6 months. " + DISPLAY_GUIDANCE }, await freshness()));
       }
       if (a.cpv !== undefined || a.years !== undefined) {
         const xray = await capSpendXray({ cpv: a.cpv, years: a.years });
