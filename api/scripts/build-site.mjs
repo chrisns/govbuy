@@ -42,7 +42,7 @@ const cpvLabel = (d) => CPV[d] ? `${CPV[d]} (CPV ${d})` : `CPV ${d}`;
 
 async function main() {
 console.error("querying govbuy_public …");
-const [head, channels, premium, frameworks, resellers, expiry, catalogue, observed, exclusion, supFootprint, membership, rmNames, buyerSectors] = await Promise.all([
+const [head, channels, premium, frameworks, resellers, expiry, catalogue, observed, exclusion, supFootprint, membership, rmNames, buyerSectors, concentration] = await Promise.all([
   q(`SELECT
        (SELECT COUNT(*) FROM govbuy_public.instrument) AS frameworks,
        (SELECT COUNTIF(lifecycle_status='live_for_call_off') FROM govbuy_public.instrument) AS live_frameworks,
@@ -117,6 +117,29 @@ const [head, channels, premium, frameworks, resellers, expiry, catalogue, observ
       FROM govbuy_public.buyer_classification bc JOIN govbuy_public.tender_award t USING(buyer_name)
       WHERE t.award_amount BETWEEN 0 AND 100000000 AND bc.buyer_type != 'Other / unclassified'
       GROUP BY 1 ORDER BY gbp DESC`),
+  // who wins the awards in IT (CPV 72/48/30), last 12 months — by award COUNT, names normalised.
+  // KEEP IN SYNC with capConcentration() in src/server.ts.
+  q(`WITH raw AS (
+        SELECT ocid, buyer_name, channel, contract_end_date, award_amount, supplier_name,
+          TRIM(REGEXP_REPLACE(REGEXP_REPLACE(LOWER(supplier_name), r'\\b(uk|limited|ltd|plc|llp|inc|corporation|group|holdings)\\b|[^a-z0-9 ]', ' '), r'\\s+', ' ')) AS k
+        FROM govbuy_public.tender_award
+        WHERE award_date BETWEEN DATE_SUB(CURRENT_DATE(), INTERVAL 12 MONTH) AND CURRENT_DATE()
+          AND cpv_division IN ('72','48','30') AND supplier_name IS NOT NULL),
+      a AS (SELECT ocid, k, ANY_VALUE(buyer_name) buyer_name,
+              ARRAY_AGG(supplier_name ORDER BY supplier_name = UPPER(supplier_name), LENGTH(supplier_name) LIMIT 1)[OFFSET(0)] name,
+              MAX(IF(award_amount BETWEEN 0 AND 100000000, award_amount, NULL)) amt FROM raw GROUP BY ocid, k),
+      o AS (SELECT ocid, MAX(award_amount) amt, ANY_VALUE(channel) channel, MAX(contract_end_date) ends FROM raw GROUP BY ocid),
+      tot AS (SELECT COUNT(*) awards FROM o),
+      per_sup AS (SELECT k, ARRAY_AGG(name ORDER BY name = UPPER(name), LENGTH(name) LIMIT 1)[OFFSET(0)] supplier,
+                    COUNT(*) awards, COUNT(DISTINCT buyer_name) buyers FROM a GROUP BY k)
+      SELECT (SELECT awards FROM tot) total_awards,
+        (SELECT COUNT(DISTINCT buyer_name) FROM raw) distinct_buyers,
+        (SELECT COUNT(*) FROM per_sup) distinct_suppliers,
+        (SELECT COUNTIF(channel='open') FROM o) open_awards,
+        (SELECT CAST(APPROX_QUANTILES(IF(amt BETWEEN 0 AND 100000000, amt, NULL), 100 IGNORE NULLS)[OFFSET(50)] AS INT64) FROM o) median_gbp,
+        (SELECT COUNTIF(ends BETWEEN CURRENT_DATE() AND DATE_ADD(CURRENT_DATE(), INTERVAL 12 MONTH)) FROM o) ending_12m,
+        (SELECT COUNTIF(ends BETWEEN CURRENT_DATE() AND DATE_ADD(CURRENT_DATE(), INTERVAL 6 MONTH)) FROM o) ending_6m,
+        ARRAY(SELECT AS STRUCT supplier, awards, buyers FROM per_sup ORDER BY awards DESC, k LIMIT 8) top`),
 ]);
 
 const num = (v) => Number(v);
@@ -135,6 +158,14 @@ const data = {
   membership: membership.map((r) => ({ name: r.name, rm: r.rm, n: num(r.n) })),
   rmName: Object.fromEntries(rmNames.filter((r) => r.stem && r.name).map((r) => [r.stem, r.name])),
   buyerSectors: buyerSectors.map((r) => ({ type: r.buyer_type, gbp: num(r.gbp), buyers: num(r.buyers) })),
+  concentration: (() => {
+    const c = concentration[0];
+    const top = (c.top || []).map((t) => ({ supplier: t.supplier, awards: num(t.awards), buyers: num(t.buyers) }));
+    const total = num(c.total_awards);
+    const top5 = top.slice(0, 5).reduce((n, t) => n + t.awards, 0);
+    return { total, buyers: num(c.distinct_buyers), suppliers: num(c.distinct_suppliers), openPct: 100 * num(c.open_awards) / total,
+      median: num(c.median_gbp), ending12: num(c.ending_12m), ending6: num(c.ending_6m), top, top5, top5Pct: 100 * top5 / total, oneIn: Math.round(total / Math.max(top5, 1)) };
+  })(),
 };
 
 // Resolve every framework link to one that actually loads (validated), else a gov.uk search fallback.
@@ -209,6 +240,15 @@ function renderHtml(d) {
       <div class="bar-label">${CHANNEL_LABEL[c.channel] || esc(c.channel)}</div>
       <div class="bar-track"><div class="bar-fill ${c.channel === "framework_call_off" || c.channel === "dps_call_off" ? "bf-pink" : "bf-ink"}" style="width:${(c.gbp / chMax * 100).toFixed(1)}%"></div></div>
       <div class="bar-val numeral">${gbp(c.gbp)} <span class="bar-sub">· ${cnum(c.awards)}</span></div>
+    </div>`).join("");
+
+  const cc = d.concentration;
+  const ccMax = Math.max(...cc.top.map((t) => t.awards));
+  const ccBars = cc.top.map((t, i) => `
+    <div class="bar-row">
+      <div class="bar-label">${esc(t.supplier)}</div>
+      <div class="bar-track"><div class="bar-fill ${i < 5 ? "bf-pink" : "bf-ink"}" style="width:${(t.awards / ccMax * 100).toFixed(1)}%"></div></div>
+      <div class="bar-val numeral">${cnum(t.awards)} <span class="bar-sub">· ${(100 * t.awards / cc.total).toFixed(1)}% · ${cnum(t.buyers)} buyers</span></div>
     </div>`).join("");
 
   const fwMax = Math.max(...d.frameworks.map((f) => f.gbp));
@@ -596,6 +636,11 @@ ${MASTHEAD}
       </tr></thead>
       <tbody>${fwRows}</tbody>
     </table>
+  </div>
+
+  <div class="dash">
+    <div class="dash-head"><span class="eyebrow">Who wins · IT, last 12 months</span><h3>The five busiest suppliers won one IT award in ${({ 6: "six", 7: "seven" })[cc.oneIn] || cc.oneIn}</h3><p class="dash-note">${cnum(cc.total)} IT awards (CPV 72, 48, 30) across ${cnum(cc.buyers)} buyers. The busiest five suppliers took ${cnum(cc.top5)} of them, or <b>${cc.top5Pct.toFixed(1)}%</b>. Only <b>${cc.openPct.toFixed(1)}%</b> went through open tender. The median award is ${gbp(cc.median)}. ${cnum(cc.ending12)} of these contracts end within 12 months and ${cnum(cc.ending6)} within six. Counted by award, not £, because notice £ is mostly framework ceilings. Supplier names are merged across spellings and CRNs, so shares are indicative. Ask <code>research({concentration:true})</code> for the same numbers.</p></div>
+    <div class="bars">${ccBars}</div>
   </div>
 
   <div class="dash-grid">

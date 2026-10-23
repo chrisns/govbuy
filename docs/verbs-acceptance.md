@@ -26,6 +26,12 @@ duplicated SQL is deduped; nothing is left dead.
 - **AC-V6 — `research({sql?, cpv?, schema?, status?})`** (RESEARCHER): runs read-only BigQuery SQL (the
   escape hatch), or a spend x-ray for a CPV division, or returns the schema / freshness+status. Absorbs
   query_sql, spend_xray, get_schema, get_status.
+  - **AC-V6a — `research({concentration:true, cpv?, months?, top?})`**: who wins the awards in a market
+    (default IT, CPV 72/48/30, last 12 months). Returns top suppliers by award count and share, top-5
+    "one in N", open-tender share, median award and contracts ending within 6 and 12 months. Counts
+    awards, not £, because notice £ is mostly framework ceilings. Supplier names are normalised so one
+    firm under several CRNs counts once. The same query feeds the site card in `build-site.mjs`.
+    *Verify:* the verb and the site card show the same `total_awards` and top-5 share for the same day.
 - **AC-V7 — depth knob.** `buy`/`sell`/`supplier`/`framework` take `depth ∈ {brief, full}` (default
   `brief`) controlling payload breadth, so the fat verbs stay cheap by default.
 
