@@ -35,5 +35,30 @@ def test_rebuild_public_tolerates_instrument_missing_id(monkeypatch):
     assert ids == {"inst-b", None}  # richer row (has 'type') wins canon; id-less row untouched
 
 
+def test_rebuild_public_tolerates_supplier_missing_id(monkeypatch):
+    """A 'supplier' fact with a display_name but no supplier_id is dropped from the public write by
+    _replace's data-quality gate, but stays in the in-memory list that builds the service->supplier
+    name map. That map read s['supplier_id'] unguarded and KeyError'd whenever any 'service' fact was
+    present. Regression for the nightly refresh (github.com/chrisns/govbuy/actions/runs/45402045180)."""
+    raw_rows = [
+        _fact("supplier", "ev1", {"supplier_id": "sup-a", "display_name": "Acme Ltd"}),
+        # No supplier_id: survives projection, gets dropped on write, must not crash the name map.
+        _fact("supplier", "ev2", {"display_name": "Ghost Supplier"}),
+        # A service fact triggers the sup_by_name path.
+        _fact("service", "ev3", {"service_id": "svc-1", "instrument_id": "g-cloud-14",
+                                 "supplier_name": "Acme Ltd", "name": "Widget Hosting"}),
+    ]
+    monkeypatch.setattr(bq, "query", lambda sql: raw_rows)
+    monkeypatch.setattr(bq, "_latest_ch_matches", lambda: {})
+    replaced = {}
+    monkeypatch.setattr(bq, "_replace", lambda table, rows: replaced.setdefault(table, rows) and 0)
+
+    counts = bq.rebuild_public()  # would have raised KeyError('supplier_id') before the fix
+
+    assert counts["service"] == 1
+    svc = replaced["service"][0]
+    assert svc["supplier_id"] == "sup-a"  # name map still resolves the id-bearing supplier
+
+
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__, "-q"]))

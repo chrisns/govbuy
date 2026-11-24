@@ -316,7 +316,7 @@ def rebuild_public() -> dict:
     services = project("service")
     if services:
         sup_by_name = {(s.get("display_name") or "").strip().lower(): s["supplier_id"]
-                       for s in suppliers if (s.get("display_name") or "").strip()}
+                       for s in suppliers if (s.get("display_name") or "").strip() and s.get("supplier_id")}
         for sv in services:
             if not sv.get("catalogue"):  # G-Cloud loads predate the catalogue tag
                 sv["catalogue"] = "g-cloud" if sv.get("instrument_id") == "g-cloud-14" else None
